@@ -4,11 +4,6 @@ import type { AppConfig } from "../config.js";
 import { logger } from "../logger.js";
 import type { SocialPoster } from "./poster.js";
 
-type StorageStateLike = {
-  cookies?: Array<Record<string, unknown>>;
-  origins?: Array<Record<string, unknown>>;
-};
-
 export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
   let browser: Browser | null = null;
   let context: BrowserContext | null = null;
@@ -77,13 +72,25 @@ export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
   };
 }
 
-async function maybeLoadCookies(p: string | undefined): Promise<StorageStateLike | undefined> {
+type NewContextOptions = NonNullable<Parameters<Browser["newContext"]>[0]>;
+type StorageStateArg = NewContextOptions["storageState"];
+type StorageStateObject = Exclude<StorageStateArg, string | undefined>;
+
+async function maybeLoadCookies(p: string | undefined): Promise<StorageStateObject | undefined> {
   if (!p) return undefined;
   try {
     const raw = await readFile(p, "utf8");
-    const json = JSON.parse(raw) as StorageStateLike | Array<Record<string, unknown>>;
-    if (Array.isArray(json)) return { cookies: json };
-    if (json && typeof json === "object") return json;
+    const json = JSON.parse(raw) as unknown;
+
+    // Allow either Playwright storageState object, or a raw cookies[] array.
+    if (Array.isArray(json)) {
+      // Cookie shape isn't validated here; Playwright will accept/ignore unknown fields.
+      return { cookies: json as any, origins: [] } as StorageStateObject;
+    }
+
+    if (json && typeof json === "object") {
+      return json as StorageStateObject;
+    }
     return undefined;
   } catch {
     return undefined;
