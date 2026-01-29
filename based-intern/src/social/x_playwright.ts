@@ -1,0 +1,146 @@
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { readFile } from "node:fs/promises";
+import type { AppConfig } from "../config.js";
+import { logger } from "../logger.js";
+import type { SocialPoster } from "./poster.js";
+
+type StorageStateLike = {
+  cookies?: Array<Record<string, unknown>>;
+  origins?: Array<Record<string, unknown>>;
+};
+
+export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
+  let browser: Browser | null = null;
+  let context: BrowserContext | null = null;
+  let page: Page | null = null;
+
+  async function ensurePage(): Promise<Page> {
+    if (page) return page;
+
+    browser = await chromium.launch({ headless: cfg.HEADLESS });
+
+    const storageState = await maybeLoadCookies(cfg.X_COOKIES_PATH);
+    context = await browser.newContext(storageState ? { storageState } : undefined);
+    page = await context.newPage();
+    page.setDefaultTimeout(30_000);
+    return page;
+  }
+
+  async function reset(): Promise<void> {
+    try {
+      await context?.close();
+    } catch {
+      // ignore
+    }
+    try {
+      await browser?.close();
+    } catch {
+      // ignore
+    }
+    browser = null;
+    context = null;
+    page = null;
+  }
+
+  async function postOnce(text: string): Promise<void> {
+    const p = await ensurePage();
+    await p.goto("https://x.com/home", { waitUntil: "domcontentloaded" });
+
+    const loggedIn = await isLoggedIn(p);
+    if (!loggedIn) {
+      await loginIfPossible(p, cfg);
+    }
+
+    await composeAndPost(p, text);
+  }
+
+  return {
+    async post(text: string) {
+      const maxAttempts = 3;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          await postOnce(text);
+          logger.info("posted to X (playwright)", { attempt });
+          return;
+        } catch (err) {
+          logger.warn("failed to post to X (playwright)", {
+            attempt,
+            error: err instanceof Error ? err.message : String(err)
+          });
+          await reset();
+          await sleep(backoffMs(attempt));
+        }
+      }
+      // Give up for this tick; keep agent running.
+      logger.error("giving up posting to X for this tick", {});
+    }
+  };
+}
+
+async function maybeLoadCookies(p: string | undefined): Promise<StorageStateLike | undefined> {
+  if (!p) return undefined;
+  try {
+    const raw = await readFile(p, "utf8");
+    const json = JSON.parse(raw) as StorageStateLike | Array<Record<string, unknown>>;
+    if (Array.isArray(json)) return { cookies: json };
+    if (json && typeof json === "object") return json;
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function isLoggedIn(page: Page): Promise<boolean> {
+  // Heuristic: presence of compose box or “Post” button.
+  const compose = page.locator('[data-testid="SideNav_NewTweet_Button"], [data-testid="tweetTextarea_0"]');
+  return (await compose.count()) > 0;
+}
+
+async function loginIfPossible(page: Page, cfg: AppConfig): Promise<void> {
+  if (!cfg.X_USERNAME || !cfg.X_PASSWORD) {
+    throw new Error("not logged in and X_USERNAME/X_PASSWORD not set (try cookies via X_COOKIES_PATH)");
+  }
+
+  logger.info("attempting X login (username/password)", {});
+  await page.goto("https://x.com/i/flow/login", { waitUntil: "domcontentloaded" });
+
+  // X login flow changes often; keep selectors flexible.
+  await page.locator('input[name="text"], input[autocomplete="username"]').first().fill(cfg.X_USERNAME);
+  await page.keyboard.press("Enter");
+
+  // password step
+  await page.locator('input[name="password"], input[autocomplete="current-password"]').first().fill(cfg.X_PASSWORD);
+  await page.keyboard.press("Enter");
+
+  // allow redirect
+  await page.waitForTimeout(5_000);
+}
+
+async function composeAndPost(page: Page, text: string): Promise<void> {
+  // Open composer
+  const newTweet = page.locator('[data-testid="SideNav_NewTweet_Button"]');
+  if ((await newTweet.count()) > 0) {
+    await newTweet.first().click();
+  }
+
+  const textbox = page.locator('[data-testid="tweetTextarea_0"], div[role="textbox"]').first();
+  await textbox.click();
+  await textbox.fill(text);
+
+  const postBtn = page.locator('[data-testid="tweetButtonInline"], [data-testid="tweetButton"]').first();
+  await postBtn.click();
+
+  // brief settle; if it fails, Playwright will throw earlier on click.
+  await page.waitForTimeout(1_000);
+}
+
+function backoffMs(attempt: number): number {
+  if (attempt <= 1) return 1_000;
+  if (attempt === 2) return 3_000;
+  return 7_000;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+

@@ -1,0 +1,17 @@
+node_modules/
+dist/
+deployments/*.json
+.env
+
+# Playwright
+playwright-report/
+test-results/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Runtime state
+data/state.json
+
