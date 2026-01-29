@@ -32,9 +32,11 @@ export function buildReceiptMessage(input: ReceiptInput): string {
   const eth = formatTrim(formatEther(input.ethWei), 6);
   const intern = formatTrim(formatUnits(input.internAmount, input.internDecimals), 2);
   const note = pickMoodLine(input.action);
+  const ts = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 
   return [
     "BASED INTERN REPORT",
+    `ts: ${ts}`,
     `action: ${input.action}`,
     `wallet: ${input.wallet}`,
     `eth: ${eth}`,

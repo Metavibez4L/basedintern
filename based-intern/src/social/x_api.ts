@@ -76,13 +76,31 @@ export function createXPosterApi(cfg: AppConfig): SocialPoster {
         }
 
         if (!res.ok) {
-          // Non-retriable most of the time (401/403/400 etc).
-          throw new Error(`X API post failed (status=${res.status}) ${summarizeXError(raw)}`);
+          // Non-retriable most of the time (401/403/400 etc). Log and keep the agent alive.
+          const summary = summarizeXError(raw);
+          if (isDuplicateTweet(summary) || isDuplicateTweet(raw)) {
+            logger.info("X API rejected duplicate tweet; skipping", { status: res.status, attempt, detail: summary });
+            return;
+          }
+          if (res.status === 401 || res.status === 403) {
+            logger.error("X API auth/permission error (check app permissions + regenerate user tokens)", {
+              status: res.status,
+              attempt,
+              detail: summary,
+              fix:
+                "Ensure your X app has Read+Write permissions, then regenerate X_ACCESS_TOKEN/X_ACCESS_SECRET for the posting account. " +
+                "Also confirm you are using OAuth 1.0a user tokens (not the bearer token)."
+            });
+            return;
+          }
+          logger.error("X API post failed", { status: res.status, attempt, detail: summary });
+          return;
         }
 
         const tweetId = (parsed as any)?.data?.id;
         if (typeof tweetId !== "string" || !tweetId.trim()) {
-          throw new Error(`X API post succeeded but no tweet id found (status=${res.status}) ${summarizeXError(raw)}`);
+          logger.error("X API response missing tweet id", { status: res.status, attempt, detail: summarizeXError(raw) });
+          return;
         }
 
         // Works without knowing the handle.
@@ -182,6 +200,11 @@ function summarizeXError(raw: string): string {
     parsed?.errors?.[0]?.title;
   if (typeof msg === "string" && msg.trim()) return msg.trim().slice(0, 300);
   return raw.trim().slice(0, 300);
+}
+
+function isDuplicateTweet(msg: string): boolean {
+  const m = msg.toLowerCase();
+  return m.includes("duplicate") || m.includes("status is a duplicate");
 }
 
 function backoffMs(attempt: number): number {
