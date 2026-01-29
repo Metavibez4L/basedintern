@@ -11,6 +11,15 @@ type XPostResult = {
   tweetUrl: string;
 };
 
+class XAutomationBlockedError extends Error {
+  readonly toastText?: string;
+  constructor(message: string, toastText?: string) {
+    super(message);
+    this.name = "XAutomationBlockedError";
+    this.toastText = toastText;
+  }
+}
+
 export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
   let browser: Browser | null = null;
   let context: BrowserContext | null = null;
@@ -82,6 +91,20 @@ export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
           logger.info("posted to X (playwright)", { attempt, tweetUrl: result.tweetUrl, tweetId: result.tweetId });
           return;
         } catch (err) {
+          if (err instanceof XAutomationBlockedError) {
+            // Datacenter/automation block. Retrying immediately usually makes it worse.
+            const debug = page ? await collectFailureDebug(page) : undefined;
+            logger.error("X blocked automated posting (playwright). This is usually an anti-bot/IP reputation issue (common on Railway).", {
+              attempt,
+              error: err.message,
+              toastText: err.toastText,
+              debug,
+              fix:
+                "Run Playwright posting from a residential IP/your own machine, or switch to SOCIAL_MODE=x_api with paid API access. " +
+                "On Railway specifically, consider SOCIAL_MODE=none for now."
+            });
+            return;
+          }
           const debug = page ? await collectFailureDebug(page) : undefined;
           logger.warn("failed to post to X (playwright)", {
             attempt,
@@ -255,6 +278,9 @@ async function composeAndPost(page: Page, text: string): Promise<XPostResult> {
   const tweetId = extractTweetId(json);
   if (!tweetId) {
     const toastText = await readToastText(page);
+    if (toastText && isAutomationBlockToast(toastText)) {
+      throw new XAutomationBlockedError("X rejected the post as automated activity", toastText);
+    }
     throw new Error(`post click did not yield tweet id (status=${res.status()})${toastText ? ` toast=${toastText}` : ""}`);
   }
 
@@ -377,5 +403,12 @@ async function readToastText(page: Page): Promise<string | undefined> {
     // ignore
   }
   return undefined;
+}
+
+function isAutomationBlockToast(toastText: string): boolean {
+  const t = toastText.toLowerCase();
+  // Current wording seen in logs:
+  // "This request looks like it might be automated. To protect our users from spam..."
+  return t.includes("looks like it might be automated") || t.includes("protect our users from spam");
 }
 
