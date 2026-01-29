@@ -92,6 +92,24 @@ const envSchema = envSchemaBase.superRefine((cfg, ctx) => {
       }
     }
   }
+
+  // Social mode requirements
+  if (cfg.SOCIAL_MODE === "x_api") {
+    const req = (key: "X_API_KEY" | "X_API_SECRET" | "X_ACCESS_TOKEN" | "X_ACCESS_SECRET") => {
+      const v = cfg[key];
+      if (!v || !v.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message: `${key} is required when SOCIAL_MODE=x_api`
+        });
+      }
+    };
+    req("X_API_KEY");
+    req("X_API_SECRET");
+    req("X_ACCESS_TOKEN");
+    req("X_ACCESS_SECRET");
+  }
 });
 
 export type AppConfig = z.infer<typeof envSchema>;
