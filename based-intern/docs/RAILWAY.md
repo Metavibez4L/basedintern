@@ -61,7 +61,7 @@ On startup, the app will write `X_COOKIES_PATH` if the file doesn’t exist.
 
 The Dockerfile runs:
 - `npm run build`
-- `npm run start` (which runs `node dist/index.js`)
+- `npm run start` (which runs `node dist/src/index.js`)
 
 ## Notes
 - **Trading remains disabled** unless:
