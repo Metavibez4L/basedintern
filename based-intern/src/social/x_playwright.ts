@@ -12,7 +12,7 @@ export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
   async function ensurePage(): Promise<Page> {
     if (page) return page;
 
-    browser = await chromium.launch({ headless: cfg.HEADLESS });
+    browser = await launchBrowser(cfg.HEADLESS);
 
     const storageState = await maybeLoadCookies(cfg.X_COOKIES_PATH);
     context = await browser.newContext(storageState ? { storageState } : undefined);
@@ -41,7 +41,8 @@ export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
     const p = await ensurePage();
     await p.goto("https://x.com/home", { waitUntil: "domcontentloaded" });
 
-    const loggedIn = await isLoggedIn(p);
+    // Prefer cookies-based auth for stability (headless-friendly).
+    const loggedIn = (await hasAuthCookies(p)) || (await hasComposeUi(p));
     if (!loggedIn) {
       await loginIfPossible(p, cfg);
     }
@@ -70,6 +71,19 @@ export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
       logger.error("giving up posting to X for this tick", {});
     }
   };
+}
+
+async function launchBrowser(headless: boolean): Promise<Browser> {
+  const args = ["--disable-blink-features=AutomationControlled"];
+  // Prefer installed browsers first (less likely to trigger auth blocks).
+  for (const channel of ["chrome", "msedge"] as const) {
+    try {
+      return await chromium.launch({ headless, channel, args });
+    } catch {
+      // ignore
+    }
+  }
+  return await chromium.launch({ headless, args });
 }
 
 type NewContextOptions = NonNullable<Parameters<Browser["newContext"]>[0]>;
@@ -101,6 +115,21 @@ async function isLoggedIn(page: Page): Promise<boolean> {
   // Heuristic: presence of compose box or “Post” button.
   const compose = page.locator('[data-testid="SideNav_NewTweet_Button"], [data-testid="tweetTextarea_0"]');
   return (await compose.count()) > 0;
+}
+
+async function hasComposeUi(page: Page): Promise<boolean> {
+  const compose = page.locator('[data-testid="SideNav_NewTweet_Button"], [data-testid="tweetTextarea_0"]');
+  return (await compose.count()) > 0;
+}
+
+async function hasAuthCookies(page: Page): Promise<boolean> {
+  try {
+    const cookies = await page.context().cookies();
+    const names = new Set(cookies.map((c) => c.name));
+    return names.has("auth_token") || names.has("ct0");
+  } catch {
+    return false;
+  }
 }
 
 async function loginIfPossible(page: Page, cfg: AppConfig): Promise<void> {
