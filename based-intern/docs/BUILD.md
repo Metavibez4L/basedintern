@@ -245,9 +245,19 @@ SOCIAL_MODE=playwright npm run dev
 - Set `X_USERNAME` and `X_PASSWORD` in `.env`
 
 **Creating cookies file**:
+Recommended (most reliable): generate Playwright `storageState` using the helper script.
+
+```bash
+# opens a real browser window; log in manually; press ENTER in terminal
+npm run x:cookies
+```
+
+This writes the file at `X_COOKIES_PATH` (default `./x_cookies.json`).
+
+Alternative (manual export):
 1. Log into X.com in a browser
 2. Export cookies (use browser extension or dev tools)
-3. Convert to Playwright format (array of cookie objects)
+3. Convert to Playwright format (array of cookie objects) or a Playwright `storageState` object
 4. Save as `x_cookies.json`
 5. Set `X_COOKIES_PATH=./x_cookies.json` in `.env`
 

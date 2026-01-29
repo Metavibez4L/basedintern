@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "build:contracts": "hardhat compile",
     "deploy:token": "hardhat run scripts/deploy-token.ts",
-    "dev": "tsx src/index.ts"
+    "dev": "tsx src/index.ts",
+    "x:cookies": "tsx scripts/save-x-cookies.ts"
   },
   "dependencies": {
     "@langchain/core": "^0.3.0",

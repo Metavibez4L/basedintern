@@ -111,13 +111,67 @@ async function loginIfPossible(page: Page, cfg: AppConfig): Promise<void> {
   logger.info("attempting X login (username/password)", {});
   await page.goto("https://x.com/i/flow/login", { waitUntil: "domcontentloaded" });
 
-  // X login flow changes often; keep selectors flexible.
-  await page.locator('input[name="text"], input[autocomplete="username"]').first().fill(cfg.X_USERNAME);
-  await page.keyboard.press("Enter");
+  // X login flow changes often; keep selectors flexible and prefer flow testids.
+  const usernameInput = page
+    .locator(
+      [
+        'input[data-testid="ocfEnterTextTextInput"]',
+        'input[name="text"]',
+        'input[autocomplete="username"]',
+        'input[autocomplete="email"]'
+      ].join(", ")
+    )
+    .first();
+
+  await usernameInput.waitFor({ timeout: 30_000 });
+  await usernameInput.fill(cfg.X_USERNAME);
+
+  const nextBtn = page
+    .locator(
+      [
+        '[data-testid="ocfEnterTextNextButton"]',
+        '[data-testid="LoginForm_Login_Button"]',
+        'div[role="button"]:has-text("Next")'
+      ].join(", ")
+    )
+    .first();
+
+  if ((await nextBtn.count()) > 0) await nextBtn.click();
+  else await page.keyboard.press("Enter");
+
+  // Some accounts see an extra challenge step (email/phone). Best-effort: proceed if it appears.
+  for (let i = 0; i < 2; i++) {
+    const maybeChallenge = page.locator('input[data-testid="ocfEnterTextTextInput"]').first();
+    if ((await maybeChallenge.count()) > 0) {
+      await maybeChallenge.fill(cfg.X_USERNAME);
+      const challengeNext = page.locator('[data-testid="ocfEnterTextNextButton"]').first();
+      if ((await challengeNext.count()) > 0) await challengeNext.click();
+      else await page.keyboard.press("Enter");
+    }
+
+    const pw = page
+      .locator('input[data-testid="ocfEnterPasswordTextInput"], input[name="password"], input[autocomplete="current-password"]')
+      .first();
+    if ((await pw.count()) > 0) break;
+    await page.waitForTimeout(1_000);
+  }
 
   // password step
-  await page.locator('input[name="password"], input[autocomplete="current-password"]').first().fill(cfg.X_PASSWORD);
-  await page.keyboard.press("Enter");
+  const passwordInput = page
+    .locator('input[data-testid="ocfEnterPasswordTextInput"], input[name="password"], input[autocomplete="current-password"]')
+    .first();
+  await passwordInput.waitFor({ timeout: 30_000 });
+  await passwordInput.fill(cfg.X_PASSWORD);
+
+  const loginBtn = page
+    .locator(
+      ['[data-testid="ocfEnterPasswordNextButton"]', 'div[role="button"]:has-text("Log in")', 'div[role="button"]:has-text("Login")'].join(
+        ", "
+      )
+    )
+    .first();
+  if ((await loginBtn.count()) > 0) await loginBtn.click();
+  else await page.keyboard.press("Enter");
 
   // allow redirect
   await page.waitForTimeout(5_000);
