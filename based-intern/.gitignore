@@ -5,6 +5,7 @@ cache/
 typechain-types/
 deployments/*.json
 .env
+x_cookies.json
 
 # Playwright
 playwright-report/

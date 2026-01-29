@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { type Address } from "viem";
 import { loadConfig, deploymentFileForChain } from "./config.js";
@@ -30,6 +31,7 @@ async function resolveTokenAddress(cfg: ReturnType<typeof loadConfig>): Promise<
 
 async function tick(): Promise<void> {
   const cfg = loadConfig();
+  await bootstrapCookiesIfConfigured(cfg);
   const clients = createChainClients(cfg);
   const poster = createPoster(cfg);
 
@@ -128,6 +130,25 @@ async function tick(): Promise<void> {
   if (decision.blockedReason) {
     logger.info("guardrails blocked trade", { blockedReason: decision.blockedReason });
   }
+}
+
+async function bootstrapCookiesIfConfigured(cfg: ReturnType<typeof loadConfig>): Promise<void> {
+  if (!cfg.X_COOKIES_B64 || !cfg.X_COOKIES_PATH) return;
+
+  const outPath = path.resolve(process.cwd(), cfg.X_COOKIES_PATH);
+  try {
+    // If file already exists, do nothing.
+    await readFile(outPath, "utf8");
+    return;
+  } catch {
+    // continue
+  }
+
+  const dir = path.dirname(outPath);
+  await mkdir(dir, { recursive: true });
+  const json = Buffer.from(cfg.X_COOKIES_B64, "base64").toString("utf8");
+  await writeFile(outPath, json, "utf8");
+  logger.info("wrote X cookies from env to file", { path: cfg.X_COOKIES_PATH });
 }
 
 async function main() {

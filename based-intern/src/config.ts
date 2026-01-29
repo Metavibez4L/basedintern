@@ -18,7 +18,7 @@ const Chain = z.enum(["base-sepolia", "base"]);
 const WalletMode = z.enum(["private_key", "cdp"]);
 const SocialMode = z.enum(["none", "playwright", "x_api"]);
 
-const envSchema = z.object({
+const envSchemaBase = z.object({
   // Wallet
   WALLET_MODE: WalletMode.default("private_key"),
   PRIVATE_KEY: z.string().default(""),
@@ -27,8 +27,8 @@ const envSchema = z.object({
 
   // Network
   CHAIN: Chain.default("base-sepolia"),
-  BASE_SEPOLIA_RPC_URL: z.string().min(1, "BASE_SEPOLIA_RPC_URL is required"),
-  BASE_RPC_URL: z.string().min(1, "BASE_RPC_URL is required"),
+  BASE_SEPOLIA_RPC_URL: z.string().optional(),
+  BASE_RPC_URL: z.string().optional(),
   RPC_URL: z.string().optional(),
   TOKEN_ADDRESS: z.string().optional(),
 
@@ -57,6 +57,9 @@ const envSchema = z.object({
   X_USERNAME: z.string().optional(),
   X_PASSWORD: z.string().optional(),
   X_COOKIES_PATH: z.string().optional(),
+  // Optional: allow providing cookies via env (Railway-friendly).
+  // If set, the app can write X_COOKIES_PATH at startup.
+  X_COOKIES_B64: z.string().optional(),
   X_API_KEY: z.string().optional(),
   X_API_SECRET: z.string().optional(),
   X_ACCESS_TOKEN: z.string().optional(),
@@ -64,6 +67,31 @@ const envSchema = z.object({
 
   // LLM
   OPENAI_API_KEY: z.string().optional()
+});
+
+const envSchema = envSchemaBase.superRefine((cfg, ctx) => {
+  // RPC requirements:
+  // - If RPC_URL is set, we accept it.
+  // - Otherwise, require the chain-specific URL for the selected CHAIN.
+  if (!cfg.RPC_URL || !cfg.RPC_URL.trim()) {
+    if (cfg.CHAIN === "base-sepolia") {
+      if (!cfg.BASE_SEPOLIA_RPC_URL || !cfg.BASE_SEPOLIA_RPC_URL.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["BASE_SEPOLIA_RPC_URL"],
+          message: "BASE_SEPOLIA_RPC_URL is required when CHAIN=base-sepolia (unless RPC_URL is set)"
+        });
+      }
+    } else {
+      if (!cfg.BASE_RPC_URL || !cfg.BASE_RPC_URL.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["BASE_RPC_URL"],
+          message: "BASE_RPC_URL is required when CHAIN=base (unless RPC_URL is set)"
+        });
+      }
+    }
+  }
 });
 
 export type AppConfig = z.infer<typeof envSchema>;
@@ -80,8 +108,12 @@ export function loadConfig(): AppConfig {
 }
 
 export function rpcUrlForChain(cfg: AppConfig): string {
-  if (cfg.RPC_URL) return cfg.RPC_URL;
-  return cfg.CHAIN === "base-sepolia" ? cfg.BASE_SEPOLIA_RPC_URL : cfg.BASE_RPC_URL;
+  const url = (cfg.RPC_URL && cfg.RPC_URL.trim()) ? cfg.RPC_URL
+    : (cfg.CHAIN === "base-sepolia" ? cfg.BASE_SEPOLIA_RPC_URL : cfg.BASE_RPC_URL);
+  if (!url || !url.trim()) {
+    throw new Error("RPC URL missing. Set RPC_URL or the selected chain RPC URL.");
+  }
+  return url;
 }
 
 export function deploymentFileForChain(cfg: AppConfig): string {

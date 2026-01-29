@@ -106,3 +106,4 @@ Trading is **OFF by default** and only executes when:
 - [`docs/FLOW.md`](docs/FLOW.md) - Detailed execution flow and architecture diagrams
 - [`docs/STATUS.md`](docs/STATUS.md) - Implementation status and next steps
 - [`docs/BUILD.md`](docs/BUILD.md) - Build system, deployment guide, and troubleshooting
+- [`docs/RAILWAY.md`](docs/RAILWAY.md) - Deploy as a 24/7 Railway worker
