@@ -98,3 +98,11 @@ Trading is **OFF by default** and only executes when:
 - Use a **fresh wallet** with tiny funds.
 - Never commit secrets (`.env`).
 - Leave `KILL_SWITCH=true` and `TRADING_ENABLED=false` until you explicitly opt in.
+
+---
+
+## Documentation
+
+- [`docs/FLOW.md`](docs/FLOW.md) - Detailed execution flow and architecture diagrams
+- [`docs/STATUS.md`](docs/STATUS.md) - Implementation status and next steps
+- [`docs/BUILD.md`](docs/BUILD.md) - Build system, deployment guide, and troubleshooting
