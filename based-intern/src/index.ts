@@ -63,7 +63,11 @@ async function tick(): Promise<void> {
       logger.warn("failed to read INTERN balance/decimals", { error: err instanceof Error ? err.message : String(err) });
     }
   } else {
-    logger.warn("TOKEN_ADDRESS not set and deployments json missing; INTERN balance set to 0", {});
+    logger.warn(
+      "TOKEN_ADDRESS not set and deployments json missing; INTERN balance set to 0. " +
+        "Fix: set TOKEN_ADDRESS env var (recommended for Railway) or provide deployments/<network>.json at runtime.",
+      {}
+    );
   }
 
   let price = { text: null as string | null, source: "unknown" };

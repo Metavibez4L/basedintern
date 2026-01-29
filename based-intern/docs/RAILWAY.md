@@ -26,6 +26,10 @@ This repo runs well on Railway as an always-on worker that posts receipts on a s
 - `BASE_SEPOLIA_RPC_URL=...`
 - `BASE_RPC_URL=...` (only required if `CHAIN=base` OR if you prefer setting both)
 
+### Token address (important on Railway)
+Because `deployments/*.json` is gitignored and not shipped inside the Docker image, you should set:
+- `TOKEN_ADDRESS=0x...` (the INTERN token address for the selected `CHAIN`)
+
 ### Safe runtime defaults
 - `DRY_RUN=true`
 - `TRADING_ENABLED=false`
