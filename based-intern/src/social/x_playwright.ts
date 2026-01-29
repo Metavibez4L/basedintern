@@ -6,6 +6,11 @@ import type { AppConfig } from "../config.js";
 import { logger } from "../logger.js";
 import type { SocialPoster } from "./poster.js";
 
+type XPostResult = {
+  tweetId: string;
+  tweetUrl: string;
+};
+
 export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
   let browser: Browser | null = null;
   let context: BrowserContext | null = null;
@@ -39,7 +44,7 @@ export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
     page = null;
   }
 
-  async function postOnce(text: string): Promise<void> {
+  async function postOnce(text: string): Promise<XPostResult> {
     const p = await ensurePage();
     await p.goto("https://x.com/home", { waitUntil: "domcontentloaded" });
 
@@ -49,7 +54,7 @@ export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
       await loginIfPossible(p, cfg);
     }
 
-    await composeAndPost(p, text);
+    const result = await composeAndPost(p, text);
 
     // If we successfully posted and cookies are enabled, persist the refreshed session.
     // This helps reduce "works once then fails" when X rotates session cookies.
@@ -64,6 +69,8 @@ export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
         });
       }
     }
+
+    return result;
   }
 
   return {
@@ -71,8 +78,8 @@ export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
       const maxAttempts = 3;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
-          await postOnce(text);
-          logger.info("posted to X (playwright)", { attempt });
+          const result = await postOnce(text);
+          logger.info("posted to X (playwright)", { attempt, tweetUrl: result.tweetUrl, tweetId: result.tweetId });
           return;
         } catch (err) {
           const debug = page ? await collectFailureDebug(page) : undefined;
@@ -219,7 +226,7 @@ async function loginIfPossible(page: Page, cfg: AppConfig): Promise<void> {
   await page.waitForTimeout(5_000);
 }
 
-async function composeAndPost(page: Page, text: string): Promise<void> {
+async function composeAndPost(page: Page, text: string): Promise<XPostResult> {
   // Open composer
   const newTweet = page.locator('[data-testid="SideNav_NewTweet_Button"]');
   if ((await newTweet.count()) > 0) {
@@ -231,7 +238,25 @@ async function composeAndPost(page: Page, text: string): Promise<void> {
   await textbox.fill(text);
 
   const postBtn = page.locator('[data-testid="tweetButtonInline"], [data-testid="tweetButton"]').first();
+  const createTweetResponse = page.waitForResponse(
+    (res) => res.request().method() === "POST" && res.url().includes("/i/api/graphql/") && res.url().includes("CreateTweet"),
+    { timeout: 30_000 }
+  );
+
   await postBtn.click();
+
+  const res = await createTweetResponse;
+  let json: unknown;
+  try {
+    json = await res.json();
+  } catch {
+    json = undefined;
+  }
+  const tweetId = extractTweetId(json);
+  if (!tweetId) {
+    const toastText = await readToastText(page);
+    throw new Error(`post click did not yield tweet id (status=${res.status()})${toastText ? ` toast=${toastText}` : ""}`);
+  }
 
   // Best-effort confirmation. If X blocks the post, we usually see a toast/alert.
   // Don't hard-fail on missing toast; we'll rely on upstream errors/timeouts.
@@ -241,6 +266,10 @@ async function composeAndPost(page: Page, text: string): Promise<void> {
   } catch {
     // ignore
   }
+
+  // This URL format works without knowing the handle.
+  const tweetUrl = `https://x.com/i/web/status/${tweetId}`;
+  return { tweetId, tweetUrl };
 }
 
 function backoffMs(attempt: number): number {
@@ -267,16 +296,7 @@ async function collectFailureDebug(page: Page): Promise<Record<string, unknown>>
     const composeUi = await hasComposeUi(page);
 
     // Try to capture any visible toast/alert text (often includes useful "something went wrong" copy).
-    let toastText: string | undefined;
-    try {
-      const toast = page.locator('[data-testid="toast"], div[role="alert"]').first();
-      if ((await toast.count()) > 0) {
-        const t = (await toast.innerText().catch(() => "")).trim();
-        toastText = t.length ? t.slice(0, 500) : undefined;
-      }
-    } catch {
-      // ignore
-    }
+    const toastText = await readToastText(page);
 
     // Small, useful snapshot: save a screenshot to disk (helpful locally; on Railway you’ll at least see the path).
     let screenshotPath: string | undefined;
@@ -302,5 +322,60 @@ async function collectFailureDebug(page: Page): Promise<Record<string, unknown>>
   } catch (e) {
     return { debugError: e instanceof Error ? e.message : String(e) };
   }
+}
+
+function extractTweetId(payload: unknown): string | undefined {
+  // Known X GraphQL structure (best-effort; may change).
+  const p = payload as any;
+  const candidate =
+    p?.data?.create_tweet?.tweet_results?.result?.rest_id ??
+    p?.data?.create_tweet?.tweet_results?.result?.tweet?.rest_id ??
+    p?.data?.create_tweet?.tweet_results?.result?.legacy?.id_str ??
+    p?.data?.create_tweet?.tweet_results?.result?.tweet?.legacy?.id_str;
+
+  if (typeof candidate === "string" && /^\d{5,}$/.test(candidate)) return candidate;
+
+  // Fallback: walk a small subset looking for a plausible rest_id/id_str.
+  const found = findFirstIdLike(p);
+  if (typeof found === "string" && /^\d{5,}$/.test(found)) return found;
+  return undefined;
+}
+
+function findFirstIdLike(v: any, depth = 0): string | undefined {
+  if (!v || depth > 6) return undefined;
+  if (Array.isArray(v)) {
+    for (const item of v) {
+      const r = findFirstIdLike(item, depth + 1);
+      if (r) return r;
+    }
+    return undefined;
+  }
+  if (typeof v === "object") {
+    // Prefer tweet-ish subtrees if present.
+    if (v.tweet_results) {
+      const r = findFirstIdLike(v.tweet_results, depth + 1);
+      if (r) return r;
+    }
+    if (typeof v.rest_id === "string") return v.rest_id;
+    if (typeof v.id_str === "string") return v.id_str;
+    for (const key of Object.keys(v)) {
+      const r = findFirstIdLike(v[key], depth + 1);
+      if (r) return r;
+    }
+  }
+  return undefined;
+}
+
+async function readToastText(page: Page): Promise<string | undefined> {
+  try {
+    const toast = page.locator('[data-testid="toast"], div[role="alert"]').first();
+    if ((await toast.count()) > 0) {
+      const t = (await toast.innerText().catch(() => "")).trim();
+      return t.length ? t.slice(0, 500) : undefined;
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
 }
 
