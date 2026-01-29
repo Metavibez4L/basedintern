@@ -1,5 +1,7 @@
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { readFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
 import type { AppConfig } from "../config.js";
 import { logger } from "../logger.js";
 import type { SocialPoster } from "./poster.js";
@@ -48,6 +50,20 @@ export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
     }
 
     await composeAndPost(p, text);
+
+    // If we successfully posted and cookies are enabled, persist the refreshed session.
+    // This helps reduce "works once then fails" when X rotates session cookies.
+    if (cfg.X_COOKIES_PATH && context) {
+      try {
+        await ensureParentDir(cfg.X_COOKIES_PATH);
+        await context.storageState({ path: cfg.X_COOKIES_PATH });
+        logger.info("refreshed X cookies after post", { path: cfg.X_COOKIES_PATH });
+      } catch (err) {
+        logger.warn("failed to refresh X cookies after post", {
+          error: err instanceof Error ? err.message : String(err)
+        });
+      }
+    }
   }
 
   return {
@@ -59,9 +75,12 @@ export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
           logger.info("posted to X (playwright)", { attempt });
           return;
         } catch (err) {
+          const debug = page ? await collectFailureDebug(page) : undefined;
           logger.warn("failed to post to X (playwright)", {
             attempt,
-            error: err instanceof Error ? err.message : String(err)
+            error: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack : undefined,
+            debug
           });
           await reset();
           await sleep(backoffMs(attempt));
@@ -109,12 +128,6 @@ async function maybeLoadCookies(p: string | undefined): Promise<StorageStateObje
   } catch {
     return undefined;
   }
-}
-
-async function isLoggedIn(page: Page): Promise<boolean> {
-  // Heuristic: presence of compose box or “Post” button.
-  const compose = page.locator('[data-testid="SideNav_NewTweet_Button"], [data-testid="tweetTextarea_0"]');
-  return (await compose.count()) > 0;
 }
 
 async function hasComposeUi(page: Page): Promise<boolean> {
@@ -220,8 +233,14 @@ async function composeAndPost(page: Page, text: string): Promise<void> {
   const postBtn = page.locator('[data-testid="tweetButtonInline"], [data-testid="tweetButton"]').first();
   await postBtn.click();
 
-  // brief settle; if it fails, Playwright will throw earlier on click.
-  await page.waitForTimeout(1_000);
+  // Best-effort confirmation. If X blocks the post, we usually see a toast/alert.
+  // Don't hard-fail on missing toast; we'll rely on upstream errors/timeouts.
+  try {
+    const toast = page.locator('[data-testid="toast"], div[role="alert"]').first();
+    await toast.waitFor({ timeout: 3_000 });
+  } catch {
+    // ignore
+  }
 }
 
 function backoffMs(attempt: number): number {
@@ -232,5 +251,56 @@ function backoffMs(attempt: number): number {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+async function ensureParentDir(filePath: string): Promise<void> {
+  const abs = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
+  const dir = path.dirname(abs);
+  await mkdir(dir, { recursive: true });
+}
+
+async function collectFailureDebug(page: Page): Promise<Record<string, unknown>> {
+  try {
+    const url = page.url();
+    const title = await page.title().catch(() => undefined);
+    const authCookies = await hasAuthCookies(page);
+    const composeUi = await hasComposeUi(page);
+
+    // Try to capture any visible toast/alert text (often includes useful "something went wrong" copy).
+    let toastText: string | undefined;
+    try {
+      const toast = page.locator('[data-testid="toast"], div[role="alert"]').first();
+      if ((await toast.count()) > 0) {
+        const t = (await toast.innerText().catch(() => "")).trim();
+        toastText = t.length ? t.slice(0, 500) : undefined;
+      }
+    } catch {
+      // ignore
+    }
+
+    // Small, useful snapshot: save a screenshot to disk (helpful locally; on Railway you’ll at least see the path).
+    let screenshotPath: string | undefined;
+    try {
+      const outDir = path.resolve(process.cwd(), "data", "x_debug");
+      await mkdir(outDir, { recursive: true });
+      screenshotPath = path.join(outDir, `x_fail_${Date.now()}.png`);
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+    } catch {
+      // ignore
+    }
+
+    // If we’re on a blocker page, capture a tiny snippet of content text for logs.
+    let snippet: string | undefined;
+    try {
+      const bodyText = (await page.locator("body").innerText().catch(() => "")).trim();
+      if (bodyText) snippet = bodyText.slice(0, 800);
+    } catch {
+      // ignore
+    }
+
+    return { url, title, authCookies, composeUi, toastText, screenshotPath, snippet };
+  } catch (e) {
+    return { debugError: e instanceof Error ? e.message : String(e) };
+  }
 }
 
