@@ -30,6 +30,10 @@ This repo runs well on Railway as an always-on worker that posts receipts on a s
 Because `deployments/*.json` is gitignored and not shipped inside the Docker image, you should set:
 - `TOKEN_ADDRESS=0x...` (the INTERN token address for the selected `CHAIN`)
 
+Known deployments:
+- Base Sepolia (84532): `0x23926b2CA264e1CD1Fc641E1C5C6e9f2066c91c1`
+- Base mainnet (8453): `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11`
+
 ### Safe runtime defaults
 - `DRY_RUN=true`
 - `TRADING_ENABLED=false`
@@ -37,11 +41,16 @@ Because `deployments/*.json` is gitignored and not shipped inside the Docker ima
 - `LOOP_MINUTES=30`
 
 ### Social posting
-- `SOCIAL_MODE=playwright`
-- `HEADLESS=true`
-- `X_COOKIES_PATH=./x_cookies.json`
+- Recommended on Railway: `SOCIAL_MODE=x_api` (Playwright is commonly blocked on datacenter IPs)
+
+For `SOCIAL_MODE=x_api`, set:
+- `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET`
+
+If you still want Playwright posting, use `SOCIAL_MODE=playwright` and cookies, but expect possible X anti-bot blocks.
 
 ## 3) Cookies on Railway (two options)
+
+Only needed for `SOCIAL_MODE=playwright`.
 
 ### Option A (recommended): Volume
 - Attach a Railway Volume and mount it at `/app`

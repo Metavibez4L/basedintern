@@ -2,6 +2,14 @@
 
 Senior TS + Solidity scaffold for a “Based Intern” agent that can post proof-of-life receipts and (optionally) trade with strict safety caps.
 
+## Current deployments
+
+- **Base Sepolia (84532)**:
+  - **INTERN**: `0x23926b2CA264e1CD1Fc641E1C5C6e9f2066c91c1`
+- **Base mainnet (8453)**:
+  - **INTERN**: `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11`
+  - **BaseScan (verified)**: `https://basescan.org/address/0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11#code`
+
 ## PATH (MUST FOLLOW)
 
 ### Step 1: Deploy token yourself (simple ERC20)
@@ -45,7 +53,20 @@ This writes:
 
 #### 1b) Verify token (optional)
 
-Verification is optional. If you want it, add a Base explorer API key + verify plugin, then run Hardhat verify with the deployed address. This repo keeps verification out-of-the-box to stay minimal.
+Verification is optional. This repo supports BaseScan verification via Hardhat.
+
+Set in `.env`:
+- `BASESCAN_API_KEY=...` (create at `https://basescan.org/myapikey`)
+
+Then:
+
+```bash
+# Base Sepolia
+npx hardhat verify --network baseSepolia <TOKEN_ADDRESS>
+
+# Base mainnet
+npx hardhat verify --network base <TOKEN_ADDRESS>
+```
 
 ---
 
@@ -73,6 +94,17 @@ Cookies are preferred to reduce login friction:
 If cookies fail, the fallback is `X_USERNAME` + `X_PASSWORD`.
 
 If posting fails, the agent logs the error and **keeps running**.
+
+#### Recommended on Railway: X API mode
+
+Playwright often gets blocked on Railway (datacenter IPs). Prefer:
+
+```bash
+SOCIAL_MODE=x_api npm run dev
+```
+
+Set the OAuth 1.0a user credentials (posting account):
+- `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET`
 
 ---
 

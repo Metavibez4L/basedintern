@@ -28,6 +28,13 @@ npm run build:contracts
 npm run deploy:token -- --network baseSepolia  # or --network base
 ```
 
+**Verify (optional)**:
+```bash
+# set BASESCAN_API_KEY first
+npx hardhat verify --network baseSepolia <TOKEN_ADDRESS>
+npx hardhat verify --network base <TOKEN_ADDRESS>
+```
+
 ---
 
 ### Step 2: Launch Agent (Posting Mode)
@@ -95,7 +102,7 @@ npm run deploy:token -- --network baseSepolia  # or --network base
    │ 8. Post Receipt                         │
    │    - SOCIAL_MODE=none: Log only        │
    │    - SOCIAL_MODE=playwright: Post to X │
-   │    - SOCIAL_MODE=x_api: X API (stub)   │
+   │    - SOCIAL_MODE=x_api: Post via X API │
    └─────────────────────────────────────────┘
    ```
 
@@ -187,6 +194,7 @@ Every tick produces a standardized receipt:
 
 ```
 BASED INTERN REPORT
+ts: 2026-01-29T23:55:02Z
 action: HOLD
 wallet: 0x1234...5678
 eth: 0.01

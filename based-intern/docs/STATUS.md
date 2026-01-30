@@ -21,6 +21,7 @@ This document tracks the current implementation status of all features in the Ba
 - [x] `hardhat.config.ts` - Base Sepolia (84532) and Base (8453) networks
 - [x] `deploy-token.ts` - Deployment script with console output
 - [x] Deployment JSON persistence (`deployments/<network>.json`)
+- [x] BaseScan verification support (set `BASESCAN_API_KEY`, run `npx hardhat verify`)
 - [x] TypeScript Hardhat setup
 - [x] Compilation working (`npm run build:contracts`)
 
@@ -85,7 +86,7 @@ This document tracks the current implementation status of all features in the Ba
 - [x] Retry with exponential backoff (3 attempts)
 - [x] Graceful failure (logs error, continues loop)
 - [x] Headless mode support (HEADLESS=true default)
-- [x] `src/social/x_api.ts` - X API stub (logs warning)
+- [x] `src/social/x_api.ts` - X API posting via OAuth 1.0a (recommended on Railway)
 - [x] SOCIAL_MODE=none (logs receipt only)
 
 ### TypeScript Build
@@ -162,21 +163,7 @@ This document tracks the current implementation status of all features in the Ba
 5. Format as string
 
 ### X API Posting
-- [ ] `src/social/x_api.ts` - Currently logs warning and doesn't post
-  - Scaffold exists with SocialPoster interface
-  - Needs OAuth 1.0a implementation
-  - Needs Twitter API v1.1 or v2 integration
-
-**Why Scaffolded**:
-- Playwright is the default and works well
-- X API requires app registration + approval
-- Most users prefer cookies-based Playwright approach
-
-**To Implement**:
-1. Add OAuth 1.0a signing library
-2. Implement POST statuses/update (API v1.1) or POST tweets (API v2)
-3. Handle rate limits
-4. Add retry logic
+- [x] Implemented in `src/social/x_api.ts`
 
 ---
 
@@ -190,6 +177,10 @@ npm install                           # ✅ Works
 npm run build:contracts               # ✅ Compiles cleanly
 npm run deploy:token -- --network hardhat  # ✅ Deploys + writes JSON
 ```
+
+#### Base deployments
+- Base Sepolia (84532): `0x23926b2CA264e1CD1Fc641E1C5C6e9f2066c91c1`
+- Base mainnet (8453): `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11` (verified)
 
 #### Agent Startup (DRY_RUN)
 ```bash

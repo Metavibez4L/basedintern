@@ -160,49 +160,24 @@ Check `deployments/<network>.json`:
 }
 ```
 
-### Step 4: (Optional) Verify on Block Explorer
+### Step 4: (Optional) Verify on Block Explorer (BaseScan)
 
-Hardhat verification is not included by default. To add:
+This repo supports BaseScan verification via Hardhat.
 
-1. Install verify plugin:
+1) Set env:
+
 ```bash
-npm install --save-dev @nomicfoundation/hardhat-verify
+BASESCAN_API_KEY="your_basescan_api_key"
 ```
 
-2. Add to `hardhat.config.ts`:
-```typescript
-import "@nomicfoundation/hardhat-verify";
+2) Verify:
 
-// ... in config:
-etherscan: {
-  apiKey: {
-    baseSepolia: process.env.BASESCAN_API_KEY || "",
-    base: process.env.BASESCAN_API_KEY || ""
-  },
-  customChains: [
-    {
-      network: "baseSepolia",
-      chainId: 84532,
-      urls: {
-        apiURL: "https://api-sepolia.basescan.org/api",
-        browserURL: "https://sepolia.basescan.org"
-      }
-    },
-    {
-      network: "base",
-      chainId: 8453,
-      urls: {
-        apiURL: "https://api.basescan.org/api",
-        browserURL: "https://basescan.org"
-      }
-    }
-  ]
-}
-```
-
-3. Verify:
 ```bash
+# Base Sepolia
 npx hardhat verify --network baseSepolia <TOKEN_ADDRESS>
+
+# Base mainnet
+npx hardhat verify --network base <TOKEN_ADDRESS>
 ```
 
 ---

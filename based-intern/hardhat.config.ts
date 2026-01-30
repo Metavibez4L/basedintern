@@ -5,6 +5,9 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY ?? "";
+// BaseScan API key used by `hardhat verify` (applies to both Base + Base Sepolia).
+// You can create one at https://basescan.org/myapikey
+const BASESCAN_API_KEY = process.env.BASESCAN_API_KEY ?? process.env.ETHERSCAN_API_KEY ?? "";
 
 const config: HardhatUserConfig = {
   solidity: {
@@ -28,6 +31,28 @@ const config: HardhatUserConfig = {
       url: process.env.BASE_RPC_URL || "",
       accounts: PRIVATE_KEY ? [PRIVATE_KEY] : []
     }
+  },
+  etherscan: {
+    // Etherscan API V2 expects a single key (not per-network keys).
+    apiKey: BASESCAN_API_KEY,
+    customChains: [
+      {
+        network: "base",
+        chainId: 8453,
+        urls: {
+          apiURL: "https://api.basescan.org/api",
+          browserURL: "https://basescan.org"
+        }
+      },
+      {
+        network: "baseSepolia",
+        chainId: 84532,
+        urls: {
+          apiURL: "https://api-sepolia.basescan.org/api",
+          browserURL: "https://sepolia.basescan.org"
+        }
+      }
+    ]
   }
 };
 
