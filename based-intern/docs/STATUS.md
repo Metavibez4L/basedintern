@@ -120,47 +120,46 @@ This document tracks the current implementation status of all features in the Ba
 
 ## 🚧 Scaffolded (Needs Implementation)
 
+### Aerodrome Integration (Partial)
+- [x] `src/chain/aerodrome.ts` - Pool reading and price calculation
+  - [x] `readAerodromePool()` - Reads pool reserves from Aerodrome pairs
+  - [x] `calculateAerodromeOutput()` - Computes swap output using constant product formula
+  - [x] Stable vs volatile pool support
+  - [x] Slippage protection (via `applySlippage()`)
+  - [ ] **Swap calldata encoding** - Route struct encoding and router calls not yet implemented
+
 ### Trading Execution
-- [ ] `src/chain/trade.ts` - Currently throws "not implemented" errors
-  - Scaffold exists with `executeBuy` and `executeSell` signatures
-  - Router type/address validation present
-  - Needs Uniswap V3 (or other DEX) integration
-  - Needs calldata building for swaps
-  - Needs slippage calculation
-  - Needs gas estimation
+- [x] `src/chain/trade.ts` - Aerodrome integration scaffolded
+  - [x] Router type validation (ROUTER_TYPE must be "aerodrome")
+  - [x] Pool reading and quote generation
+  - [x] Slippage calculation
+  - [x] Error handling and logging
+  - [ ] **Critical TODO**: Calldata building and transaction execution
+    - Requires encoding Aerodrome `Route[]` struct
+    - Needs to call router methods: `swapExactTokensForTokens()` or similar
+    - Must send transaction via `walletClient.sendTransaction()`
 
-**Why Scaffolded**:
-- Trading is intentionally optional to allow safe DRY_RUN + posting mode first
-- Repo is fully functional without trading configured
-- Operators can add DEX integration when ready
-
-**To Implement**:
-1. Choose DEX (Uniswap V3, Aerodrome, etc.)
-2. Add router ABI + interface
-3. Build swap calldata (exactInputSingle for buys, exactOutputSingle for sells)
-4. Calculate slippage from SLIPPAGE_BPS
-5. Get quotes before execution
-6. Send transaction via walletClient
-7. Return tx hash
+**Aerodrome Configuration**:
+```bash
+ROUTER_TYPE="aerodrome"
+ROUTER_ADDRESS="0xcF77a3Ba9A5CA922176B76f7201d8933374ff5Ac"  # Aerodrome Router
+POOL_ADDRESS="0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc"   # WETH/INTERN volatile pool (example)
+WETH_ADDRESS="0x4200000000000000000000000000000000000006"    # Base WETH
+AERODROME_STABLE="false"                                     # volatile pair (0.3% fee)
+```
 
 ### Price Oracle
-- [ ] `src/chain/price.ts` - Currently returns `{ text: null, source: "unknown" }`
-  - Scaffold exists with proper type signature
-  - Needs pool address configuration
-  - Needs sqrtPriceX96 reading (Uniswap V3)
-  - Needs price formatting
+- [x] `src/chain/price.ts` - Aerodrome-powered price oracle
+  - [x] Reads from Aerodrome pools when configured
+  - [x] Calculates price: 1 INTERN = X ETH
+  - [x] Graceful fallback to "unknown" if pool unavailable
+  - [x] Multiple failure modes with detailed source reporting
 
-**Why Scaffolded**:
-- Price is not required for posting receipts
-- Agent works fine with "unknown" price
-- Price becomes important when trading is enabled
-
-**To Implement**:
-1. Add POOL_ADDRESS env var
-2. Add Uniswap V3 pool ABI
-3. Read `slot0` for sqrtPriceX96
-4. Convert to human-readable price
-5. Format as string
+**Price Oracle Flow**:
+- If `ROUTER_TYPE=aerodrome` and `POOL_ADDRESS` set: attempts pool read
+- Returns price in format: `$0.005234 ETH`
+- Falls back to `null` (displayed as "unknown" in receipts) on any error
+- Source indicates: `aerodrome`, `aerodrome_unavailable`, `aerodrome_mismatch`, `aerodrome_empty`, or `aerodrome_error`
 
 ### X API Posting
 - [x] Implemented in `src/social/x_api.ts`
@@ -228,10 +227,12 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 | `MAX_SPEND_ETH_PER_TRADE` | ✅ | `0.0005` | Enforced by guardrails |
 | `SELL_FRACTION_BPS` | ✅ | `500` | 5% of holdings |
 | `SLIPPAGE_BPS` | ✅ | `300` | 3% slippage |
-| `ROUTER_TYPE` | 🚧 | `unknown` | Used but not implemented |
-| `ROUTER_ADDRESS` | 🚧 | (none) | Used but not implemented |
-| `POOL_ADDRESS` | 🚧 | (none) | Used but not implemented |
-| `WETH_ADDRESS` | 🚧 | (none) | Used but not implemented |
+| `ROUTER_TYPE` | ✅ | `aerodrome` | aerodrome (Uniswap V3 support planned) |
+| `ROUTER_ADDRESS` | ✅ | `0xcF77a3Ba9A5CA922176B76f7201d8933374ff5Ac` | Aerodrome Router (Base & Sepolia) |
+| `POOL_ADDRESS` | ✅ | (none) | INTERN/WETH pool address (e.g., Aerodrome) |
+| `WETH_ADDRESS` | ✅ | `0x4200000000000000000000000000000000000006` | Wrapped ETH on Base |
+| `AERODROME_STABLE` | ✅ | `false` | Stable=true or volatile=false pool type |
+| `AERODROME_GAUGE_ADDRESS` | ⚪ | (none) | Optional; Aerodrome gauge for yield farming |
 | `SOCIAL_MODE` | ✅ | `none` | none/playwright/x_api |
 | `HEADLESS` | ✅ | `true` | Playwright headless mode |
 | `X_USERNAME` | ✅ | (none) | Playwright fallback |
@@ -282,20 +283,25 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 ## 🚀 Next Steps for Production
 
 ### Critical (Must Do)
-1. Implement trading execution (`src/chain/trade.ts`)
-   - Choose DEX (Uniswap V3 recommended for Base)
-   - Add router integration
-   - Test on Base Sepolia first
+1. ✅ **Aerodrome price oracle** - DONE in `src/chain/price.ts`
+   - Reads pool reserves and calculates real-time prices
+   - Falls back gracefully to "unknown" if pool unavailable
+   - Ready for production use
 
-2. Implement price oracle (`src/chain/price.ts`)
-   - Add pool address config
-   - Read sqrtPriceX96 from Uniswap V3 pool
-   - Format price for receipts
+2. **Complete Aerodrome trading execution** (`src/chain/trade.ts`)
+   - [x] Pool reading and quoting (done)
+   - [ ] Build Aerodrome route calldata
+     - Encode `Route[] = [{ from: WETH, to: INTERN, stable: false, factory: 0x... }]`
+     - Call router: `swapExactTokensForTokens(amountIn, amountOutMin, routes, recipient, deadline)`
+   - [ ] Send transaction via `walletClient.sendTransaction()`
+   - [ ] Test on Base Sepolia with small amounts
+   - [ ] Monitor slippage protection
 
 3. Test with real RPC + wallet on Base Sepolia
    - Deploy token
+   - Configure Aerodrome (set POOL_ADDRESS, WETH_ADDRESS, etc.)
    - Run agent for 1-2 hours in DRY_RUN
-   - Verify receipts post correctly
+   - Verify receipts show correct prices
    - Test live trading with tiny amounts
 
 ### Recommended (Should Do)
@@ -308,6 +314,7 @@ npm run build                         # ✅ Compiles all TS sources cleanly
    - Receipt formatting
    - State management
    - Config validation
+   - Aerodrome pool calculations
 
 6. Add monitoring
    - Track tick duration
@@ -320,12 +327,12 @@ npm run build                         # ✅ Compiles all TS sources cleanly
    - Test key management
 
 8. Add more DEX support
-   - Aerodrome (Base-native DEX)
-   - Velodrome v2
-   - Curve
+   - Uniswap V3 (if operating on chains with V3 liquidity)
+   - Velodrome v2 (Optimism/Polygon)
+   - Curve (stablecoin trading)
 
 9. Add price sources
-   - Chainlink price feeds
+   - Chainlink price feeds (if available on Base)
    - CoinGecko API fallback
    - Multiple oracle aggregation
 
@@ -333,21 +340,35 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 
 ## 🐛 Known Issues
 
-1. **Playwright selectors may break** if X.com changes their UI
+1. **Trading execution not complete** (`src/chain/trade.ts`)
+   - Pool reading and quoting working
+   - Swap calldata encoding still needed
+   - Blocks actual BUY/SELL execution (DRY_RUN works fine)
+   - Will throw: "Aerodrome buy/sell swap calldata encoding not yet implemented"
+
+2. **Playwright selectors may break** if X.com changes their UI
    - Selectors are kept flexible but may need updates
    - Consider X API for more stability
 
-2. **No price oracle** means receipts always show "unknown"
-   - Not a blocker for posting mode
-   - Implement before live trading for better observability
-
-3. **No trading execution** means live mode is not functional
-   - This is intentional (safety-first design)
-   - Implement when ready for production trading
+3. **No Uniswap V3 support** yet
+   - Currently Aerodrome only (Base-native DEX)
+   - Plan to add V3 support for chains like Ethereum, Optimism, etc.
 
 ---
 
 ## 📝 Changelog
+
+### 2026-01-30
+- ✅ **Aerodrome integration complete (partial)**
+  - ✅ `src/chain/aerodrome.ts` - Pool reading, reserve queries, swap output calculation
+  - ✅ `src/chain/price.ts` - Real-time price oracle using Aerodrome pools
+  - ✅ Price fallback to "unknown" with detailed error sources
+  - ⚠️ Trade execution scaffolded; calldata encoding TODO
+  - ✅ Support for stable and volatile pool types
+  - ✅ Slippage protection implemented
+- ✅ Config validation for Aerodrome params (POOL_ADDRESS, WETH_ADDRESS, etc.)
+- ✅ Updated docs with Aerodrome integration guide
+- ✅ Known deployment: WETH/INTERN pool on Base mainnet
 
 ### 2026-01-29
 - ✅ Initial scaffold complete
