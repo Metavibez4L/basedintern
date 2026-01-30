@@ -17,6 +17,7 @@ const BoolFromString = z
 const Chain = z.enum(["base-sepolia", "base"]);
 const WalletMode = z.enum(["private_key", "cdp"]);
 const SocialMode = z.enum(["none", "playwright", "x_api"]);
+const RouterType = z.enum(["unknown", "aerodrome", "uniswap-v3"]);
 
 const envSchemaBase = z.object({
   // Wallet
@@ -47,9 +48,13 @@ const envSchemaBase = z.object({
 
   // Trading config (scaffolded)
   WETH_ADDRESS: z.string().optional(),
-  ROUTER_TYPE: z.string().default("unknown"),
+  ROUTER_TYPE: RouterType.default("unknown"),
   ROUTER_ADDRESS: z.string().optional(),
   POOL_ADDRESS: z.string().optional(),
+
+  // Aerodrome-specific
+  AERODROME_STABLE: BoolFromString.default("false"), // true = stable pair, false = volatile
+  AERODROME_GAUGE_ADDRESS: z.string().optional(),
 
   // Social posting
   SOCIAL_MODE: SocialMode.default("none"),

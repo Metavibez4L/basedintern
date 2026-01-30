@@ -198,9 +198,55 @@ npm run build       # TypeScript compile (see tsconfig.json)
 |-----------------|--------------------------------|-----------------------------|-|
 | **OpenAI/LLM**  | [brain.ts](src/agent/brain.ts) | Proposal fails              | `fallbackPolicy()` → HOLD |
 | **RPC (viem)**  | [chain/client.ts](src/chain/client.ts) | Read fails             | Log warn, use last-known state |
-| **Price Oracle**| [chain/price.ts](src/chain/price.ts) | Price unavailable      | Return `null`, receipt shows unknown |
+| **Price Oracle (Aerodrome)** | [chain/price.ts](src/chain/price.ts) | Pool unavailable | Return `null`, receipt shows unknown |
+| **Aerodrome DEX** | [chain/aerodrome.ts](src/chain/aerodrome.ts) | Swap fails | Transaction reverts; guardrails prevent retry |
 | **X (Playwright)** | [x_playwright.ts](src/social/x_playwright.ts) | Post fails     | Log error, continue loop |
 | **Hardhat**     | scripts, contracts             | Deploy fails               | Manual redeploy + update JSON |
+
+## Aerodrome Integration
+
+**Aerodrome** is the Base-native DEX. The agent supports Aerodrome for liquidity routing and price discovery.
+
+### Configuration
+
+Set these environment variables to enable Aerodrome trading:
+
+```bash
+ROUTER_TYPE="aerodrome"
+ROUTER_ADDRESS="0xcF77a3Ba9A5CA922176B76f7201d8933374ff5Ac"  # Aerodrome Router (same on Base & Sepolia)
+POOL_ADDRESS="0x..."                                          # INTERN/WETH pool address
+WETH_ADDRESS="0x4200000000000000000000000000000000000006"    # Base WETH
+AERODROME_STABLE="false"                                      # true = stable pair, false = volatile
+```
+
+### Key Files
+
+- [src/chain/aerodrome.ts](src/chain/aerodrome.ts) - Pool queries, price calculations, swap routing
+- [src/chain/price.ts](src/chain/price.ts) - Uses Aerodrome pools for price discovery
+- [src/chain/trade.ts](src/chain/trade.ts) - BUY/SELL execution via Aerodrome router
+
+### How It Works
+
+1. **Pool Discovery**: Query Aerodrome factory for INTERN/WETH pool
+2. **Reserve Reading**: Get pool reserves to calculate swap output
+3. **Price Calculation**: `price = WETH_reserves / INTERN_reserves`
+4. **Swap Quote**: Use constant product formula (x*y=k) to estimate output
+5. **Slippage Protection**: Apply `SLIPPAGE_BPS` to minimum output amount
+6. **Execution**: Send swap transaction via Aerodrome router
+
+### Stable vs Volatile Pools
+
+- **Volatile** (`AERODROME_STABLE=false`): Uses standard x*y=k formula (higher slippage for large trades)
+- **Stable** (`AERODROME_STABLE=true`): Uses stableswap formula (lower slippage, best for pegged assets)
+
+### TODO: Calldata Encoding
+
+The actual swap execution requires encoding Aerodrome route structs and calling the router. This is partially implemented—see [buildAerodromeSwapCalldata()](src/chain/aerodrome.ts) for the pattern.
+
+To complete:
+1. Encode route array: `Route[] = [{ from: WETH, to: INTERN, stable: false, factory: 0x... }]`
+2. Call router method: `swapExactTokensForTokens(amountIn, amountOutMin, routes, recipient, deadline)`
+3. Send via `walletClient.sendTransaction()`
 
 ## Testing & Debugging
 
@@ -208,13 +254,15 @@ npm run build       # TypeScript compile (see tsconfig.json)
 - **Type safety**: All files use strict TypeScript (`tsconfig.json` includes strict flags)
 - **Environment validation**: Zod schema catches config errors at startup—run with invalid `.env` to test
 - **Receipts as audit trail**: All actions logged in receipt format; pipe to observability service if needed
+- **Aerodrome queries**: Logs include pool info and swap quotes for debugging
 
 ## Common Extensions & TODOs
 
-- **Trading Execution** ([chain/trade.ts](src/chain/trade.ts)): Currently scaffolded; implement actual DEX swap
-- **Price Oracle** ([chain/price.ts](src/chain/price.ts)): Currently best-effort; integrate Chainlink or other oracle
+- **Trading Execution** ([chain/trade.ts](src/chain/trade.ts)): Aerodrome pool/quote logic done; needs calldata encoding for swaps
+- **Price Oracle** ([chain/price.ts](src/chain/price.ts)): Aerodrome integration complete; ready for production
 - **Agent Tools** ([agent/tools.ts](src/agent/tools.ts)): Expand tool definitions for LangChain if broader decision-making needed
 - **State Migration**: If moving from `state.json` to DB, preserve UTC daily reset logic in [state.ts](src/agent/state.ts)
+- **Aerodrome Calldata**: Finish swap calldata encoding in [aerodrome.ts](src/chain/aerodrome.ts)
 
 ## Glossary
 
@@ -224,3 +272,5 @@ npm run build       # TypeScript compile (see tsconfig.json)
 - **DRY_RUN**: Simulated mode; no real transactions
 - **Fallback Policy**: Conservative default (always `HOLD`) if LLM unavailable
 - **State**: `data/state.json` tracking daily trade count and last execution time
+- **Aerodrome**: Base-native DEX with stable and volatile pools
+- **Swap Route**: Path through pool to exchange WETH for INTERN (or vice versa)
