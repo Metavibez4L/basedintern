@@ -120,15 +120,15 @@ npm run test
 
 **Expected output**:
 ```
- Test Files  4 passed (4)
-      Tests  94 passed (94)
+ Test Files  5 passed (5)
+      Tests  131 passed (131)
    Start at  12:34:53
-   Duration  561ms
+   Duration  571ms
 ```
 
 **What this does**:
-- Runs all 94 Vitest unit tests (deterministic, no network calls)
-- Tests guardrails, receipts, activity detection, and state management
+- Runs all 131 Vitest unit tests (deterministic, no network calls)
+- Tests guardrails, receipts, activity detection, state management, and X mentions (Phase 1)
 - Exit code 0 = all pass
 
 **Watch Mode** (auto-rerun on changes):

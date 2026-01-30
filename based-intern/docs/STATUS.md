@@ -119,6 +119,26 @@ This document tracks the current implementation status of all features in the Ba
     - Respects rate-limit-reset headers
   - [x] SOCIAL_MODE=none (logs receipt only)
 
+### X Mentions Poller (Phase 1: Intent Recognition)
+- [x] `src/social/x_mentions.ts` - **Comment → Intent recognition (NO TRADING)**
+  - [x] **Command parsing**: help, status, buy, sell, why, unknown
+    - Case-insensitive, partial matching, whitespace-tolerant
+  - [x] **Safe replies** - Acknowledges intent but NEVER executes trades
+    - Always explains guardrail status (TRADING_ENABLED, KILL_SWITCH, DRY_RUN)
+    - Shows current mode (LIVE or DRY_RUN)
+    - Personality-driven responses (consistent with Intern brand)
+  - [x] **Mention polling** - Fetches mentions every X_POLL_MINUTES (default 2)
+    - Uses X API v2 with OAuth 1.0a
+    - Pagination via since_id to only fetch new mentions
+  - [x] **Deduplication** - SHA256 fingerprint prevents duplicate replies
+    - Tracks mentionId + command type
+    - Maintains LRU list of 20 replied fingerprints
+  - [x] **State persistence**
+    - lastSeenMentionId (for pagination)
+    - repliedMentionFingerprints (for dedup)
+    - lastSuccessfulMentionPollMs (for poll interval)
+  - [x] **Reply length enforcement** - Max 240 chars with "…" truncation
+
 ### TypeScript Build
 - [x] ESM module configuration
 - [x] `tsconfig.json` with NodeNext resolution
@@ -284,6 +304,8 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 | `X_API_SECRET` | ✅ | (none) | OAuth 1.0a consumer secret (X API recommended) |
 | `X_ACCESS_TOKEN` | ✅ | (none) | OAuth 1.0a user access token (X API recommended) |
 | `X_ACCESS_SECRET` | ✅ | (none) | OAuth 1.0a user access secret (X API recommended) |
+| `X_PHASE1_MENTIONS` | ✅ | `false` | Enable Phase 1 mentions poller (intent recognition only) |
+| `X_POLL_MINUTES` | ✅ | `2` | Poll mentions interval in minutes |
 | `OPENAI_API_KEY` | ✅ | (none) | LangChain works when set |
 | `CDP_API_KEY_NAME` | 🚧 | (none) | CDP experimental |
 | `CDP_API_KEY_PRIVATE_KEY` | 🚧 | (none) | CDP experimental |
@@ -311,7 +333,8 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 | Receipt formatting (receipts.ts) | 22 | ✅ | tests/receipts.test.ts |
 | Activity detection (watch.ts) | 32 | ✅ | tests/watch.test.ts |
 | State management (state.ts) | 22 | ✅ | tests/state.test.ts |
-| **Total** | **94** | **✅ ALL PASS** | **tests/** |
+| X Mentions (x_mentions.ts) | 37 | ✅ | tests/x_mentions.test.ts |
+| **Total** | **131** | **✅ ALL PASS** | **tests/** |
 
 **Test Framework**: Vitest v1.0.0 (dev dependency)
 
@@ -408,7 +431,31 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
 
 ## 📝 Changelog
 
-### 2026-01-30 (Latest - Comprehensive Test Suite)
+### 2026-01-30 (Latest - Phase 1 X Mentions Poller)
+- ✅ **Phase 1: Comment → Intent recognition (NO TRADING)**
+  - ✅ `src/social/x_mentions.ts` - Mention polling + safe replies
+  - ✅ Command recognition: help, status, buy, sell, why, unknown
+  - ✅ Safe replies that acknowledge intent but never execute trades
+  - ✅ X API v2 mentions endpoint with OAuth 1.0a
+  - ✅ Mention pagination (since_id) for efficient polling
+  - ✅ Fingerprint-based deduplication (SHA256 mentionId + command)
+  - ✅ LRU tracking of 20 recent replied mentions
+  - ✅ Reply length enforcement (max 240 chars with "…")
+  - ✅ State persistence: lastSeenMentionId, repliedMentionFingerprints, lastSuccessfulMentionPollMs
+  - ✅ Configuration: X_PHASE1_MENTIONS (bool, default false), X_POLL_MINUTES (number, default 2)
+  - ✅ Integration in main loop (runs before receipt posting, non-blocking)
+  - ✅ **37 new comprehensive tests** (command parsing, reply composition, dedup, safety)
+  - ✅ All guardrail explanations in replies (never mentions execution)
+- ✅ **Test framework updated: 131 total tests (up from 94)**
+  - ✅ 37 new tests for x_mentions (command parsing, composition, length, dedup, state)
+  - ✅ All tests deterministic (no network calls, fully mocked)
+  - ✅ Zero external dependencies added
+  - ✅ Full TypeScript type safety
+- ✅ Commands: `npm run test` (131 pass), `npm run test:watch` (watch mode)
+- ✅ Build command `npm run build` still passes (strict TypeScript)
+- ✅ Commit: `346575a`
+
+### 2026-01-30 (Comprehensive Test Suite)
 - ✅ **Vitest test framework with 94 deterministic unit tests**
   - ✅ 18 tests for guardrails enforcement (decision.ts)
   - ✅ 22 tests for receipt formatting (receipts.ts)

@@ -85,9 +85,9 @@ npm run test
 
 **Output**:
 ```
- Test Files  4 passed (4)
-      Tests  94 passed (94)
-   Duration  ~560ms
+ Test Files  5 passed (5)
+      Tests  131 passed (131)
+   Duration  ~571ms
 ```
 
 **What's tested**:
@@ -95,6 +95,7 @@ npm run test
 - ✅ Receipt formatting (multi-line, balances, mood rotation)
 - ✅ Activity detection (nonce, ETH delta, token delta)
 - ✅ State management (UTC reset, trade recording)
+- ✅ Phase 1 X Mentions (command parsing, safe replies, deduplication)
 
 All tests are deterministic with mocked viem clients (no network calls). See [tests/README.md](tests/README.md) for details.
 
@@ -145,6 +146,55 @@ X API uses OAuth 1.0a for secure, reliable posting:
 - Triggers: nonce increase, ETH balance change (≥ MIN_ETH_DELTA), token balance change (≥ MIN_TOKEN_DELTA)
 - Configure thresholds: `MIN_ETH_DELTA="0.00001"` and `MIN_TOKEN_DELTA="1000"` (optional)
 - No timer spam: only posts when wallet actually does something
+
+#### 2c) Phase 1: X Mentions Poller (Intent Recognition)
+
+The agent can also respond to mentions on X with intent recognition (no execution, no trading):
+
+```bash
+X_PHASE1_MENTIONS=true X_POLL_MINUTES=2 npm run dev
+```
+
+**Configuration** (add to `.env`):
+```bash
+X_PHASE1_MENTIONS="true"           # Enable mention polling
+X_POLL_MINUTES="2"                  # Check for mentions every 2 minutes
+X_API_KEY="..."                     # OAuth 1.0a credentials
+X_API_SECRET="..."
+X_ACCESS_TOKEN="..."
+X_ACCESS_SECRET="..."
+```
+
+**Supported commands** (case-insensitive):
+- `@bot help` → Agent explains features and safety guardrails
+- `@bot status` → Agent shows current ETH/INTERN balances, price, and trading status
+- `@bot buy` → Agent acknowledges intent but **never executes** (explains why)
+- `@bot sell` → Agent acknowledges intent but **never executes** (explains why)
+- `@bot why` → Agent explains decision logic and safety limits
+
+**Example conversation**:
+```
+You: @based_intern help
+Agent: based intern here 👀 i can post proof-of-life receipts and execute capped trades
+       on base with strict guardrails. learn more: docs/FLOW.md [SIMULATED]
+
+You: @based_intern status
+Agent: ETH: 0.123, INTERN: 5000, price: $0.50 🤔 [SIMULATED]
+
+You: @based_intern buy
+Agent: 📝 noted: you asked me to buy. but i never execute trades from mentions—only
+       from onchain activity detected in my main loop. see: docs/FLOW.md [SIMULATED]
+```
+
+**Safety guarantees**:
+- ✅ Never executes trades from mentions (intent recognition only)
+- ✅ Explains guardrails in every reply
+- ✅ Deduplicates replies (SHA256 fingerprinting)
+- ✅ Respects 240-char tweet limit (truncates with "…")
+- ✅ Runs in parallel to receipt posting (non-blocking)
+- ✅ Disabled by default (`X_PHASE1_MENTIONS="false"`)
+
+See [docs/STATUS.md](docs/STATUS.md#social-posting) for architecture details.
 
 ---
 
