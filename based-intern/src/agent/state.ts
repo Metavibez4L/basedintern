@@ -11,6 +11,13 @@ export type AgentState = {
   xApiCircuitBreakerDisabledUntilMs: number | null;
   // Idempotency: fingerprint of last posted receipt
   lastPostedReceiptFingerprint: string | null;
+  // Activity watcher state
+  lastSeenNonce: number | null;
+  lastSeenEthWei: string | null;
+  lastSeenTokenRaw: string | null;
+  lastSeenBlockNumber: number | null;
+  // Optional heartbeat: last UTC day we posted (activity or heartbeat)
+  lastPostDayUtc: string | null;
 };
 
 export const DEFAULT_STATE: AgentState = {
@@ -19,7 +26,12 @@ export const DEFAULT_STATE: AgentState = {
   tradesExecutedToday: 0,
   xApiFailureCount: 0,
   xApiCircuitBreakerDisabledUntilMs: null,
-  lastPostedReceiptFingerprint: null
+  lastPostedReceiptFingerprint: null,
+  lastSeenNonce: null,
+  lastSeenEthWei: null,
+  lastSeenTokenRaw: null,
+  lastSeenBlockNumber: null,
+  lastPostDayUtc: null
 };
 
 export function statePath(): string {
@@ -37,7 +49,12 @@ export async function loadState(): Promise<AgentState> {
       tradesExecutedToday: parsed.tradesExecutedToday ?? 0,
       xApiFailureCount: parsed.xApiFailureCount ?? 0,
       xApiCircuitBreakerDisabledUntilMs: parsed.xApiCircuitBreakerDisabledUntilMs ?? null,
-      lastPostedReceiptFingerprint: parsed.lastPostedReceiptFingerprint ?? null
+      lastPostedReceiptFingerprint: parsed.lastPostedReceiptFingerprint ?? null,
+      lastSeenNonce: parsed.lastSeenNonce ?? null,
+      lastSeenEthWei: parsed.lastSeenEthWei ?? null,
+      lastSeenTokenRaw: parsed.lastSeenTokenRaw ?? null,
+      lastSeenBlockNumber: parsed.lastSeenBlockNumber ?? null,
+      lastPostDayUtc: parsed.lastPostDayUtc ?? null
     };
 
     // Reset daily counter if the day rolled over.

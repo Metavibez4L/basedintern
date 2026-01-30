@@ -10,7 +10,8 @@ import { readBestEffortPrice } from "./chain/price.js";
 import { proposeAction } from "./agent/brain.js";
 import { enforceGuardrails } from "./agent/decision.js";
 import { buildReceiptMessage } from "./agent/receipts.js";
-import { loadState, recordExecutedTrade } from "./agent/state.js";
+import { loadState, recordExecutedTrade, saveState } from "./agent/state.js";
+import { watchForActivity, parseMinEthDelta, parseMinTokenDelta, type ActivityWatchContext } from "./agent/watch.js";
 import { createPoster } from "./social/poster.js";
 import { createTradeExecutor } from "./chain/trade.js";
 
@@ -81,6 +82,63 @@ async function tick(): Promise<void> {
     }
   }
 
+  // ============================================================
+  // NEW: ACTIVITY DETECTION
+  // ============================================================
+  const minEthDelta = parseMinEthDelta(process.env.MIN_ETH_DELTA ?? "0.00001");
+  const minTokenDelta = parseMinTokenDelta(
+    process.env.MIN_TOKEN_DELTA ?? "1000",
+    internDecimals
+  );
+
+  const watchCtx: ActivityWatchContext = {
+    chain: cfg.CHAIN,
+    publicClient: clients.publicClient as any,
+    walletAddress: wallet,
+    tokenAddress,
+    decimals: internDecimals,
+    minEthDeltaWei: minEthDelta,
+    minTokenDeltaRaw: minTokenDelta
+  };
+
+  const activityResult = await watchForActivity(
+    watchCtx,
+    state.lastSeenNonce,
+    state.lastSeenEthWei,
+    state.lastSeenTokenRaw,
+    state.lastSeenBlockNumber
+  );
+
+  // Always update watcher state (even if no activity)
+  const nextState = {
+    ...state,
+    lastSeenNonce: activityResult.newStatePatch.lastSeenNonce ?? state.lastSeenNonce,
+    lastSeenEthWei: activityResult.newStatePatch.lastSeenEthWei ?? state.lastSeenEthWei,
+    lastSeenTokenRaw: activityResult.newStatePatch.lastSeenTokenRaw ?? state.lastSeenTokenRaw,
+    lastSeenBlockNumber: activityResult.newStatePatch.lastSeenBlockNumber ?? state.lastSeenBlockNumber
+  };
+
+  // Check if we should post: activity detected OR heartbeat
+  const shouldPost = activityResult.changed;
+  // TODO: Optional heartbeat logic: check if no posts today and post 1/day
+
+  if (!shouldPost) {
+    logger.info("no activity detected, skipping receipt post", {
+      minEthDelta: minEthDelta.toString(),
+      minTokenDelta: minTokenDelta.toString()
+    });
+    // Still save updated watcher state
+    await saveState(nextState);
+    return;
+  }
+
+  logger.info("activity detected, posting receipt", {
+    reasons: activityResult.reasons
+  });
+
+  // ============================================================
+  // PROPOSE & EXECUTE (existing logic, unchanged)
+  // ============================================================
   const proposal = await proposeAction(cfg, {
     wallet,
     ethWei,
@@ -91,7 +149,7 @@ async function tick(): Promise<void> {
 
   const decision = enforceGuardrails(proposal, {
     cfg,
-    state,
+    state: nextState,
     now,
     wallet,
     ethWei,
@@ -104,10 +162,10 @@ async function tick(): Promise<void> {
       const trader = createTradeExecutor(cfg, clients, tokenAddress);
       if (decision.action === "BUY" && decision.buySpendWei) {
         txHash = await trader.executeBuy(decision.buySpendWei);
-        await recordExecutedTrade(state, now);
+        await recordExecutedTrade(nextState, now);
       } else if (decision.action === "SELL" && decision.sellAmount) {
         txHash = await trader.executeSell(decision.sellAmount);
-        await recordExecutedTrade(state, now);
+        await recordExecutedTrade(nextState, now);
       }
     } catch (err) {
       logger.warn("trade execution failed; falling back to HOLD receipt", {
@@ -131,10 +189,22 @@ async function tick(): Promise<void> {
   // Post (or log) receipt.
   await poster.post(receipt);
 
+  // Update state with new day marker
+  const postDay = utcDayKey(now);
+  nextState.lastPostDayUtc = postDay;
+  await saveState(nextState);
+
   // Always show guardrail block reasons in logs for operator visibility.
   if (decision.blockedReason) {
     logger.info("guardrails blocked trade", { blockedReason: decision.blockedReason });
   }
+}
+
+function utcDayKey(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 async function bootstrapCookiesIfConfigured(cfg: ReturnType<typeof loadConfig>): Promise<void> {
