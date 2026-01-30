@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { watchForActivity, parseMinEthDelta, parseMinTokenDelta, type ActivityWatchContext, type ActivityDetectionResult } from "../src/agent/watch.js";
-import { parseEther } from "viem";
+import { parseEther, type Address } from "viem";
 import type { PublicClient } from "viem";
 
 /**
@@ -40,11 +40,14 @@ function createMockPublicClient(overrides?: {
  * Create a minimal ActivityWatchContext for testing
  */
 function mockContext(publicClient: PublicClient, overrides?: Partial<ActivityWatchContext>): ActivityWatchContext {
+  const walletAddr: Address = ("0x" + "a".repeat(40)) as Address;
+  const tokenAddr: Address = ("0x" + "b".repeat(40)) as Address;
+  
   const base: ActivityWatchContext = {
     chain: "base-sepolia",
     publicClient,
-    walletAddress: "0x" + "a".repeat(40),
-    tokenAddress: "0x" + "b".repeat(40),
+    walletAddress: walletAddr,
+    tokenAddress: tokenAddr,
     decimals: 18,
     minEthDeltaWei: parseEther("0.00001"),
     minTokenDeltaRaw: BigInt(1000) * 10n ** 18n

@@ -8,20 +8,20 @@ import type { AgentState } from "../src/agent/state.js";
  */
 function mockConfig(overrides?: Partial<AppConfig>): AppConfig {
   const base: AppConfig = {
-    CHAIN: "base-sepolia",
-    RPC_URL_BASE_SEPOLIA: "http://localhost:8545",
-    RPC_URL_BASE: "http://localhost:8545",
-    PRIVATE_KEY: "0x" + "1".repeat(64),
     WALLET_MODE: "private_key",
-    TOKEN_ADDRESS: "0x" + "a".repeat(40),
+    PRIVATE_KEY: "0x" + "1".repeat(64),
+    BASE_SEPOLIA_RPC_URL: "http://localhost:8545",
+    BASE_RPC_URL: "http://localhost:8545",
+    CHAIN: "base-sepolia",
+    TOKEN_ADDRESS: `0x${"a".repeat(40)}` as `0x${string}`,
     LOOP_MINUTES: 30,
     TRADING_ENABLED: false,
     KILL_SWITCH: true,
     DRY_RUN: true,
     ROUTER_TYPE: "unknown",
-    ROUTER_ADDRESS: null,
-    POOL_ADDRESS: null,
-    WETH_ADDRESS: null,
+    ROUTER_ADDRESS: undefined,
+    POOL_ADDRESS: undefined,
+    WETH_ADDRESS: undefined,
     AERODROME_STABLE: false,
     DAILY_TRADE_CAP: 5,
     MIN_INTERVAL_MINUTES: 15,
@@ -30,14 +30,13 @@ function mockConfig(overrides?: Partial<AppConfig>): AppConfig {
     SLIPPAGE_BPS: 300,
     APPROVE_MAX: false,
     APPROVE_CONFIRMATIONS: 1,
-    OPENAI_API_KEY: null,
+    OPENAI_API_KEY: undefined,
     SOCIAL_MODE: "none",
-    X_API_KEY: null,
-    X_API_SECRET: null,
-    X_ACCESS_TOKEN: null,
-    X_ACCESS_SECRET: null,
-    MIN_ETH_DELTA: "0.00001",
-    MIN_TOKEN_DELTA: "1000"
+    HEADLESS: true,
+    X_API_KEY: undefined,
+    X_API_SECRET: undefined,
+    X_ACCESS_TOKEN: undefined,
+    X_ACCESS_SECRET: undefined
   };
 
   return { ...base, ...overrides };
@@ -420,7 +419,7 @@ describe("enforceGuardrails", () => {
         KILL_SWITCH: false,
         DRY_RUN: false,
         ROUTER_TYPE: "unknown",
-        ROUTER_ADDRESS: null
+        ROUTER_ADDRESS: undefined
       });
       const state = mockState();
       const ctx = mockContext(cfg, state);
@@ -438,7 +437,7 @@ describe("enforceGuardrails", () => {
         KILL_SWITCH: false,
         DRY_RUN: false,
         ROUTER_TYPE: "aerodrome",
-        ROUTER_ADDRESS: null
+        ROUTER_ADDRESS: undefined
       });
       const state = mockState();
       const ctx = mockContext(cfg, state);

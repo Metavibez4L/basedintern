@@ -1,13 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { buildReceiptMessage, type ReceiptInput } from "../src/agent/receipts.js";
+import type { Address } from "viem";
 
 /**
  * Create a minimal mock ReceiptInput for testing
  */
 function mockReceipt(overrides?: Partial<ReceiptInput>): ReceiptInput {
+  const walletAddr: Address = ("0x" + "a".repeat(40)) as Address;
+  
   const base: ReceiptInput = {
     action: "HOLD",
-    wallet: "0x" + "a".repeat(40),
+    wallet: walletAddr,
     ethWei: 5n * 10n ** 18n, // 5 ETH
     internAmount: 50_000n * 10n ** 18n, // 50k INTERN
     internDecimals: 18,

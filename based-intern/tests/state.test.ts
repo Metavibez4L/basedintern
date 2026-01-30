@@ -204,7 +204,7 @@ describe("recordExecutedTrade", () => {
 
       expect(updated.lastExecutedTradeAtMs).toBe(at.getTime());
       // Verify millisecond is captured
-      expect(updated.lastExecutedTradeAtMs % 1000).toBe(789);
+      expect((updated.lastExecutedTradeAtMs as number) % 1000).toBe(789);
     });
 
     it("records different timestamps for different trades", async () => {
@@ -217,7 +217,7 @@ describe("recordExecutedTrade", () => {
 
       expect(updated1.lastExecutedTradeAtMs).toBe(at1.getTime());
       expect(updated2.lastExecutedTradeAtMs).toBe(at2.getTime());
-      expect(updated2.lastExecutedTradeAtMs).toBeGreaterThan(updated1.lastExecutedTradeAtMs);
+      expect((updated2.lastExecutedTradeAtMs as number)).toBeGreaterThan(updated1.lastExecutedTradeAtMs as number);
     });
   });
 
