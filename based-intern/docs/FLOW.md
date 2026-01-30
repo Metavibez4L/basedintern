@@ -37,42 +37,119 @@ npx hardhat verify --network base <TOKEN_ADDRESS>
 
 ---
 
-### Step 2: Launch Agent (Posting Mode)
+### Step 2: Launch Agent (Posting Mode - Event-Driven)
 
 **Purpose**: Start the agent in a stable, safe posting-only mode for 1-2 hours to verify reliability before any trading.
+
+**Key Feature**: Posts ONLY when meaningful onchain activity is detected (no timer spam).
 
 **Flow**:
 1. Agent starts with default safe settings:
    - `DRY_RUN=true` (simulated mode)
    - `TRADING_ENABLED=false` (trading blocked)
    - `KILL_SWITCH=true` (additional safety)
-   - `SOCIAL_MODE=none` (logs only, no X posting)
+   - `SOCIAL_MODE=x_api` (recommended: reliable X posting via OAuth)
 
 2. Every tick (default: 30 minutes):
    ```
-   ┌─────────────────────────────────────────┐
-   │ 1. Load Config & State                  │
-   └─────────────────┬───────────────────────┘
-                     │
-   ┌─────────────────▼───────────────────────┐
+   ┌──────────────────────────────────────────┐
+   │ 1. Load Config & State                   │
+   └────────────────┬────────────────────────┘
+                    │
+   ┌────────────────▼────────────────────────┐
    │ 2. Resolve Token Address                │
    │    - From env (TOKEN_ADDRESS)           │
    │    - Or from deployments/<network>.json │
-   └─────────────────┬───────────────────────┘
-                     │
-   ┌─────────────────▼───────────────────────┐
+   └────────────────┬────────────────────────┘
+                    │
+   ┌────────────────▼────────────────────────┐
    │ 3. Read On-Chain Data                   │
+   │    - Wallet nonce                       │
    │    - ETH balance                        │
    │    - INTERN balance                     │
-   │    - Price (best-effort, may be unknown)│
-   └─────────────────┬───────────────────────┘
-                     │
-   ┌─────────────────▼───────────────────────┐
-   │ 4. Propose Action (Brain)               │
-   │    - If OPENAI_API_KEY: LangChain agent │
-   │    - Else: Deterministic fallback       │
-   └─────────────────┬───────────────────────┘
-                     │
+   │    - Price (best-effort)                │
+   └────────────────┬────────────────────────┘
+                    │
+   ┌────────────────▼────────────────────────┐
+   │ 4. DETECT ACTIVITY (NEW)                │
+   │    - Nonce changed?                     │
+   │    - ETH balance delta >= MIN_ETH?      │
+   │    - Token balance delta >= MIN_TOKEN?  │
+   └────────────────┬────────────────────────┘
+                    │
+        ┌───────────▼──────────────┐
+        │ Activity detected?        │
+        └───┬─────────────────────┬─┘
+            │ NO                  │ YES
+            │                     │
+            ▼                     ▼
+        Update state          Propose Action
+        & sleep               (continue below)
+                              │
+   ┌─────────────────────────▼────────────┐
+   │ 5. Propose Action (Brain)            │
+   │    - LangChain if OPENAI_API_KEY set │
+   │    - Fallback: deterministic HOLD    │
+   └─────────────────────────┬────────────┘
+                             │
+   ┌─────────────────────────▼────────────┐
+   │ 6. Enforce Guardrails                │
+   │    - TRADING_ENABLED check           │
+   │    - KILL_SWITCH check               │
+   │    - DRY_RUN check                   │
+   │    - Daily cap check                 │
+   │    - Min interval check              │
+   │    - Router config check             │
+   └─────────────────────────┬────────────┘
+                             │
+   ┌─────────────────────────▼────────────┐
+   │ 7. Execute Trade (if allowed)        │
+   │    In DRY_RUN: skip execution        │
+   └─────────────────────────┬────────────┘
+                             │
+   ┌─────────────────────────▼────────────┐
+   │ 8. Build Receipt                     │
+   │    - Action (HOLD/BUY/SELL)          │
+   │    - Balances, price, TX hash        │
+   │    - Mode (SIMULATED/LIVE)           │
+   │    - Mood note (persona)             │
+   └─────────────────────────┬────────────┘
+                             │
+   ┌─────────────────────────▼────────────┐
+   │ 9. Post Receipt (X API)              │
+   │    - Circuit breaker (3 failures)    │
+   │    - Idempotency (no duplicates)     │
+   │    - Rate-limit aware (backoff)      │
+   │    - Updates state on success        │
+   └──────────────────────────────────────┘
+   ```
+
+**Activity Triggers** (posts ONLY if any detected):
+1. **Nonce increased** → transaction(s) were executed
+2. **ETH balance changed by ≥ MIN_ETH_DELTA** (default: 0.00001 ETH = 10 gwei)
+3. **Token balance changed by ≥ MIN_TOKEN_DELTA** (default: 1000 tokens, respects decimals)
+
+**No Activity Detected** → skips posting, updates state, sleeps until next tick (reduces spam)
+
+**Key Safety Features**:
+- All trading blocked by default
+- Agent stays alive even if X posting fails
+- Event-driven posting eliminates timer spam
+- Receipts posted as SIMULATED (tx: "-") in DRY_RUN mode
+- Operator can observe stable activity before enabling live trading
+
+**Example Commands**:
+```bash
+# Event-driven posting with X API (recommended)
+SOCIAL_MODE=x_api DRY_RUN=true TRADING_ENABLED=false KILL_SWITCH=true \
+  X_API_KEY="..." X_API_SECRET="..." X_ACCESS_TOKEN="..." X_ACCESS_SECRET="..." \
+  npm run dev
+
+# Custom thresholds (optional)
+MIN_ETH_DELTA="0.001" MIN_TOKEN_DELTA="10000" SOCIAL_MODE=x_api ... npm run dev
+```
+
+---
    ┌─────────────────▼───────────────────────┐
    │ 5. Enforce Guardrails                   │
    │    - Check TRADING_ENABLED              │

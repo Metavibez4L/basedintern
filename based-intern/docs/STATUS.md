@@ -43,6 +43,12 @@ This document tracks the current implementation status of all features in the Ba
   - [x] Circuit breaker disabled-until timestamp (xApiCircuitBreakerDisabledUntilMs)
 - [x] **Receipt idempotency state**
   - [x] Last posted receipt fingerprint (lastPostedReceiptFingerprint)
+- [x] **Activity watcher state** (EVENT-DRIVEN RECEIPTS)
+  - [x] Last seen nonce (lastSeenNonce)
+  - [x] Last seen ETH balance (lastSeenEthWei)
+  - [x] Last seen token balance (lastSeenTokenRaw)
+  - [x] Last seen block number (lastSeenBlockNumber)
+  - [x] Last post day UTC (lastPostDayUtc) - for optional daily heartbeat
 
 ### LangChain Integration
 - [x] `src/agent/brain.ts` - LangChain tool-calling agent
@@ -73,6 +79,14 @@ This document tracks the current implementation status of all features in the Ba
 - [x] Mode indicator (SIMULATED/LIVE)
 - [x] 10 mood line variations (deterministic rotation)
 - [x] Consistent multi-line format
+- [x] **EVENT-DRIVEN POSTING** (NEW)
+  - [x] `src/agent/watch.ts` - Activity detection module
+  - [x] Detects wallet nonce increases (transactions occurred)
+  - [x] Detects ETH balance deltas (>= MIN_ETH_DELTA, default 0.00001 ETH)
+  - [x] Detects token balance deltas (>= MIN_TOKEN_DELTA, default 1000 tokens)
+  - [x] Only posts when activity detected (eliminates timer spam)
+  - [x] State persistence prevents duplicate posts on restart
+  - [x] Detailed activity logging (shows reasons for post or skip)
 
 ### Chain Integration (viem)
 - [x] `src/chain/client.ts` - Public + wallet client creation
@@ -372,7 +386,24 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 
 ## 📝 Changelog
 
-### 2026-01-30 (Latest - X API Hardening)
+### 2026-01-30 (Latest - Event-Driven Receipt Posting)
+- ✅ **Event-driven receipt posting implemented**
+  - ✅ `src/agent/watch.ts` - Activity detection module
+  - ✅ Detects wallet nonce increases (transactions occurred)
+  - ✅ Detects ETH balance deltas (configurable MIN_ETH_DELTA, default 0.00001 ETH)
+  - ✅ Detects token balance deltas (configurable MIN_TOKEN_DELTA, default 1000 tokens)
+  - ✅ Only posts when activity detected (eliminates timer spam)
+  - ✅ State persistence prevents duplicate posts on restart
+  - ✅ Detailed activity logging (shows reasons for post or skip)
+- ✅ Updated `src/agent/state.ts` with activity watcher fields:
+  - lastSeenNonce, lastSeenEthWei, lastSeenTokenRaw, lastSeenBlockNumber, lastPostDayUtc
+- ✅ Updated main loop in `src/index.ts` to call watcher before posting
+- ✅ Conditional posting: only posts when activity.changed == true
+- ✅ Always update watcher state (prevents restart spam)
+- ✅ No new dependencies
+- ✅ TypeScript compilation passing (strict mode)
+
+### 2026-01-30 (X API Hardening)
 - ✅ **X API posting hardened with production-grade resilience**
   - ✅ Circuit breaker pattern: 3 consecutive failures → 30-minute disable
   - ✅ Idempotency: Receipt fingerprinting prevents duplicate posts

@@ -90,7 +90,8 @@ In this mode the agent:
 - resolves `TOKEN_ADDRESS` from env OR `deployments/<network>.json`
 - reads ETH + INTERN balances
 - best-effort price (may be `unknown`)
-- posts **SIMULATED** receipts (no txs)
+- **posts SIMULATED receipts ONLY when activity detected**
+- tracks: nonce increases, ETH balance changes, token balance changes
 
 #### 2b) Set up X API credentials
 
@@ -108,6 +109,12 @@ X API uses OAuth 1.0a for secure, reliable posting:
 - Idempotency: Never posts the same receipt twice (SHA256 fingerprinting)
 - Rate-limit aware: Respects X API rate limits with exponential backoff
 - All state persisted to `data/state.json` for reliability
+
+**Event-driven posting** (default):
+- Posts ONLY when meaningful onchain activity detected
+- Triggers: nonce increase, ETH balance change (≥ MIN_ETH_DELTA), token balance change (≥ MIN_TOKEN_DELTA)
+- Configure thresholds: `MIN_ETH_DELTA="0.00001"` and `MIN_TOKEN_DELTA="1000"` (optional)
+- No timer spam: only posts when wallet actually does something
 
 ---
 
