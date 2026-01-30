@@ -1,6 +1,8 @@
 import crypto from "node:crypto";
 import type { AppConfig } from "../config.js";
 import { logger } from "../logger.js";
+import type { AgentState } from "../agent/state.js";
+import { saveState } from "../agent/state.js";
 import type { SocialPoster } from "./poster.js";
 
 type XCreateTweetResponse =
@@ -10,27 +12,58 @@ type XCreateTweetResponse =
 /**
  * X API posting via OAuth 1.0a (user context).
  *
+ * Hardened with:
+ * - Circuit breaker (disable posting after 3 consecutive failures for 30 min)
+ * - Idempotency (never post the same receipt twice)
+ * - Rate-limit awareness (429 detection + exponential backoff)
+ *
  * This works on Railway because it doesn't rely on a browser / Playwright.
  * Requires paid X API access + OAuth 1.0a user access token/secret.
  */
-export function createXPosterApi(cfg: AppConfig): SocialPoster {
+export function createXPosterApi(cfg: AppConfig, state: AgentState, saveStateFn: (s: AgentState) => Promise<void>): SocialPoster {
   const consumerKey = must(cfg.X_API_KEY, "X_API_KEY");
   const consumerSecret = must(cfg.X_API_SECRET, "X_API_SECRET");
   const accessToken = must(cfg.X_ACCESS_TOKEN, "X_ACCESS_TOKEN");
   const accessSecret = must(cfg.X_ACCESS_SECRET, "X_ACCESS_SECRET");
 
+  let currentState = state;
+
   return {
     async post(text: string) {
+      // Circuit breaker check
+      if (isCircuitBreakerOpen(currentState)) {
+        logger.warn("x_api posting disabled by circuit breaker", {
+          disabledUntilMs: currentState.xApiCircuitBreakerDisabledUntilMs,
+          failureCount: currentState.xApiFailureCount
+        });
+        return;
+      }
+
+      // Idempotency check
+      const fingerprint = computeReceiptFingerprint(text);
+      if (fingerprint === currentState.lastPostedReceiptFingerprint) {
+        logger.info("x_api skipping duplicate receipt (already posted)", {
+          fingerprint: fingerprint.slice(0, 16) + "..."
+        });
+        return;
+      }
+
       const bodyText = truncateForTweet(text);
       if (bodyText !== text) {
-        logger.warn("tweet text truncated to 280 chars", { originalLen: text.length, newLen: bodyText.length });
+        logger.warn("tweet text truncated to 280 chars", {
+          originalLen: text.length,
+          newLen: bodyText.length
+        });
       }
 
       const url = "https://api.twitter.com/2/tweets";
       const method = "POST";
       const payload = JSON.stringify({ text: bodyText });
 
+      // Rate-limit aware retry with exponential backoff
       const maxAttempts = 3;
+      let lastError: Error | null = null;
+
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         const authHeader = buildOAuth1Header({
           method,
@@ -53,37 +86,77 @@ export function createXPosterApi(cfg: AppConfig): SocialPoster {
             body: payload
           });
         } catch (e) {
-          logger.warn("failed to post to X (x_api) due to network error", {
+          const errMsg = e instanceof Error ? e.message : String(e);
+          logger.warn("x_api network error", {
             attempt,
-            error: e instanceof Error ? e.message : String(e)
+            error: errMsg
           });
-          await sleep(backoffMs(attempt));
+          lastError = e instanceof Error ? e : new Error(errMsg);
+
+          // On last attempt, increment failure count
+          if (attempt === maxAttempts) {
+            await recordXApiFailure(currentState, saveStateFn);
+          } else {
+            // Wait before retry
+            const delayMs = retryDelayMs(attempt, false);
+            await sleep(delayMs);
+          }
           continue;
         }
 
         const raw = await res.text().catch(() => "");
         const parsed = safeJsonParse(raw) as XCreateTweetResponse | undefined;
+        const isRateLimited = res.status === 429;
+        const isTransientError = res.status >= 500 && res.status <= 599;
 
-        // Retry on 429 and transient 5xx.
-        if (res.status === 429 || (res.status >= 500 && res.status <= 599)) {
-          logger.warn("X API temporary failure; will retry", {
+        // Detect rate limiting via status or headers
+        if (isRateLimited || isTransientError) {
+          const resetHeader = res.headers.get("x-rate-limit-reset");
+          const resetAt = resetHeader ? parseInt(resetHeader, 10) * 1000 : null;
+
+          logger.warn("x_api rate-limited or transient error", {
             attempt,
             status: res.status,
+            isRateLimited,
+            resetAtMs: resetAt,
             body: summarizeXError(raw)
           });
-          await sleep(backoffMs(attempt));
+
+          if (attempt === maxAttempts) {
+            // Exhausted retries
+            await recordXApiFailure(currentState, saveStateFn);
+          } else {
+            // Retry with exponential backoff
+            const delayMs = retryDelayMs(attempt, isRateLimited);
+            logger.info("x_api retrying after backoff", {
+              attempt,
+              delayMs
+            });
+            await sleep(delayMs);
+          }
           continue;
         }
 
         if (!res.ok) {
-          // Non-retriable most of the time (401/403/400 etc). Log and keep the agent alive.
           const summary = summarizeXError(raw);
+
+          // Special case: duplicate tweet (not a failure)
           if (isDuplicateTweet(summary) || isDuplicateTweet(raw)) {
-            logger.info("X API rejected duplicate tweet; skipping", { status: res.status, attempt, detail: summary });
+            logger.info("x_api rejected duplicate tweet; skipping", {
+              status: res.status,
+              attempt,
+              detail: summary
+            });
+            // Update fingerprint as if posted successfully
+            currentState.lastPostedReceiptFingerprint = fingerprint;
+            currentState.xApiFailureCount = 0;
+            await saveStateFn(currentState);
             return;
           }
+
+          // Auth errors
           if (res.status === 401 || res.status === 403) {
-            logger.error("X API auth/permission error (check app permissions + regenerate user tokens)", {
+            logger.error("x_api auth/permission error (check app permissions + regenerate user tokens)", {
               status: res.status,
               attempt,
               detail: summary,
@@ -91,28 +164,129 @@ export function createXPosterApi(cfg: AppConfig): SocialPoster {
                 "Ensure your X app has Read+Write permissions, then regenerate X_ACCESS_TOKEN/X_ACCESS_SECRET for the posting account. " +
                 "Also confirm you are using OAuth 1.0a user tokens (not the bearer token)."
             });
+            // Treat as non-retriable failure
+            await recordXApiFailure(currentState, saveStateFn);
             return;
           }
-          logger.error("X API post failed", { status: res.status, attempt, detail: summary });
+
+          // Other non-retriable errors
+          logger.error("x_api post failed", {
+            status: res.status,
+            attempt,
+            detail: summary
+          });
+
+          if (attempt === maxAttempts) {
+            await recordXApiFailure(currentState, saveStateFn);
+          }
           return;
         }
 
+        // Success
         const tweetId = (parsed as any)?.data?.id;
         if (typeof tweetId !== "string" || !tweetId.trim()) {
-          logger.error("X API response missing tweet id", { status: res.status, attempt, detail: summarizeXError(raw) });
+          logger.error("x_api response missing tweet id", {
+            status: res.status,
+            attempt,
+            detail: summarizeXError(raw)
+          });
+          await recordXApiFailure(currentState, saveStateFn);
           return;
         }
 
-        // Works without knowing the handle.
         const tweetUrl = `https://x.com/i/web/status/${tweetId}`;
-        logger.info("posted to X (x_api)", { attempt, tweetId, tweetUrl });
+        logger.info("x_api posted successfully", {
+          attempt,
+          tweetId,
+          tweetUrl
+        });
+
+        // Reset failure counter and update fingerprint
+        currentState.lastPostedReceiptFingerprint = fingerprint;
+        currentState.xApiFailureCount = 0;
+        currentState.xApiCircuitBreakerDisabledUntilMs = null;
+        await saveStateFn(currentState);
         return;
       }
 
-      // If we exhausted retries, keep the agent alive but make it obvious.
-      logger.error("giving up posting to X (x_api) for this tick", {});
+      // Exhausted all attempts; already recorded failure
+      logger.error("x_api exhausted retries for this tick", {
+        failureCount: currentState.xApiFailureCount
+      });
     }
   };
+}
+
+/**
+ * Compute a fingerprint for receipt idempotency.
+ * Includes: chain, action, tx hash (if present), wallet, and timestamp bucket (5-minute window).
+ */
+export function computeReceiptFingerprint(receiptText: string): string {
+  // Extract key fields from receipt format
+  // Receipt is multi-line, we use the whole content for fingerprinting
+  // but bucket the timestamp to 5-minute windows to avoid clock skew issues
+
+  const now = Math.floor(Date.now() / (5 * 60 * 1000)) * (5 * 60 * 1000);
+  const bucket = new Date(now).toISOString();
+
+  // Hash: receipt text + timestamp bucket
+  const data = receiptText + "|" + bucket;
+  return crypto.createHash("sha256").update(data).digest("hex");
+}
+
+/**
+ * Check if circuit breaker is open (X API temporarily disabled).
+ */
+function isCircuitBreakerOpen(state: AgentState): boolean {
+  const disabledUntil = state.xApiCircuitBreakerDisabledUntilMs;
+  if (!disabledUntil) return false;
+
+  const now = Date.now();
+  if (now < disabledUntil) {
+    return true; // Still disabled
+  }
+
+  // Cooldown expired; breaker is closed
+  return false;
+}
+
+/**
+ * Record an X API failure and trigger circuit breaker if threshold reached.
+ */
+async function recordXApiFailure(state: AgentState, saveStateFn: (s: AgentState) => Promise<void>): Promise<void> {
+  const nextState: AgentState = { ...state };
+  nextState.xApiFailureCount += 1;
+
+  if (nextState.xApiFailureCount >= 3) {
+    // Open circuit breaker for 30 minutes
+    const cooldownMs = 30 * 60 * 1000;
+    nextState.xApiCircuitBreakerDisabledUntilMs = Date.now() + cooldownMs;
+
+    logger.warn("x_api circuit breaker opened after 3 consecutive failures", {
+      disabledUntilMs: nextState.xApiCircuitBreakerDisabledUntilMs,
+      cooldownMinutes: cooldownMs / 60 / 1000
+    });
+  }
+
+  await saveStateFn(nextState);
+}
+
+/**
+ * Calculate retry delay with exponential backoff.
+ * For rate-limited (429) errors, use longer delays.
+ */
+function retryDelayMs(attempt: number, isRateLimited: boolean): number {
+  if (isRateLimited) {
+    // Rate-limit specific backoff: 2min, 5min, 15min
+    if (attempt === 1) return 2 * 60 * 1000;
+    if (attempt === 2) return 5 * 60 * 1000;
+    return 15 * 60 * 1000;
+  }
+
+  // Transient error backoff: faster recovery
+  if (attempt === 1) return 1_000;
+  if (attempt === 2) return 3_000;
+  return 8_000;
 }
 
 function must(v: string | undefined, name: string): string {

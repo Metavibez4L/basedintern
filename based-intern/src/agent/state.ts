@@ -6,12 +6,20 @@ export type AgentState = {
   // UTC day key, e.g. "2026-01-29"
   dayKey: string;
   tradesExecutedToday: number;
+  // X API circuit breaker
+  xApiFailureCount: number;
+  xApiCircuitBreakerDisabledUntilMs: number | null;
+  // Idempotency: fingerprint of last posted receipt
+  lastPostedReceiptFingerprint: string | null;
 };
 
 export const DEFAULT_STATE: AgentState = {
   lastExecutedTradeAtMs: null,
   dayKey: utcDayKey(new Date()),
-  tradesExecutedToday: 0
+  tradesExecutedToday: 0,
+  xApiFailureCount: 0,
+  xApiCircuitBreakerDisabledUntilMs: null,
+  lastPostedReceiptFingerprint: null
 };
 
 export function statePath(): string {
@@ -26,7 +34,10 @@ export async function loadState(): Promise<AgentState> {
     const merged: AgentState = {
       lastExecutedTradeAtMs: parsed.lastExecutedTradeAtMs ?? null,
       dayKey: parsed.dayKey ?? utcDayKey(new Date()),
-      tradesExecutedToday: parsed.tradesExecutedToday ?? 0
+      tradesExecutedToday: parsed.tradesExecutedToday ?? 0,
+      xApiFailureCount: parsed.xApiFailureCount ?? 0,
+      xApiCircuitBreakerDisabledUntilMs: parsed.xApiCircuitBreakerDisabledUntilMs ?? null,
+      lastPostedReceiptFingerprint: parsed.lastPostedReceiptFingerprint ?? null
     };
 
     // Reset daily counter if the day rolled over.

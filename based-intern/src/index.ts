@@ -33,10 +33,11 @@ async function tick(): Promise<void> {
   const cfg = loadConfig();
   await bootstrapCookiesIfConfigured(cfg);
   const clients = createChainClients(cfg);
-  const poster = createPoster(cfg);
 
   const now = new Date();
   const state = await loadState();
+
+  const poster = createPoster(cfg, state);
 
   let tokenAddress: Address | null = null;
   try {
