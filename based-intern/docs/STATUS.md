@@ -120,24 +120,36 @@ This document tracks the current implementation status of all features in the Ba
 
 ## 🚧 Scaffolded (Needs Implementation)
 
-### Aerodrome Integration (Partial)
-- [x] `src/chain/aerodrome.ts` - Pool reading and price calculation
+### Aerodrome Integration
+- [x] `src/chain/aerodrome.ts` - Complete Aerodrome DEX integration
   - [x] `readAerodromePool()` - Reads pool reserves from Aerodrome pairs
   - [x] `calculateAerodromeOutput()` - Computes swap output using constant product formula
   - [x] Stable vs volatile pool support
   - [x] Slippage protection (via `applySlippage()`)
-  - [ ] **Swap calldata encoding** - Route struct encoding and router calls not yet implemented
+  - [x] **buildAerodromeSwapCalldata()** - Full ABI encoding of swapExactTokensForTokens()
+    - Encodes Route[] struct with from/to/stable/factory fields
+    - Encodes function selector and all parameters
+    - Calculates deadline automatically
+  - [x] `queryAerodromePool()` - Factory query for pool discovery
 
 ### Trading Execution
-- [x] `src/chain/trade.ts` - Aerodrome integration scaffolded
+- [x] `src/chain/trade.ts` - **Complete Aerodrome trading implementation**
   - [x] Router type validation (ROUTER_TYPE must be "aerodrome")
   - [x] Pool reading and quote generation
   - [x] Slippage calculation
   - [x] Error handling and logging
-  - [ ] **Critical TODO**: Calldata building and transaction execution
-    - Requires encoding Aerodrome `Route[]` struct
-    - Needs to call router methods: `swapExactTokensForTokens()` or similar
-    - Must send transaction via `walletClient.sendTransaction()`
+  - [x] **executeBuy()** - Full BUY swap execution
+    - Reads pool reserves
+    - Calculates expected INTERN output
+    - Builds swap calldata
+    - Sends transaction with ETH value
+    - Returns transaction hash
+  - [x] **executeSell()** - Full SELL swap execution
+    - Reads pool reserves
+    - Calculates expected ETH output
+    - Builds swap calldata
+    - Sends transaction
+    - Returns transaction hash
 
 **Aerodrome Configuration**:
 ```bash
@@ -288,12 +300,12 @@ npm run build                         # ✅ Compiles all TS sources cleanly
    - Falls back gracefully to "unknown" if pool unavailable
    - Ready for production use
 
-2. **Complete Aerodrome trading execution** (`src/chain/trade.ts`)
-   - [x] Pool reading and quoting (done)
-   - [ ] Build Aerodrome route calldata
-     - Encode `Route[] = [{ from: WETH, to: INTERN, stable: false, factory: 0x... }]`
-     - Call router: `swapExactTokensForTokens(amountIn, amountOutMin, routes, recipient, deadline)`
-   - [ ] Send transaction via `walletClient.sendTransaction()`
+2. ✅ **Complete Aerodrome trading execution** - DONE in `src/chain/trade.ts`
+   - [x] Pool reading and quoting
+   - [x] Build Aerodrome route calldata
+     - Route[] struct encoding with from/to/stable/factory
+     - swapExactTokensForTokens() selector and parameters
+   - [x] Send transaction via `walletClient.sendTransaction()`
    - [ ] Test on Base Sepolia with small amounts
    - [ ] Monitor slippage protection
 
@@ -340,30 +352,38 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 
 ## 🐛 Known Issues
 
-1. **Trading execution not complete** (`src/chain/trade.ts`)
-   - Pool reading and quoting working
-   - Swap calldata encoding still needed
-   - Blocks actual BUY/SELL execution (DRY_RUN works fine)
-   - Will throw: "Aerodrome buy/sell swap calldata encoding not yet implemented"
-
-2. **Playwright selectors may break** if X.com changes their UI
+1. **Playwright selectors may break** if X.com changes their UI
    - Selectors are kept flexible but may need updates
    - Consider X API for more stability
 
-3. **No Uniswap V3 support** yet
+2. **No Uniswap V3 support** yet
    - Currently Aerodrome only (Base-native DEX)
    - Plan to add V3 support for chains like Ethereum, Optimism, etc.
+
+3. **Token approvals not yet implemented**
+   - SELL transactions will require wallet to approve router spending
+   - May need to implement `approveTokenForRouter()` helper
 
 ---
 
 ## 📝 Changelog
 
-### 2026-01-30
+### 2026-01-30 (Latest)
+- ✅ **Aerodrome trading execution complete**
+  - ✅ `buildAerodromeSwapCalldata()` - Full ABI encoding of swapExactTokensForTokens()
+  - ✅ `executeBuy()` - BUY swap with calldata building and transaction execution
+  - ✅ `executeSell()` - SELL swap with calldata building and transaction execution
+  - ✅ Route struct encoding with from/to/stable/factory fields
+  - ✅ Proper deadline calculation (10-minute default)
+  - ✅ Structured logging at each step (pool read, quote, calldata, submission)
+- ✅ TypeScript compilation passing with full type safety
+- ✅ Ready for testing on Base Sepolia
+
+### 2026-01-30 (Earlier)
 - ✅ **Aerodrome integration complete (partial)**
   - ✅ `src/chain/aerodrome.ts` - Pool reading, reserve queries, swap output calculation
   - ✅ `src/chain/price.ts` - Real-time price oracle using Aerodrome pools
   - ✅ Price fallback to "unknown" with detailed error sources
-  - ⚠️ Trade execution scaffolded; calldata encoding TODO
   - ✅ Support for stable and volatile pool types
   - ✅ Slippage protection implemented
 - ✅ Config validation for Aerodrome params (POOL_ADDRESS, WETH_ADDRESS, etc.)
