@@ -133,39 +133,19 @@ SOCIAL_MODE=x_api TRADING_ENABLED=true KILL_SWITCH=false DRY_RUN=false npm run d
 - `WETH_ADDRESS=0x4200000000000000000000000000000000000006`
 - `AERODROME_STABLE=false`
 
+**For SELL trades** (optional, default safe):
+- `APPROVE_MAX=false` (default): Approve exact amount needed per trade
+- `APPROVE_MAX=true`: Approve MaxUint256 (unlimited, one approval per wallet)
+
 In this mode the agent:
 - reads on-chain pool data (reserves, prices)
 - proposes BUY/SELL actions via LangChain (if `OPENAI_API_KEY` set)
 - enforces strict guardrails (daily cap, min interval, max spend)
+- **automatically handles ERC20 approvals for SELL trades** (checks allowance, approves if needed)
 - executes swaps via Aerodrome with slippage protection
 - posts **LIVE** receipts with transaction hashes
 
 If posting fails, the agent logs the error and **keeps running**.
-
-#### Note on Railway deployments
-
-Railway and other cloud providers work best with X API, which doesn't require browser automation. Use:
-
-```bash
-SOCIAL_MODE=x_api npm run dev
-```
-
-Set the OAuth 1.0a user credentials (posting account):
-- `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET`
-
----
-
-### Step 3: Flip to LIVE carefully (caps small)
-
-Only flip to live when you are ready:
-
-#### Note on Railway deployments
-
-Railway and other cloud providers work best with X API, which doesn't require browser automation. Use:
-
-```bash
-SOCIAL_MODE=x_api npm run dev
-```
 
 ## Security warnings
 - Use a **fresh wallet** with tiny funds.

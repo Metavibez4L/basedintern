@@ -92,6 +92,10 @@ This document tracks the current implementation status of all features in the Ba
 - [x] `src/chain/client.ts` - Public + wallet client creation
 - [x] `src/chain/chains.ts` - Base Sepolia + Base definitions
 - [x] `src/chain/erc20.ts` - ETH balance, ERC20 decimals, ERC20 balance reads
+  - [x] **ERC20 allowance/approval** (NEW)
+    - [x] `readAllowance()` - Check current spender allowance
+    - [x] `approveToken()` - Send approve() transaction with configurable amount
+    - [x] Smart approval orchestration (check → approve if insufficient → swap)
 - [x] `src/chain/price.ts` - Best-effort price stub (returns "unknown")
 - [x] Private key wallet support (WALLET_MODE=private_key)
 - [x] CDP wallet mode (experimental, read-only fallback)
@@ -170,7 +174,11 @@ This document tracks the current implementation status of all features in the Ba
     - Builds swap calldata
     - Sends transaction with ETH value
     - Returns transaction hash
-  - [x] **executeSell()** - Full SELL swap execution
+  - [x] **executeSell()** - Full SELL swap execution with ERC20 approval (NEW)
+    - **Approval orchestration** (NEW)
+      - Checks current INTERN allowance to router
+      - If insufficient: sends approve() transaction
+      - Handles fresh wallets with 0 allowance (no transaction needed)
     - Reads pool reserves
     - Calculates expected ETH output
     - Builds swap calldata
@@ -378,15 +386,35 @@ npm run build                         # ✅ Compiles all TS sources cleanly
    - Currently Aerodrome only (Base-native DEX)
    - Plan to add V3 support for chains like Ethereum, Optimism, etc.
 
-2. **Token approvals not yet implemented**
-   - SELL transactions will require wallet to approve router spending
-   - May need to implement `approveTokenForRouter()` helper
+~~2. **Token approvals not yet implemented**~~ ✅ RESOLVED
+   - ✅ Implemented transparent approval orchestration in `executeSell()`
+   - ✅ Checks current allowance before attempting swap
+   - ✅ Automatically approves router if needed
+   - ✅ Handles fresh wallets with 0 allowance
 
 ---
 
 ## 📝 Changelog
 
-### 2026-01-30 (Latest - Event-Driven Receipt Posting)
+### 2026-01-30 (Latest - ERC20 Allowance/Approval for SELL Trades)
+- ✅ **ERC20 allowance checking and approval system implemented**
+  - ✅ `readAllowance()` - Queries current router spending allowance
+  - ✅ `approveToken()` - Sends ERC20 approve() transaction
+  - ✅ `ensureAllowance()` - Smart orchestration (check → approve if needed → return metadata)
+  - ✅ `executeSell()` - Now calls ensureAllowance() before swap execution
+  - ✅ Handles fresh wallets with 0 allowance (no approval tx needed if amount is 0)
+  - ✅ Handles insufficient allowance (sends approval, waits for confirmation)
+  - ✅ Config options added:
+    - `APPROVE_MAX` (bool, default false): Approve MaxUint256 vs exact amount
+    - `APPROVE_CONFIRMATIONS` (number, default 1): Block confirmations to wait (future use)
+- ✅ Updated `src/chain/erc20.ts` with new allowance/approval functions
+- ✅ Updated `src/chain/trade.ts` to integrate approval into SELL flow
+- ✅ Updated `src/config.ts` with approval configuration options
+- ✅ TypeScript compilation passing (strict mode)
+- ✅ No new dependencies added
+- ✅ Commit: `61b37e8`
+
+### 2026-01-30 (Event-Driven Receipt Posting)
 - ✅ **Event-driven receipt posting implemented**
   - ✅ `src/agent/watch.ts` - Activity detection module
   - ✅ Detects wallet nonce increases (transactions occurred)
