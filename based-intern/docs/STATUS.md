@@ -38,6 +38,11 @@ This document tracks the current implementation status of all features in the Ba
 - [x] Last trade timestamp tracking
 - [x] Daily trade counter with automatic UTC midnight reset
 - [x] State file creation on first run
+- [x] **X API circuit breaker state**
+  - [x] Consecutive failure count (xApiFailureCount)
+  - [x] Circuit breaker disabled-until timestamp (xApiCircuitBreakerDisabledUntilMs)
+- [x] **Receipt idempotency state**
+  - [x] Last posted receipt fingerprint (lastPostedReceiptFingerprint)
 
 ### LangChain Integration
 - [x] `src/agent/brain.ts` - LangChain tool-calling agent
@@ -81,13 +86,26 @@ This document tracks the current implementation status of all features in the Ba
 ### Social Posting
 - [x] `src/social/poster.ts` - Social mode router
 - [x] `src/social/x_playwright.ts` - Playwright-based X posting
-- [x] Cookies-based authentication (X_COOKIES_PATH)
-- [x] Username/password fallback
-- [x] Retry with exponential backoff (3 attempts)
-- [x] Graceful failure (logs error, continues loop)
-- [x] Headless mode support (HEADLESS=true default)
+  - [x] Cookies-based authentication (X_COOKIES_PATH)
+  - [x] Username/password fallback
+  - [x] Retry with exponential backoff (3 attempts)
+  - [x] Graceful failure (logs error, continues loop)
+  - [x] Headless mode support (HEADLESS=true default)
 - [x] `src/social/x_api.ts` - X API posting via OAuth 1.0a (recommended on Railway)
-- [x] SOCIAL_MODE=none (logs receipt only)
+  - [x] **Circuit breaker** - Disables posting after 3 consecutive failures for 30 minutes
+    - Prevents hammering X API during outages
+    - Automatically re-enables after cooldown expires
+    - Failure count persisted in state.json
+  - [x] **Idempotency / Deduplication** - Never posts the same receipt twice
+    - Receipt fingerprint computed from text + 5-minute timestamp bucket
+    - Persists lastPostedReceiptFingerprint in state.json
+    - Skips duplicates without counting as failures
+  - [x] **Rate-limit aware retries** - Respects X API rate limits
+    - Detects HTTP 429 and rate-limit headers
+    - Exponential backoff: 2min, 5min, 15min for rate-limited errors
+    - Shorter backoff (1s, 3s, 8s) for transient errors
+    - Respects rate-limit-reset headers
+  - [x] SOCIAL_MODE=none (logs receipt only)
 
 ### TypeScript Build
 - [x] ESM module configuration
@@ -368,7 +386,19 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 
 ## 📝 Changelog
 
-### 2026-01-30 (Latest)
+### 2026-01-30 (Latest - X API Hardening)
+- ✅ **X API posting hardened with production-grade resilience**
+  - ✅ Circuit breaker pattern: 3 consecutive failures → 30-minute disable
+  - ✅ Idempotency: Receipt fingerprinting prevents duplicate posts
+  - ✅ Rate-limit handling: 429 detection + exponential backoff
+  - ✅ Persistent state: Failure count, circuit breaker timer, last fingerprint
+  - ✅ Structured logging: All behavior observable and debuggable
+- ✅ Updated `src/agent/state.ts` with new persisted fields
+- ✅ Updated `src/social/poster.ts` to pass state to X API poster
+- ✅ Agent never crashes if X is down; continues normally
+- ✅ TypeScript compilation passing with full type safety
+
+### 2026-01-30 (Aerodrome Trading Execution)
 - ✅ **Aerodrome trading execution complete**
   - ✅ `buildAerodromeSwapCalldata()` - Full ABI encoding of swapExactTokensForTokens()
   - ✅ `executeBuy()` - BUY swap with calldata building and transaction execution
@@ -379,7 +409,7 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 - ✅ TypeScript compilation passing with full type safety
 - ✅ Ready for testing on Base Sepolia
 
-### 2026-01-30 (Earlier)
+### 2026-01-30 (Earlier - Aerodrome Integration)
 - ✅ **Aerodrome integration complete (partial)**
   - ✅ `src/chain/aerodrome.ts` - Pool reading, reserve queries, swap output calculation
   - ✅ `src/chain/price.ts` - Real-time price oracle using Aerodrome pools
