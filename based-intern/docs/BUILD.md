@@ -112,6 +112,32 @@ npm run lint
 - Runs ESLint on all `.ts` files
 - Checks for unused variables and basic issues
 
+### Run Unit Tests
+
+```bash
+npm run test
+```
+
+**Expected output**:
+```
+ Test Files  4 passed (4)
+      Tests  94 passed (94)
+   Start at  12:34:53
+   Duration  561ms
+```
+
+**What this does**:
+- Runs all 94 Vitest unit tests (deterministic, no network calls)
+- Tests guardrails, receipts, activity detection, and state management
+- Exit code 0 = all pass
+
+**Watch Mode** (auto-rerun on changes):
+```bash
+npm run test:watch
+```
+
+See [tests/README.md](../tests/README.md) for full test documentation.
+
 ---
 
 ## Deployment

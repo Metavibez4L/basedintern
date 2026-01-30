@@ -75,7 +75,37 @@ npx hardhat verify --network base <TOKEN_ADDRESS>
 
 ---
 
-### Step 2: Launch the agent immediately (even before trading)
+### Step 2a: Run Tests (Recommended)
+
+Before deploying or running live, verify the codebase with automated tests:
+
+```bash
+npm run test
+```
+
+**Output**:
+```
+ Test Files  4 passed (4)
+      Tests  94 passed (94)
+   Duration  ~560ms
+```
+
+**What's tested**:
+- ✅ Guardrails enforcement (KILL_SWITCH, TRADING_ENABLED, caps, intervals)
+- ✅ Receipt formatting (multi-line, balances, mood rotation)
+- ✅ Activity detection (nonce, ETH delta, token delta)
+- ✅ State management (UTC reset, trade recording)
+
+All tests are deterministic with mocked viem clients (no network calls). See [tests/README.md](tests/README.md) for details.
+
+**Watch mode** (auto-rerun on code changes):
+```bash
+npm run test:watch
+```
+
+---
+
+### Step 2b: Launch the agent immediately (even before trading)
 
 Start with a stable posting-only runtime for 1–2 hours:
 
