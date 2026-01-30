@@ -241,22 +241,67 @@ Alternative (manual export):
 4. Save as `x_cookies.json`
 5. Set `X_COOKIES_PATH=./x_cookies.json` in `.env`
 
-### Live Trading Mode (DANGEROUS)
+### X API Posting Mode (Recommended for Railway)
+
+Enable X posting via X API (OAuth 1.0a):
+
+```bash
+SOCIAL_MODE=x_api \
+X_API_KEY="your_key" \
+X_API_SECRET="your_secret" \
+X_ACCESS_TOKEN="your_token" \
+X_ACCESS_SECRET="your_secret" \
+npm run dev
+```
+
+**X API features** (production-hardened):
+- **Circuit breaker**: Disables posting for 30 minutes after 3 consecutive failures
+- **Idempotency**: Never posts the same receipt twice (SHA256 fingerprinting)
+- **Rate-limit handling**: Detects 429, respects rate-limit-reset headers
+- **Exponential backoff**: 2min, 5min, 15min for rate-limited errors
+- **State persistence**: All behavior tracked in `data/state.json`
+
+**Get X API credentials**:
+1. Create X Developer App at `https://developer.twitter.com/`
+2. Request/upgrade to paid API access (required for v2 posting)
+3. Generate OAuth 1.0a user access tokens for your account
+4. Set the four credentials in `.env`
+
+---
+
+### Live Trading Mode with Aerodrome (DANGEROUS)
 
 ⚠️ **Only after verifying posting mode works for 1-2 hours** ⚠️
 
 ```bash
-SOCIAL_MODE=playwright \
+SOCIAL_MODE=x_api \
+X_API_KEY="..." \
+X_API_SECRET="..." \
+X_ACCESS_TOKEN="..." \
+X_ACCESS_SECRET="..." \
 DRY_RUN=false \
 TRADING_ENABLED=true \
 KILL_SWITCH=false \
+ROUTER_TYPE=aerodrome \
+ROUTER_ADDRESS=0xcF77a3Ba9A5CA922176B76f7201d8933374ff5Ac \
+POOL_ADDRESS=0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc \
+WETH_ADDRESS=0x4200000000000000000000000000000000000006 \
+AERODROME_STABLE=false \
 npm run dev
 ```
 
 **Prerequisites**:
-- Router must be configured (`ROUTER_TYPE`, `ROUTER_ADDRESS`, etc.)
-- Trading execution must be implemented (currently scaffolded)
+- Aerodrome router is configured (same address on all Base networks)
+- INTERN/WETH pool address is set (volatile pair recommended)
 - Start with tiny caps (default `MAX_SPEND_ETH_PER_TRADE=0.0005`)
+- LangChain agent (with `OPENAI_API_KEY`) proposes actions
+
+**Aerodrome trading features**:
+- Real-time pool reserve reading for accurate price discovery
+- Constant product formula (x*y=k) with slippage protection
+- Swap calldata encoding with proper deadlines (10 minutes)
+- Detailed logging at each step (pool read, quote, calldata, submission)
+- Guardrails enforce caps BEFORE execution (safe, not retriable)
 
 ---
 
@@ -303,11 +348,26 @@ npm run dev
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SOCIAL_MODE` | Posting mode | `none` |
+| `SOCIAL_MODE` | Posting mode: `none`, `playwright`, or `x_api` | `none` |
 | `HEADLESS` | Run Playwright headless | `true` |
-| `X_USERNAME` | X username (fallback) | (none) |
-| `X_PASSWORD` | X password (fallback) | (none) |
-| `X_COOKIES_PATH` | Path to cookies JSON (preferred) | `./x_cookies.json` |
+| `X_USERNAME` | X username (Playwright fallback) | (none) |
+| `X_PASSWORD` | X password (Playwright fallback) | (none) |
+| `X_COOKIES_PATH` | Path to cookies JSON (Playwright preferred) | `./x_cookies.json` |
+| `X_API_KEY` | OAuth 1.0a consumer key (X API v2) | (none) |
+| `X_API_SECRET` | OAuth 1.0a consumer secret (X API v2) | (none) |
+| `X_ACCESS_TOKEN` | OAuth 1.0a user access token (X API v2) | (none) |
+| `X_ACCESS_SECRET` | OAuth 1.0a user access secret (X API v2) | (none) |
+
+### Aerodrome Trading Settings (Optional)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ROUTER_TYPE` | DEX type: `aerodrome` | `aerodrome` |
+| `ROUTER_ADDRESS` | Aerodrome Router address | `0xcF77a3Ba9A5CA922176B76f7201d8933374ff5Ac` |
+| `POOL_ADDRESS` | INTERN/WETH pool address | (none) |
+| `WETH_ADDRESS` | Wrapped ETH address on Base | `0x4200000000000000000000000000000000000006` |
+| `AERODROME_STABLE` | Pool type: `false` (volatile) or `true` (stable) | `false` |
+| `AERODROME_GAUGE_ADDRESS` | Gauge address for yield farming (optional) | (none) |
 
 ---
 

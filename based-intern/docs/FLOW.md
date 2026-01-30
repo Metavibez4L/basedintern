@@ -126,28 +126,46 @@ SOCIAL_MODE=playwright DRY_RUN=true TRADING_ENABLED=false KILL_SWITCH=true npm r
 
 ---
 
-### Step 3: Enable Capped Trading
+### Step 3: Enable Capped Trading (Aerodrome on Base)
 
-**Purpose**: Carefully flip to live trading with strict safety caps.
+**Purpose**: Carefully flip to live trading with strict safety caps and Aerodrome integration.
 
 **Flow**:
 1. Verify Step 2 ran successfully for 1-2 hours
-2. Set router configuration (ROUTER_TYPE, ROUTER_ADDRESS, etc.)
-3. Change environment variables:
+2. Deploy INTERN token (or use existing deployment)
+3. Set Aerodrome router configuration:
+   - `ROUTER_TYPE=aerodrome`
+   - `ROUTER_ADDRESS=0xcF77a3Ba9A5CA922176B76f7201d8933374ff5Ac`
+   - `POOL_ADDRESS=<INTERN/WETH pool address>`
+   - `WETH_ADDRESS=0x4200000000000000000000000000000000000006` (Base WETH)
+   - `AERODROME_STABLE=false` (volatile pair)
+4. Change environment variables:
    - `DRY_RUN=false` (allow real transactions)
    - `TRADING_ENABLED=true` (enable trading)
    - `KILL_SWITCH=false` (remove emergency brake)
    - Keep tiny safety caps:
-     - `DAILY_TRADE_CAP=1-3` trades per day
+     - `DAILY_TRADE_CAP=2` trades per day
      - `MAX_SPEND_ETH_PER_TRADE=0.0005` ETH max
      - `MIN_INTERVAL_MINUTES=60` minutes between trades
+     - `SLIPPAGE_BPS=300` (3% max slippage)
 
-4. Agent now executes real trades within caps:
+5. Agent now executes real trades via Aerodrome:
    ```
    Same tick flow as Step 2, but:
    
-   Step 5: Guardrails → If all checks pass, allows execution
-   Step 6: Execute Trade → Sends real transaction via viem
+   Step 3: Read On-Chain Data → Queries Aerodrome pool for reserves + price
+   Step 4: Propose Action → LangChain considers price + action
+   Step 5: Enforce Guardrails → Checks all caps + circuit breaker (if X API fails)
+   Step 6: Execute Trade → Builds swap calldata, sends real transaction
+   Step 8: Post Receipt → Includes actual tx hash and real price
+   ```
+
+**Key Safety Features (Aerodrome Trading)**:
+- Pool read before every trade (real-time price discovery)
+- Constant product formula (x*y=k) with slippage protection
+- Swap calldata encoding with proper deadlines (10 minutes)
+- Detailed logging at each step (pool read, quote, calldata, submission)
+- Guardrails enforce caps BEFORE execution (not retriable)
    Step 7: Build Receipt → Includes real tx hash
    Step 8: Post Receipt → Posts as LIVE mode
    ```

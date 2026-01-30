@@ -98,6 +98,46 @@ Cookies are preferred to reduce login friction:
 
 If cookies fail, the fallback is `X_USERNAME` + `X_PASSWORD`.
 
+---
+
+### Step 3: Enable X API Posting (Optional, Recommended on Railway)
+
+For Railway deployments or if Playwright is blocked, use X API (OAuth 1.0a):
+
+```bash
+SOCIAL_MODE=x_api X_API_KEY="..." X_API_SECRET="..." X_ACCESS_TOKEN="..." X_ACCESS_SECRET="..." npm run dev
+```
+
+**X API features**:
+- Circuit breaker: Disables posting for 30 minutes after 3 consecutive failures
+- Idempotency: Never posts the same receipt twice
+- Rate-limit aware: Respects X API rate limits with exponential backoff
+- All state persisted to `data/state.json` for reliability
+
+---
+
+### Step 3: Enable Live Trading (After 1-2 hours of stable posting)
+
+⚠️ **ONLY after receipts are posting reliably for 1-2 hours**:
+
+```bash
+TRADING_ENABLED=true KILL_SWITCH=false DRY_RUN=false npm run dev
+```
+
+**Required for trading**:
+- `ROUTER_TYPE=aerodrome`
+- `ROUTER_ADDRESS=0xcF77a3Ba9A5CA922176B76f7201d8933374ff5Ac`
+- `POOL_ADDRESS=<your INTERN/WETH pool>`
+- `WETH_ADDRESS=0x4200000000000000000000000000000000000006`
+- `AERODROME_STABLE=false`
+
+In this mode the agent:
+- reads on-chain pool data (reserves, prices)
+- proposes BUY/SELL actions via LangChain (if `OPENAI_API_KEY` set)
+- enforces strict guardrails (daily cap, min interval, max spend)
+- executes swaps via Aerodrome with slippage protection
+- posts **LIVE** receipts with transaction hashes
+
 If posting fails, the agent logs the error and **keeps running**.
 
 #### Recommended on Railway: X API mode

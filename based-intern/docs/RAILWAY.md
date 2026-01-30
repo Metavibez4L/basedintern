@@ -53,6 +53,11 @@ If you want to enable trading with Aerodrome, set:
 
 For `SOCIAL_MODE=x_api`, set:
 - `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET`
+- X API posting is hardened with:
+  - **Circuit breaker**: Disables posting for 30 minutes after 3 consecutive failures
+  - **Idempotency**: Never posts the same receipt twice (fingerprint-based)
+  - **Rate-limit handling**: Respects X API limits with exponential backoff (2min, 5min, 15min)
+  - **State persistence**: All behavior tracked in `data/state.json`
 
 If you still want Playwright posting, use `SOCIAL_MODE=playwright` and cookies, but expect possible X anti-bot blocks.
 
