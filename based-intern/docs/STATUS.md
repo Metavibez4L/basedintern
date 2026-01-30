@@ -268,10 +268,10 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 | `X_USERNAME` | ✅ | (none) | Playwright fallback |
 | `X_PASSWORD` | ✅ | (none) | Playwright fallback |
 | `X_COOKIES_PATH` | ✅ | (none) | Playwright preferred |
-| `X_API_KEY` | 🚧 | (none) | X API not implemented |
-| `X_API_SECRET` | 🚧 | (none) | X API not implemented |
-| `X_ACCESS_TOKEN` | 🚧 | (none) | X API not implemented |
-| `X_ACCESS_SECRET` | 🚧 | (none) | X API not implemented |
+| `X_API_KEY` | ✅ | (none) | OAuth 1.0a consumer key (X API v2) |
+| `X_API_SECRET` | ✅ | (none) | OAuth 1.0a consumer secret (X API v2) |
+| `X_ACCESS_TOKEN` | ✅ | (none) | OAuth 1.0a user access token (X API v2) |
+| `X_ACCESS_SECRET` | ✅ | (none) | OAuth 1.0a user access secret (X API v2) |
 | `OPENAI_API_KEY` | ✅ | (none) | LangChain works when set |
 | `CDP_API_KEY_NAME` | 🚧 | (none) | CDP experimental |
 | `CDP_API_KEY_PRIVATE_KEY` | 🚧 | (none) | CDP experimental |
