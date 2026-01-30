@@ -4,7 +4,8 @@ This repo runs well on Railway as an always-on worker that posts receipts on a s
 
 ## Recommended approach
 
-- Deploy `based-intern/` as a **Dockerfile** service (so Playwright works reliably)
+- Deploy `based-intern/` as a **Dockerfile** service
+- Use `SOCIAL_MODE=x_api` for reliable X posting (no browser automation)
 - Keep defaults safe:
   - `DRY_RUN=true`
   - `TRADING_ENABLED=false`
@@ -48,37 +49,32 @@ If you want to enable trading with Aerodrome, set:
 - `KILL_SWITCH=true`
 - `LOOP_MINUTES=30`
 
-### Social posting
-- Recommended on Railway: `SOCIAL_MODE=x_api` (Playwright is commonly blocked on datacenter IPs)
+### Social posting with X API
 
-For `SOCIAL_MODE=x_api`, set:
+Use `SOCIAL_MODE=x_api` for reliable X posting on Railway:
+
+Set:
 - `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET`
-- X API posting is hardened with:
-  - **Circuit breaker**: Disables posting for 30 minutes after 3 consecutive failures
-  - **Idempotency**: Never posts the same receipt twice (fingerprint-based)
-  - **Rate-limit handling**: Respects X API limits with exponential backoff (2min, 5min, 15min)
-  - **State persistence**: All behavior tracked in `data/state.json`
 
-If you still want Playwright posting, use `SOCIAL_MODE=playwright` and cookies, but expect possible X anti-bot blocks.
+X API posting is hardened with:
+- **Circuit breaker**: Disables posting for 30 minutes after 3 consecutive failures
+- **Idempotency**: Never posts the same receipt twice (fingerprint-based)
+- **Rate-limit handling**: Respects X API limits with exponential backoff (2min, 5min, 15min)
+- **State persistence**: All behavior tracked in `data/state.json`
 
-## 3) Cookies on Railway (two options)
+## 3) OAuth 1.0a credentials for X API posting
 
-Only needed for `SOCIAL_MODE=playwright`.
+To post receipts to X, set up OAuth 1.0a credentials:
 
-### Option A (recommended): Volume
-- Attach a Railway Volume and mount it at `/app`
-- Upload `x_cookies.json` into the mounted path
+1. Create an app at [developer.twitter.com](https://developer.twitter.com/)
+2. Generate OAuth 1.0a credentials from your app settings
+3. In Railway, add environment variables:
+   - `X_API_KEY` = your API Key
+   - `X_API_SECRET` = your API Secret Key
+   - `X_ACCESS_TOKEN` = your Access Token
+   - `X_ACCESS_SECRET` = your Access Token Secret
 
-### Option B (no volume): env var cookies
-This repo supports bootstrapping cookies from an env var:
-
-- Locally, base64 encode your cookie JSON:
-  - Windows PowerShell example:
-    - `[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((Get-Content -Raw .\\x_cookies.json)))`
-- Set in Railway:
-  - `X_COOKIES_B64=<base64 string>`
-
-On startup, the app will write `X_COOKIES_PATH` if the file doesn’t exist.
+This is all you need—no browser automation or cookies required.
 
 ## 4) LLM (optional)
 - `OPENAI_API_KEY=...` (agent will tool-call when present)

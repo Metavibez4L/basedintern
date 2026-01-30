@@ -80,8 +80,10 @@ npx hardhat verify --network base <TOKEN_ADDRESS>
 Start with a stable posting-only runtime for 1–2 hours:
 
 ```bash
-# recommended stable “posting-only” mode
-SOCIAL_MODE=playwright DRY_RUN=true TRADING_ENABLED=false KILL_SWITCH=true npm run dev
+# recommended stable "posting-only" mode with X API
+SOCIAL_MODE=x_api DRY_RUN=true TRADING_ENABLED=false KILL_SWITCH=true \
+  X_API_KEY="..." X_API_SECRET="..." X_ACCESS_TOKEN="..." X_ACCESS_SECRET="..." \
+  npm run dev
 ```
 
 In this mode the agent:
@@ -90,27 +92,20 @@ In this mode the agent:
 - best-effort price (may be `unknown`)
 - posts **SIMULATED** receipts (no txs)
 
-#### 2b) Troubleshoot X posting (Playwright)
+#### 2b) Set up X API credentials
 
-Cookies are preferred to reduce login friction:
-- Create `x_cookies.json` by logging into X once in a Playwright session (or export cookies from your browser and convert to Playwright format).
-- Set `X_COOKIES_PATH=./x_cookies.json`
-
-If cookies fail, the fallback is `X_USERNAME` + `X_PASSWORD`.
-
----
-
-### Step 3: Enable X API Posting (Optional, Recommended on Railway)
-
-For Railway deployments or if Playwright is blocked, use X API (OAuth 1.0a):
-
-```bash
-SOCIAL_MODE=x_api X_API_KEY="..." X_API_SECRET="..." X_ACCESS_TOKEN="..." X_ACCESS_SECRET="..." npm run dev
-```
+X API uses OAuth 1.0a for secure, reliable posting:
+1. Create an app at [developer.twitter.com/en/portal/dashboard](https://developer.twitter.com/en/portal/dashboard)
+2. Generate **OAuth 1.0a** credentials:
+   - Copy `API Key` → `X_API_KEY`
+   - Copy `API Secret Key` → `X_API_SECRET`
+   - Copy `Access Token` → `X_ACCESS_TOKEN`
+   - Copy `Access Token Secret` → `X_ACCESS_SECRET`
+3. Set all four in `.env` or as environment variables
 
 **X API features**:
 - Circuit breaker: Disables posting for 30 minutes after 3 consecutive failures
-- Idempotency: Never posts the same receipt twice
+- Idempotency: Never posts the same receipt twice (SHA256 fingerprinting)
 - Rate-limit aware: Respects X API rate limits with exponential backoff
 - All state persisted to `data/state.json` for reliability
 
@@ -121,7 +116,7 @@ SOCIAL_MODE=x_api X_API_KEY="..." X_API_SECRET="..." X_ACCESS_TOKEN="..." X_ACCE
 ⚠️ **ONLY after receipts are posting reliably for 1-2 hours**:
 
 ```bash
-TRADING_ENABLED=true KILL_SWITCH=false DRY_RUN=false npm run dev
+SOCIAL_MODE=x_api TRADING_ENABLED=true KILL_SWITCH=false DRY_RUN=false npm run dev
 ```
 
 **Required for trading**:
@@ -140,9 +135,9 @@ In this mode the agent:
 
 If posting fails, the agent logs the error and **keeps running**.
 
-#### Recommended on Railway: X API mode
+#### Note on Railway deployments
 
-Playwright often gets blocked on Railway (datacenter IPs). Prefer:
+Railway and other cloud providers work best with X API, which doesn't require browser automation. Use:
 
 ```bash
 SOCIAL_MODE=x_api npm run dev
@@ -157,19 +152,13 @@ Set the OAuth 1.0a user credentials (posting account):
 
 Only flip to live when you are ready:
 
+#### Note on Railway deployments
+
+Railway and other cloud providers work best with X API, which doesn't require browser automation. Use:
+
 ```bash
-SOCIAL_MODE=playwright DRY_RUN=false TRADING_ENABLED=true KILL_SWITCH=false npm run dev
+SOCIAL_MODE=x_api npm run dev
 ```
-
-Safety caps you should keep tiny (defaults are already conservative):
-- `DAILY_TRADE_CAP=1–3`
-- `MAX_SPEND_ETH_PER_TRADE` tiny (default `0.0005`)
-
-Trading is **OFF by default** and only executes when:
-- `TRADING_ENABLED=true`
-- `KILL_SWITCH=false`
-- `DRY_RUN=false`
-- router config present (`ROUTER_TYPE` + `ROUTER_ADDRESS`, etc.)
 
 ## Security warnings
 - Use a **fresh wallet** with tiny funds.

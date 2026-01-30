@@ -120,8 +120,10 @@ npx hardhat verify --network base <TOKEN_ADDRESS>
 # Safe posting-only mode (recommended first run)
 SOCIAL_MODE=none DRY_RUN=true TRADING_ENABLED=false KILL_SWITCH=true npm run dev
 
-# With Playwright X posting
-SOCIAL_MODE=playwright DRY_RUN=true TRADING_ENABLED=false KILL_SWITCH=true npm run dev
+# With X API posting
+SOCIAL_MODE=x_api DRY_RUN=true TRADING_ENABLED=false KILL_SWITCH=true \
+  X_API_KEY="..." X_API_SECRET="..." X_ACCESS_TOKEN="..." X_ACCESS_SECRET="..." \
+  npm run dev
 ```
 
 ---
@@ -184,7 +186,7 @@ SOCIAL_MODE=playwright DRY_RUN=true TRADING_ENABLED=false KILL_SWITCH=true npm r
 
 **Commands**:
 ```bash
-SOCIAL_MODE=playwright DRY_RUN=false TRADING_ENABLED=true KILL_SWITCH=false npm run dev
+SOCIAL_MODE=x_api DRY_RUN=false TRADING_ENABLED=true KILL_SWITCH=false npm run dev
 ```
 
 ---
@@ -229,7 +231,7 @@ note: Still unpaid. Still posting.
 - TX hash when live trade executed
 - Mode indicator (SIMULATED vs LIVE)
 - Mood line rotates daily (10 variations)
-- Posted to X via Playwright or logged
+- Posted to X via X API (OAuth 1.0a) or logged
 
 ---
 

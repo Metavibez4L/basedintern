@@ -85,13 +85,7 @@ This document tracks the current implementation status of all features in the Ba
 
 ### Social Posting
 - [x] `src/social/poster.ts` - Social mode router
-- [x] `src/social/x_playwright.ts` - Playwright-based X posting
-  - [x] Cookies-based authentication (X_COOKIES_PATH)
-  - [x] Username/password fallback
-  - [x] Retry with exponential backoff (3 attempts)
-  - [x] Graceful failure (logs error, continues loop)
-  - [x] Headless mode support (HEADLESS=true default)
-- [x] `src/social/x_api.ts` - X API posting via OAuth 1.0a (recommended on Railway)
+- [x] `src/social/x_api.ts` - **X API posting via OAuth 1.0a (recommended)**
   - [x] **Circuit breaker** - Disables posting after 3 consecutive failures for 30 minutes
     - Prevents hammering X API during outages
     - Automatically re-enables after cooldown expires
@@ -263,15 +257,11 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 | `WETH_ADDRESS` | ✅ | `0x4200000000000000000000000000000000000006` | Wrapped ETH on Base |
 | `AERODROME_STABLE` | ✅ | `false` | Stable=true or volatile=false pool type |
 | `AERODROME_GAUGE_ADDRESS` | ⚪ | (none) | Optional; Aerodrome gauge for yield farming |
-| `SOCIAL_MODE` | ✅ | `none` | none/playwright/x_api |
-| `HEADLESS` | ✅ | `true` | Playwright headless mode |
-| `X_USERNAME` | ✅ | (none) | Playwright fallback |
-| `X_PASSWORD` | ✅ | (none) | Playwright fallback |
-| `X_COOKIES_PATH` | ✅ | (none) | Playwright preferred |
-| `X_API_KEY` | ✅ | (none) | OAuth 1.0a consumer key (X API v2) |
-| `X_API_SECRET` | ✅ | (none) | OAuth 1.0a consumer secret (X API v2) |
-| `X_ACCESS_TOKEN` | ✅ | (none) | OAuth 1.0a user access token (X API v2) |
-| `X_ACCESS_SECRET` | ✅ | (none) | OAuth 1.0a user access secret (X API v2) |
+| `SOCIAL_MODE` | ✅ | `none` | none/x_api |
+| `X_API_KEY` | ✅ | (none) | OAuth 1.0a consumer key (X API recommended) |
+| `X_API_SECRET` | ✅ | (none) | OAuth 1.0a consumer secret (X API recommended) |
+| `X_ACCESS_TOKEN` | ✅ | (none) | OAuth 1.0a user access token (X API recommended) |
+| `X_ACCESS_SECRET` | ✅ | (none) | OAuth 1.0a user access secret (X API recommended) |
 | `OPENAI_API_KEY` | ✅ | (none) | LangChain works when set |
 | `CDP_API_KEY_NAME` | 🚧 | (none) | CDP experimental |
 | `CDP_API_KEY_PRIVATE_KEY` | 🚧 | (none) | CDP experimental |
@@ -370,15 +360,11 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 
 ## 🐛 Known Issues
 
-1. **Playwright selectors may break** if X.com changes their UI
-   - Selectors are kept flexible but may need updates
-   - Consider X API for more stability
-
-2. **No Uniswap V3 support** yet
+1. **No Uniswap V3 support** yet
    - Currently Aerodrome only (Base-native DEX)
    - Plan to add V3 support for chains like Ethereum, Optimism, etc.
 
-3. **Token approvals not yet implemented**
+2. **Token approvals not yet implemented**
    - SELL transactions will require wallet to approve router spending
    - May need to implement `approveTokenForRouter()` helper
 
@@ -426,8 +412,8 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 - ✅ Token deployment working
 - ✅ Agent runtime working
 - ✅ LangChain integration working
-- ✅ Playwright posting working
+- ✅ X API posting working
 - ✅ Guardrails enforcing safety
 - ✅ Published to GitHub
-- ✅ TypeScript build fixed (rootDir + Playwright types)
+- ✅ TypeScript build fixed
 - ✅ Documentation complete (FLOW.md, STATUS.md)
