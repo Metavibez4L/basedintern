@@ -132,10 +132,10 @@ npm run deploy:token -- --network baseSepolia
 
 **Expected output**:
 ```
-token address: 0x5FbDB2315678afecb367f032d93F642f64180aa3
-deployer address: 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
+token address: 0x...
+deployer address: 0x...
 chainId: 84532
-tx hash: 0x1234...5678
+tx hash: 0x...
 saved deployment: /path/to/deployments/baseSepolia.json
 ```
 
@@ -147,14 +147,19 @@ npm run deploy:token -- --network base
 
 **Expected output**: Similar to above, but `chainId: 8453`
 
+### Known deployments
+
+- Base Sepolia (84532): `0x23926b2CA264e1CD1Fc641E1C5C6e9f2066c91c1`
+- Base mainnet (8453): `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11` (verified: `https://basescan.org/address/0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11#code`)
+
 ### Step 3: Verify Deployment
 
 Check `deployments/<network>.json`:
 
 ```json
 {
-  "token": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "token": "0x...",
+  "deployer": "0x...",
   "chainId": 84532,
   "timestamp": "2026-01-29T00:20:13.843Z"
 }
@@ -397,7 +402,7 @@ based-intern/
 │   └── social/             # Social posting
 │       ├── poster.ts       # Mode router
 │       ├── x_playwright.ts # Playwright posting
-│       └── x_api.ts        # X API (stub)
+│       └── x_api.ts        # X API posting (OAuth 1.0a)
 ├── deployments/            # Deployment JSONs (created on deploy)
 │   ├── .gitkeep
 │   ├── baseSepolia.json    # (gitignored)

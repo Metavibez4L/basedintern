@@ -32,7 +32,7 @@ Because `deployments/*.json` is gitignored and not shipped inside the Docker ima
 
 Known deployments:
 - Base Sepolia (84532): `0x23926b2CA264e1CD1Fc641E1C5C6e9f2066c91c1`
-- Base mainnet (8453): `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11`
+- Base mainnet (8453): `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11` (verified: `https://basescan.org/address/0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11#code`)
 
 ### Safe runtime defaults
 - `DRY_RUN=true`

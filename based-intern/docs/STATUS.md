@@ -179,8 +179,16 @@ npm run deploy:token -- --network hardhat  # ✅ Deploys + writes JSON
 ```
 
 #### Base deployments
-- Base Sepolia (84532): `0x23926b2CA264e1CD1Fc641E1C5C6e9f2066c91c1`
-- Base mainnet (8453): `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11` (verified)
+- Base Sepolia (84532)
+  - INTERN: `0x23926b2CA264e1CD1Fc641E1C5C6e9f2066c91c1`
+  - deployer: `0x4Ba6B07626E6dF28120b04f772C4a89CC984Cc80`
+  - deployedAt: `2026-01-29T01:27:29.598Z`
+- Base mainnet (8453) (verified)
+  - INTERN: `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11`
+  - deployer: `0x4Ba6B07626E6dF28120b04f772C4a89CC984Cc80`
+  - deployTx: `0xd41e966bddc10c6b373f71b952809efb86709de7aa3da835cc0aa7967e8a1e66`
+  - deployedAt: `2026-01-30T03:25:50.255Z`
+  - BaseScan: `https://basescan.org/address/0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11#code`
 
 #### Agent Startup (DRY_RUN)
 ```bash
