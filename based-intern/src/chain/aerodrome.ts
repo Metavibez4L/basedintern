@@ -141,14 +141,70 @@ export function buildAerodromeSwapCalldata(
   route: AerodromeSwapRoute,
   toAddress: Address,
   deadlineSeconds: number = 600
-): `0x${string}` {
-  // This is a placeholder. In production, you would:
-  // 1. Encode the route struct array
-  // 2. Call the router's swapExactTokensForTokens with proper ABI encoding
-  // 3. Return the encoded calldata
-  //
-  // For now, we'll throw to keep the pattern consistent with trade.ts
-  throw new Error("buildAerodromeSwapCalldata not yet implemented; needs full ABI encoding");
+): { calldata: `0x${string}`; deadline: bigint } {
+  // Aerodrome Router ABI for swapExactTokensForTokens
+  const routerAbi = parseAbi([
+    "struct Route { address from; address to; bool stable; address factory; }",
+    "function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, Route[] calldata routes, address to, uint256 deadline) external returns (uint256[] memory amounts)"
+  ]);
+
+  // Calculate deadline (current time + deadlineSeconds)
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + deadlineSeconds);
+
+  // Encode the Route struct array
+  // Route[] = [{ from: tokenInAddress, to: tokenOutAddress, stable: route.stable, factory: AERODROME_FACTORY }]
+  const routes = [
+    {
+      from: route.tokenInAddress,
+      to: route.tokenOutAddress,
+      stable: route.stable,
+      factory: "0xeEF1a33c87e8f8f4E0b0fe8ef72A16D38C7B5a6d" // Aerodrome Factory on Base
+    }
+  ];
+
+  // Encode calldata using viem's encodeFunctionData pattern
+  // We manually construct the calldata for swapExactTokensForTokens
+  const selector = "0x32c5c1ec"; // swapExactTokensForTokens selector
+
+  // Encode parameters:
+  // - amountIn (uint256): 32 bytes
+  // - amountOutMin (uint256): 32 bytes
+  // - routes (Route[]): dynamic array with offset
+  // - to (address): 32 bytes
+  // - deadline (uint256): 32 bytes
+
+  const paddedAmountIn = amountIn.toString(16).padStart(64, "0");
+  const paddedAmountOutMin = amountOutMin.toString(16).padStart(64, "0");
+  const paddedDeadline = deadline.toString(16).padStart(64, "0");
+  const paddedToAddress = toAddress.slice(2).padStart(40, "0").toLowerCase();
+
+  // Routes offset (5 parameters before routes)
+  const routesOffset = "a0"; // 160 in hex (5 * 32)
+  const routesLength = "01"; // 1 route
+
+  // Encode Route struct: from (32), to (32), stable (32, bool as 0 or 1), factory (32)
+  const fromPadded = routes[0].from.slice(2).padStart(40, "0").toLowerCase();
+  const toPadded = routes[0].to.slice(2).padStart(40, "0").toLowerCase();
+  const stablePadded = routes[0].stable ? "01" : "00";
+  const factoryPadded = routes[0].factory.slice(2).padStart(40, "0").toLowerCase();
+
+  const calldata =
+    selector +
+    paddedAmountIn +
+    paddedAmountOutMin +
+    routesOffset +
+    paddedToAddress.padStart(64, "0") +
+    paddedDeadline +
+    routesLength +
+    fromPadded.padStart(64, "0") +
+    toPadded.padStart(64, "0") +
+    stablePadded.padStart(64, "0") +
+    factoryPadded.padStart(64, "0");
+
+  return {
+    calldata: `0x${calldata}` as `0x${string}`,
+    deadline
+  };
 }
 
 /**

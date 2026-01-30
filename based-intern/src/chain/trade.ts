@@ -1,7 +1,7 @@
 import type { Address } from "viem";
 import type { AppConfig } from "../config.js";
 import type { ChainClients } from "./client.js";
-import { readAerodromePool, calculateAerodromeOutput, applySlippage, AERODROME_ROUTER_BASE } from "./aerodrome.js";
+import { readAerodromePool, calculateAerodromeOutput, applySlippage, AERODROME_ROUTER_BASE, buildAerodromeSwapCalldata } from "./aerodrome.js";
 import { logger } from "../logger.js";
 
 export type TradeExecutor = {
@@ -87,13 +87,39 @@ export function createTradeExecutor(cfg: AppConfig, clients: ChainClients, token
           slippageBps: cfg.SLIPPAGE_BPS
         });
 
-        // TODO: Build actual swap calldata and execute
-        // This requires encoding the Aerodrome route struct and calling the router
-        // For now, we'll throw with a clear message
-        throw new Error(
-          "Aerodrome buy swap calldata encoding not yet implemented; " +
-          "implement buildAerodromeSwapCalldata() and send transaction via walletClient"
+        // Build swap calldata
+        const { calldata, deadline } = buildAerodromeSwapCalldata(
+          spendEth,
+          minOutput,
+          {
+            poolAddress,
+            stable: cfg.AERODROME_STABLE,
+            tokenInAddress: wethAddress,
+            tokenOutAddress: token,
+            amountIn: spendEth,
+            amountOutMinimum: minOutput
+          },
+          wallet,
+          600 // 10 minute deadline
         );
+
+        logger.info("aerodrome_buy_calldata_built", {
+          calldata: calldata.slice(0, 20) + "...",
+          deadline: deadline.toString()
+        });
+
+        // Send transaction via walletClient
+        const txHash = await clients.walletClient!.sendTransaction({
+          to: routerAddress,
+          data: calldata,
+          value: spendEth, // Send ETH (WETH will be handled by router)
+          account: wallet,
+          chain: undefined
+        });
+
+        logger.info("aerodrome_buy_submitted", { txHash, spendEth: spendEth.toString() });
+
+        return txHash;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.error("aerodrome_buy_failed", { error: msg });
@@ -140,13 +166,38 @@ export function createTradeExecutor(cfg: AppConfig, clients: ChainClients, token
           slippageBps: cfg.SLIPPAGE_BPS
         });
 
-        // TODO: Build actual swap calldata and execute
-        // This requires encoding the Aerodrome route struct and calling the router
-        // For now, we'll throw with a clear message
-        throw new Error(
-          "Aerodrome sell swap calldata encoding not yet implemented; " +
-          "implement buildAerodromeSwapCalldata() and send transaction via walletClient"
+        // Build swap calldata
+        const { calldata, deadline } = buildAerodromeSwapCalldata(
+          sellAmount,
+          minOutput,
+          {
+            poolAddress,
+            stable: cfg.AERODROME_STABLE,
+            tokenInAddress: token,
+            tokenOutAddress: wethAddress,
+            amountIn: sellAmount,
+            amountOutMinimum: minOutput
+          },
+          wallet,
+          600 // 10 minute deadline
         );
+
+        logger.info("aerodrome_sell_calldata_built", {
+          calldata: calldata.slice(0, 20) + "...",
+          deadline: deadline.toString()
+        });
+
+        // Send transaction via walletClient
+        const txHash = await clients.walletClient!.sendTransaction({
+          to: routerAddress,
+          data: calldata,
+          account: wallet,
+          chain: undefined
+        });
+
+        logger.info("aerodrome_sell_submitted", { txHash, sellAmount: sellAmount.toString() });
+
+        return txHash;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         logger.error("aerodrome_sell_failed", { error: msg });
