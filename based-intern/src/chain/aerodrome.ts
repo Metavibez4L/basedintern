@@ -28,8 +28,8 @@ export type AerodromeSwapRoute = {
  * Aerodrome Router address (Base mainnet and Sepolia).
  * https://docs.aerodrome.finance/
  */
-export const AERODROME_ROUTER_BASE = "0xcF77a3Ba9A5CA922176B76f7201d8933374ff5Ac";
-export const AERODROME_ROUTER_BASE_SEPOLIA = "0xcF77a3Ba9A5CA922176B76f7201d8933374ff5Ac";
+export const AERODROME_ROUTER_BASE = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43";
+export const AERODROME_ROUTER_BASE_SEPOLIA = "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43";
 
 /**
  * Read pool reserves and info from Aerodrome pair.

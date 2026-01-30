@@ -213,7 +213,7 @@ Set these environment variables to enable Aerodrome trading:
 
 ```bash
 ROUTER_TYPE="aerodrome"
-ROUTER_ADDRESS="0xcF77a3Ba9A5CA922176B76f7201d8933374ff5Ac"  # Aerodrome Router (same on Base & Sepolia)
+ROUTER_ADDRESS="0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43"  # Aerodrome Router (same on Base & Sepolia)
 POOL_ADDRESS="0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc"   # WETH/INTERN volatile pool
 WETH_ADDRESS="0x4200000000000000000000000000000000000006"    # Base WETH
 AERODROME_STABLE="false"                                      # volatile pair (0.3% fee)

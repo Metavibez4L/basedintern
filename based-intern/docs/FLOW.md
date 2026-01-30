@@ -135,7 +135,7 @@ SOCIAL_MODE=playwright DRY_RUN=true TRADING_ENABLED=false KILL_SWITCH=true npm r
 2. Deploy INTERN token (or use existing deployment)
 3. Set Aerodrome router configuration:
    - `ROUTER_TYPE=aerodrome`
-   - `ROUTER_ADDRESS=0xcF77a3Ba9A5CA922176B76f7201d8933374ff5Ac`
+   - `ROUTER_ADDRESS=0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43`
    - `POOL_ADDRESS=<INTERN/WETH pool address>`
    - `WETH_ADDRESS=0x4200000000000000000000000000000000000006` (Base WETH)
    - `AERODROME_STABLE=false` (volatile pair)

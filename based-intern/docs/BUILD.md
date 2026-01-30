@@ -283,7 +283,7 @@ DRY_RUN=false \
 TRADING_ENABLED=true \
 KILL_SWITCH=false \
 ROUTER_TYPE=aerodrome \
-ROUTER_ADDRESS=0xcF77a3Ba9A5CA922176B76f7201d8933374ff5Ac \
+ROUTER_ADDRESS=0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43 \
 POOL_ADDRESS=0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc \
 WETH_ADDRESS=0x4200000000000000000000000000000000000006 \
 AERODROME_STABLE=false \
@@ -363,7 +363,7 @@ npm run dev
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `ROUTER_TYPE` | DEX type: `aerodrome` | `aerodrome` |
-| `ROUTER_ADDRESS` | Aerodrome Router address | `0xcF77a3Ba9A5CA922176B76f7201d8933374ff5Ac` |
+| `ROUTER_ADDRESS` | Aerodrome Router address | `0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43` |
 | `POOL_ADDRESS` | INTERN/WETH pool address | (none) |
 | `WETH_ADDRESS` | Wrapped ETH address on Base | `0x4200000000000000000000000000000000000006` |
 | `AERODROME_STABLE` | Pool type: `false` (volatile) or `true` (stable) | `false` |
