@@ -14,6 +14,7 @@ import { loadState, recordExecutedTrade, saveState } from "./agent/state.js";
 import { watchForActivity, parseMinEthDelta, parseMinTokenDelta, type ActivityWatchContext } from "./agent/watch.js";
 import { createPoster } from "./social/poster.js";
 import { createTradeExecutor } from "./chain/trade.js";
+import { pollMentionsAndRespond, type MentionPollerContext } from "./social/x_mentions.js";
 
 async function resolveTokenAddress(cfg: ReturnType<typeof loadConfig>): Promise<Address | null> {
   if (cfg.TOKEN_ADDRESS) return cfg.TOKEN_ADDRESS as Address;
@@ -37,6 +38,32 @@ async function tick(): Promise<void> {
 
   const now = new Date();
   const state = await loadState();
+
+  // ============================================================
+  // PHASE 1: X MENTIONS POLLER (Intent Recognition, No Execution)
+  // ============================================================
+  // Poll mentions at X_POLL_MINUTES interval if enabled
+  if (cfg.X_PHASE1_MENTIONS && cfg.SOCIAL_MODE === "x_api") {
+    const lastPollMs = state.lastSuccessfulMentionPollMs ?? 0;
+    const pollIntervalMs = cfg.X_POLL_MINUTES * 60 * 1000;
+    const timeSinceLastPoll = Date.now() - lastPollMs;
+
+    if (timeSinceLastPoll >= pollIntervalMs) {
+      try {
+        const mentionCtx: MentionPollerContext = {
+          cfg,
+          state,
+          saveStateFn: saveState
+        };
+        await pollMentionsAndRespond(mentionCtx);
+      } catch (err) {
+        logger.warn("x_mentions poller error", {
+          error: err instanceof Error ? err.message : String(err)
+        });
+        // Continue with normal loop even if mention polling fails
+      }
+    }
+  }
 
   const poster = createPoster(cfg, state);
 

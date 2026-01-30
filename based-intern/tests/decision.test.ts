@@ -36,7 +36,9 @@ function mockConfig(overrides?: Partial<AppConfig>): AppConfig {
     X_API_KEY: undefined,
     X_API_SECRET: undefined,
     X_ACCESS_TOKEN: undefined,
-    X_ACCESS_SECRET: undefined
+    X_ACCESS_SECRET: undefined,
+    X_PHASE1_MENTIONS: false,
+    X_POLL_MINUTES: 2
   };
 
   return { ...base, ...overrides };

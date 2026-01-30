@@ -18,6 +18,10 @@ export type AgentState = {
   lastSeenBlockNumber: number | null;
   // Optional heartbeat: last UTC day we posted (activity or heartbeat)
   lastPostDayUtc: string | null;
+  // X Mentions poller (Phase 1)
+  lastSeenMentionId?: string; // For pagination
+  repliedMentionFingerprints?: string[]; // LRU list (max 20) of replied mention fingerprints for dedup
+  lastSuccessfulMentionPollMs?: number; // When we last successfully polled mentions
 };
 
 export const DEFAULT_STATE: AgentState = {
@@ -31,7 +35,10 @@ export const DEFAULT_STATE: AgentState = {
   lastSeenEthWei: null,
   lastSeenTokenRaw: null,
   lastSeenBlockNumber: null,
-  lastPostDayUtc: null
+  lastPostDayUtc: null,
+  lastSeenMentionId: undefined,
+  repliedMentionFingerprints: undefined,
+  lastSuccessfulMentionPollMs: undefined
 };
 
 export function statePath(): string {
@@ -54,7 +61,10 @@ export async function loadState(): Promise<AgentState> {
       lastSeenEthWei: parsed.lastSeenEthWei ?? null,
       lastSeenTokenRaw: parsed.lastSeenTokenRaw ?? null,
       lastSeenBlockNumber: parsed.lastSeenBlockNumber ?? null,
-      lastPostDayUtc: parsed.lastPostDayUtc ?? null
+      lastPostDayUtc: parsed.lastPostDayUtc ?? null,
+      lastSeenMentionId: parsed.lastSeenMentionId,
+      repliedMentionFingerprints: parsed.repliedMentionFingerprints,
+      lastSuccessfulMentionPollMs: parsed.lastSuccessfulMentionPollMs
     };
 
     // Reset daily counter if the day rolled over.

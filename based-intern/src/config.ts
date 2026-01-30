@@ -74,6 +74,10 @@ const envSchemaBase = z.object({
   X_ACCESS_TOKEN: z.string().optional(),
   X_ACCESS_SECRET: z.string().optional(),
 
+  // X Phase 1 mentions poller (intent recognition, no execution)
+  X_PHASE1_MENTIONS: BoolFromString.default("false"), // Enable mention polling + intent replies
+  X_POLL_MINUTES: z.coerce.number().int().min(1).default(2), // How often to poll mentions (minutes)
+
   // LLM
   OPENAI_API_KEY: z.string().optional()
 });
