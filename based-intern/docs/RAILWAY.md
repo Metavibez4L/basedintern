@@ -34,6 +34,14 @@ Known deployments:
 - Base Sepolia (84532): `0x23926b2CA264e1CD1Fc641E1C5C6e9f2066c91c1`
 - Base mainnet (8453): `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11` (verified: `https://basescan.org/address/0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11#code`)
 
+### Aerodrome trading (optional)
+If you want to enable trading with Aerodrome, set:
+- `ROUTER_TYPE=aerodrome`
+- `ROUTER_ADDRESS=0xcF77a3Ba9A5CA922176B76f7201d8933374ff5Ac` (Aerodrome router, same on all Base networks)
+- `POOL_ADDRESS=0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc` (WETH/INTERN volatile pool on Base mainnet)
+- `WETH_ADDRESS=0x4200000000000000000000000000000000000006` (Base WETH)
+- `AERODROME_STABLE=false` (volatile pair, 0.3% fee)
+
 ### Safe runtime defaults
 - `DRY_RUN=true`
 - `TRADING_ENABLED=false`
@@ -81,5 +89,6 @@ The Dockerfile runs:
   - `DRY_RUN=false`
   - `TRADING_ENABLED=true`
   - `KILL_SWITCH=false`
-  - router config is provided
+  - router config is provided (`ROUTER_TYPE`, `ROUTER_ADDRESS`, `POOL_ADDRESS`, `WETH_ADDRESS`)
+- **Pool address is required for trading**: Use the Aerodrome pool address for your selected network
 
