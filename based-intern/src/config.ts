@@ -46,6 +46,10 @@ const envSchemaBase = z.object({
   SELL_FRACTION_BPS: z.coerce.number().int().min(0).max(10_000).default(500),
   SLIPPAGE_BPS: z.coerce.number().int().min(0).max(10_000).default(300),
 
+  // ERC20 approvals for trading
+  APPROVE_MAX: BoolFromString.default("false"), // if true, approve MaxUint256 instead of exact amount
+  APPROVE_CONFIRMATIONS: z.coerce.number().int().min(0).max(10).default(1), // wait for N confirmations
+
   // Trading config (scaffolded)
   WETH_ADDRESS: z.string().optional(),
   ROUTER_TYPE: RouterType.default("unknown"),

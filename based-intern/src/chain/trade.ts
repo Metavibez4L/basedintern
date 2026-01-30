@@ -1,13 +1,80 @@
 import type { Address } from "viem";
+import { maxUint256 } from "viem";
 import type { AppConfig } from "../config.js";
 import type { ChainClients } from "./client.js";
 import { readAerodromePool, calculateAerodromeOutput, applySlippage, AERODROME_ROUTER_BASE, buildAerodromeSwapCalldata } from "./aerodrome.js";
+import { readAllowance, approveToken } from "./erc20.js";
 import { logger } from "../logger.js";
 
 export type TradeExecutor = {
   executeBuy(spendEth: bigint): Promise<`0x${string}`>;
   executeSell(sellAmount: bigint): Promise<`0x${string}`>;
 };
+
+/**
+ * Ensure sufficient ERC20 allowance, approving if needed.
+ * Returns whether an approval was sent.
+ */
+async function ensureAllowance(
+  publicClient: ChainClients["publicClient"],
+  walletClient: ChainClients["walletClient"],
+  token: Address,
+  owner: Address,
+  spender: Address,
+  requiredAmount: bigint,
+  approveMax: boolean
+): Promise<{ didApprove: boolean; approveTxHash?: `0x${string}` }> {
+  if (!walletClient) {
+    throw new Error("wallet client not available for approval");
+  }
+
+  // Read current allowance
+  const currentAllowance = await readAllowance(publicClient as any, token, owner, spender);
+  logger.info("erc20_allowance_check", {
+    token,
+    owner,
+    spender,
+    currentAllowance: currentAllowance.toString(),
+    requiredAmount: requiredAmount.toString()
+  });
+
+  // If allowance is sufficient, no approval needed
+  if (currentAllowance >= requiredAmount) {
+    logger.info("erc20_allowance_sufficient", {
+      currentAllowance: currentAllowance.toString(),
+      requiredAmount: requiredAmount.toString()
+    });
+    return { didApprove: false };
+  }
+
+  // Approval needed
+  const approveAmount = approveMax ? maxUint256 : requiredAmount;
+  logger.info("erc20_approve_needed", {
+    currentAllowance: currentAllowance.toString(),
+    requiredAmount: requiredAmount.toString(),
+    approveAmount: approveAmount.toString(),
+    approveMax
+  });
+
+  try {
+    const approveTxHash = await approveToken(walletClient, publicClient as any, token, spender, approveAmount);
+    logger.info("erc20_approve_submitted", {
+      approveTxHash,
+      token,
+      spender,
+      amount: approveAmount.toString()
+    });
+
+    // Optionally wait for confirmation (for now, we don't wait to keep things fast)
+    // In future, could add APPROVE_CONFIRMATIONS logic here
+
+    return { didApprove: true, approveTxHash };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.error("erc20_approve_failed", { error: msg, token, spender });
+    throw new Error(`ERC20 approval failed: ${msg}`);
+  }
+}
 
 /**
  * Trading with Aerodrome support.
@@ -130,6 +197,32 @@ export function createTradeExecutor(cfg: AppConfig, clients: ChainClients, token
     async executeSell(sellAmount: bigint): Promise<`0x${string}`> {
       try {
         logger.info("aerodrome_sell_start", { sellAmount: sellAmount.toString(), pool: poolAddress });
+
+        // ============================================================
+        // ENSURE ALLOWANCE (NEW)
+        // ============================================================
+        try {
+          const allowanceResult = await ensureAllowance(
+            clients.publicClient,
+            clients.walletClient,
+            token,
+            wallet,
+            routerAddress,
+            sellAmount,
+            cfg.APPROVE_MAX
+          );
+
+          if (allowanceResult.didApprove) {
+            logger.info("aerodrome_sell_approval_sent", {
+              approveTxHash: allowanceResult.approveTxHash,
+              tokenAmount: sellAmount.toString()
+            });
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          logger.error("aerodrome_sell_approval_failed", { error: msg, sellAmount: sellAmount.toString() });
+          throw err;
+        }
 
         // Read pool to calculate output
         const pool = await readAerodromePool(clients, poolAddress, cfg.AERODROME_STABLE);
