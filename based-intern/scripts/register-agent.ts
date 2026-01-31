@@ -73,7 +73,9 @@ async function main() {
 
   const identityRegistry = await ethers.getContractAt("ERC8004IdentityRegistry", identityRegistryAddress);
 
-  const tx = await identityRegistry.register(agentURI);
+  // Ethers v6 requires explicit overload selection when a contract has both
+  // register() and register(string) in the ABI.
+  const tx = await identityRegistry["register(string)"](agentURI);
   const receipt = await tx.wait();
   if (!receipt) throw new Error("no receipt");
 
