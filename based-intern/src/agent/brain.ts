@@ -42,11 +42,46 @@ function fallbackPolicy(cfg: AppConfig, ctx: BrainContext): ProposedAction {
     return { action: "HOLD", rationale: "Safety mode active (or trading disabled). Holding." };
   }
 
+  // Tier 1: No INTERN at all → BUY (establish position)
   if (ctx.internAmount === 0n) {
-    return { action: "BUY", rationale: "No INTERN balance. Proposing a tiny buy (guardrails will cap)." };
+    return { action: "BUY", rationale: "No INTERN balance. Proposing a tiny buy to establish position (guardrails will cap)." };
   }
 
-  return { action: "SELL", rationale: "Have INTERN balance. Proposing a small sell (fraction capped)." };
+  // Tier 2: Very low ETH balance → SELL to rebalance
+  const lowEthThreshold = 100_000n; // 0.001 ETH
+  if (ctx.ethWei < lowEthThreshold) {
+    return { 
+      action: "SELL", 
+      rationale: "Low ETH balance detected. Proposing a small sell to rebalance (guardrails will cap)." 
+    };
+  }
+
+  // Tier 3: Decent balances → Use price signal if available
+  if (ctx.priceText && ctx.priceText !== "unknown") {
+    // Try to parse price; if price is low, buy; if high, hold.
+    const match = ctx.priceText.match(/[\d.]+/);
+    if (match) {
+      const price = parseFloat(match[0]);
+      if (!isNaN(price)) {
+        if (price < 0.50) {
+          return { action: "BUY", rationale: `Price low ($${price.toFixed(4)}). Proposing a small buy.` };
+        } else if (price > 2.0) {
+          return { action: "SELL", rationale: `Price high ($${price.toFixed(4)}). Proposing a small sell.` };
+        }
+      }
+    }
+  }
+
+  // Tier 4: Default → probabilistic HOLD (68% hold, 16% buy, 16% sell)
+  // This adds soft variability without external randomness.
+  const hash = ctx.wallet.charCodeAt(2) + ctx.wallet.charCodeAt(4) + ctx.internAmount.toString().length;
+  const rand = hash % 100;
+  if (rand < 16) {
+    return { action: "BUY", rationale: "Probabilistic buy (no strong signal detected)." };
+  } else if (rand < 32) {
+    return { action: "SELL", rationale: "Probabilistic sell (no strong signal detected)." };
+  }
+  return { action: "HOLD", rationale: "No signal detected. Probabilistic hold." };
 }
 
 async function proposeWithLangChain(cfg: AppConfig, ctx: BrainContext): Promise<ProposedAction> {
