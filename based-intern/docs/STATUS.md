@@ -24,6 +24,16 @@ This document tracks the current implementation status of all features in the Ba
 - [x] BaseScan verification support (set `BASESCAN_API_KEY`, run `npx hardhat verify`)
 - [x] TypeScript Hardhat setup
 - [x] Compilation working (`npm run build:contracts`)
+- [x] Hardhat tests included (`npx hardhat test`)
+
+### ERC-8004 Agent Identity (Optional)
+- [x] `contracts/erc8004/ERC8004IdentityRegistry.sol` - On-chain registry for agentId → agentURI + wallet binding
+- [x] Deploy script (`npm run deploy:erc8004`)
+- [x] Agent registration script (`npm run register:agent`)
+- [x] Wallet binding script (`npm run set:agent-wallet`) using EIP-712 signatures
+- [x] Receipt integration (optional `Agent:` line when ERC-8004 is enabled)
+- [x] Profile-first template JSON (`docs/agent.profile.json`)
+- [x] Strict/minimal template JSON (`docs/agent.registration.json`)
 
 ### Agent Runtime Core
 - [x] `src/index.ts` - Main tick loop
@@ -34,10 +44,11 @@ This document tracks the current implementation status of all features in the Ba
 - [x] Graceful error handling (continues on tick failures)
 
 ### State Management
-- [x] `src/agent/state.ts` - Persistent state in `data/state.json`
+- [x] `src/agent/state.ts` - Persistent state at `STATE_PATH` (default `data/state.json`)
 - [x] Last trade timestamp tracking
 - [x] Daily trade counter with automatic UTC midnight reset
 - [x] State file creation on first run
+- [x] Multi-instance support via per-process `STATE_PATH`
 - [x] **X API circuit breaker state**
   - [x] Consecutive failure count (xApiFailureCount)
   - [x] Circuit breaker disabled-until timestamp (xApiCircuitBreakerDisabledUntilMs)
@@ -179,7 +190,7 @@ This document tracks the current implementation status of all features in the Ba
 ### Git Setup
 - [x] `.gitignore` - Excludes node_modules, .env, generated files
 - [x] Deployments JSON excluded (via `deployments/*.json`)
-- [x] State JSON excluded (via `data/state.json`)
+- [x] State JSON excluded (default: `data/state.json`)
 - [x] Hardhat artifacts excluded
 - [x] Published to GitHub: `github.com/Metavibez4L/basedintern`
 
@@ -395,14 +406,18 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 | Activity detection (watch.ts) | 32 | ✅ | tests/watch.test.ts |
 | State persistence & migrations | 30 | ✅ | tests/state.test.ts + tests/state-persistence.test.ts |
 | X Mentions (x_mentions.ts) | 37 | ✅ | tests/x_mentions.test.ts |
-| **Total** | **167** | **✅ ALL PASS** | **tests/** |
+| **Total (Vitest)** | **185** | **✅ ALL PASS** | **tests/** |
 
 **Test Framework**: Vitest v1.6+ (dev dependency)
 
 **Running Tests**:
 ```bash
-npm run test           # Run all 167 tests once (~600ms)
+npm run test           # Run all Vitest tests once (~<1s)
 npm run test:watch    # Watch mode (auto-rerun on changes)
+npm run typecheck      # Project-based TS typecheck (no emit)
+
+# Contract tests
+npx hardhat test
 ```
 
 **Key Features**:
@@ -483,7 +498,7 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
    - Verify receipts
 
 3. **CI/CD pipeline** - Automated tests on every push
-   - Run 167 unit tests
+  - Run Vitest unit tests (currently 185)
    - Type check
    - Lint
 
@@ -547,7 +562,12 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
 
 ## 📝 Changelog
 
-### 2026-01-30 (Latest - Phase 1 X Mentions Poller)
+### 2026-01-31
+- ✅ ERC-8004 Identity Registry support (deploy/register/bind wallet) + optional receipt `Agent:` line
+- ✅ Multi-instance support via `STATE_PATH` and script-level `DEPLOYMENTS_FILE`
+- ✅ Hardhat contract tests added (`npx hardhat test`)
+
+### 2026-01-30 (Phase 1 X Mentions Poller)
 - ✅ **Phase 1: Comment → Intent recognition (NO TRADING)**
   - ✅ `src/social/x_mentions.ts` - Mention polling + safe replies
   - ✅ Command recognition: help, status, buy, sell, why, unknown
@@ -562,12 +582,12 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
   - ✅ Integration in main loop (runs before receipt posting, non-blocking)
   - ✅ **37 new comprehensive tests** (command parsing, reply composition, dedup, safety)
   - ✅ All guardrail explanations in replies (never mentions execution)
-- ✅ **Test framework updated: 131 total tests (up from 94)**
+- ✅ **Test framework updated (at the time: 131 total tests, up from 94)**
   - ✅ 37 new tests for x_mentions (command parsing, composition, length, dedup, state)
   - ✅ All tests deterministic (no network calls, fully mocked)
   - ✅ Zero external dependencies added
   - ✅ Full TypeScript type safety
-- ✅ Commands: `npm run test` (131 pass), `npm run test:watch` (watch mode)
+- ✅ Commands: `npm run test` (all pass), `npm run test:watch` (watch mode)
 - ✅ Build command `npm run build` still passes (strict TypeScript)
 - ✅ Commit: `346575a`
 

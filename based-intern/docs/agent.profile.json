@@ -1,0 +1,61 @@
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "Based Intern",
+  "description": "An autonomous on-chain agent operating on Base. Built as an 'unpaid intern': observes, reports, and executes only when explicitly authorized. Publishes verifiable receipts, follows strict guardrails, and never executes trades from social mentions.",
+  "image": "https://basedintern.xyz/assets/basedintern-512.png",
+  "services": [
+    {
+      "type": "social",
+      "name": "X",
+      "url": "https://x.com/basedintern"
+    },
+    {
+      "type": "code",
+      "name": "GitHub",
+      "url": "https://github.com/Metavibez4L/basedintern"
+    },
+    {
+      "type": "docs",
+      "name": "Flow / Status",
+      "url": "https://basedintern.xyz/docs"
+    }
+  ],
+  "registrations": [
+    {
+      "agentRegistry": "eip155:8453:0x0000000000000000000000000000000000000000",
+      "agentId": 0
+    }
+  ],
+  "capabilities": [
+    "unpaid-intern-model",
+    "event-driven execution",
+    "receipt-based transparency",
+    "guardrail-enforced actions",
+    "signed-intent required",
+    "x-mentions intent recognition (no execution)",
+    "aerodrome dex support",
+    "provider-driven price discovery"
+  ],
+  "supportedTrust": [
+    "erc8004.identity",
+    "eip712.signed-intents",
+    "explicit-operator-authorization",
+    "deterministic-receipts"
+  ],
+  "metadata": {
+    "role": "Unpaid Intern",
+    "authorityModel": "No autonomous authority. Executes only with explicit operator authorization (signed intent) and guardrails.",
+    "network": "Base",
+    "chainId": 8453,
+    "token": {
+      "symbol": "INTERN",
+      "address": "0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11"
+    },
+    "repo": "https://github.com/Metavibez4L/basedintern",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Based Intern Operator",
+      "url": "https://x.com/basedintern"
+    }
+  }
+}

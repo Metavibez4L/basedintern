@@ -48,7 +48,7 @@ Trading is disabled by default, but when enabled the agent can execute real swap
 - **Multiple Safety Layers**: TRADING_ENABLED, KILL_SWITCH, DRY_RUN, daily caps
 - **Fail-Safe Design**: Continues running even when RPC/posting fails
 - **Schema Versioning**: State file format can evolve safely with migrations
-- **Comprehensive Tests**: 181 deterministic tests (no flaky tests)
+- **Comprehensive Tests**: 185 deterministic tests (Vitest; no flaky tests)
 
 ### Trading (Modular DEX System)
 - **Pool-Agnostic Price Oracle**: Falls back from Aerodrome to HTTP (CoinGecko)
@@ -71,17 +71,19 @@ Trading is disabled by default, but when enabled the agent can execute real swap
 - **Block Number Tracking**: Ensures state is fresh
 
 ### State Management
-- **Persistent State**: JSON file in `data/state.json`
+- **Persistent State**: JSON file at `STATE_PATH` (default `data/state.json`)
 - **Daily Reset**: Automatic UTC midnight reset of trade counter
 - **Idempotency**: Never posts the same receipt twice (SHA256 fingerprinting)
 - **Migration Support**: Backward compatible schema versioning (v1→v2 ready)
 
 ### Developer Experience
 - **Full TypeScript**: ESM modules, strict types, no `any`
-- **Comprehensive Tests**: 167 tests covering all paths
+- **Comprehensive Tests**: 185 tests covering all paths
 - **Structured Logging**: JSON logging for observability
 - **Type-Safe Config**: Zod validation of all environment variables
 - **Docker Ready**: Cloud deployment support (Railway, etc.)
+
+Hardhat contract tests are also included (run with `npx hardhat test`).
 
 ## Current Deployments
 
@@ -281,9 +283,11 @@ npm run test
 **Output**:
 ```
  Test Files  9 passed (9)
-      Tests  167 passed (167)
+  Tests  ... passed
    Duration  ~600ms
 ```
+
+Note: test counts may change as tests are added (currently 185).
 
 **What's tested**:
 - ✅ **Config validation** (12 tests): Trading setup, guardrails, social mode, error messages
@@ -337,7 +341,7 @@ X API uses OAuth 1.0a for secure, reliable posting:
 - Circuit breaker: Disables posting for 30 minutes after 3 consecutive failures
 - Idempotency: Never posts the same receipt twice (SHA256 fingerprinting)
 - Rate-limit aware: Respects X API rate limits with exponential backoff
-- All state persisted to `data/state.json` for reliability
+- All state persisted to `STATE_PATH` (default `data/state.json`) for reliability
 
 **Event-driven posting** (default):
 - Posts ONLY when meaningful onchain activity detected

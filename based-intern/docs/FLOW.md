@@ -35,6 +35,25 @@ npx hardhat verify --network baseSepolia <TOKEN_ADDRESS>
 npx hardhat verify --network base <TOKEN_ADDRESS>
 ```
 
+### (Optional) ERC-8004: Register an on-chain agent identity
+
+If you want receipts to include a portable identifier, register this agent in the ERC-8004 Identity Registry.
+
+```bash
+# Deploy the Identity Registry
+npm run deploy:erc8004 -- --network baseSepolia
+
+# Register an agentId + agentURI
+ERC8004_AGENT_URI="ipfs://<cid>" npm run register:agent -- --network baseSepolia
+
+# Bind the agentId to the current wallet (EIP-712 signature)
+npm run set:agent-wallet -- --network baseSepolia
+```
+
+Notes:
+- Scripts persist to `deployments/<network>.json` by default; set `DEPLOYMENTS_FILE` to override.
+- To include the identifier in receipts, set `ERC8004_ENABLED=true` plus `ERC8004_IDENTITY_REGISTRY` and `ERC8004_AGENT_ID`.
+
 ---
 
 ### Step 2: Launch Agent (Posting Mode - Event-Driven)
@@ -327,7 +346,7 @@ SOCIAL_MODE=x_api DRY_RUN=true TRADING_ENABLED=false KILL_SWITCH=true \
    Step 8: Post Receipt → Posts as LIVE mode
    ```
 
-5. Trade execution tracked in `data/state.json`:
+5. Trade execution tracked in `STATE_PATH` (default `data/state.json`):
    - Last trade timestamp
    - Daily trade counter (resets at UTC midnight)
 
@@ -503,7 +522,7 @@ All trading decisions pass through multiple independent safety checks:
 
 ## State Persistence
 
-Agent state is persisted in `data/state.json`:
+Agent state is persisted in `STATE_PATH` (default `data/state.json`):
 
 ```json
 {
@@ -516,6 +535,8 @@ Agent state is persisted in `data/state.json`:
 - Daily counter resets automatically at UTC midnight
 - Prevents exceeding daily trade cap
 - Enforces minimum interval between trades
+
+For multiple concurrent agents, give each process its own `STATE_PATH`.
 
 ---
 

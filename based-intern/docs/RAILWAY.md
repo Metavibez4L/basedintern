@@ -60,7 +60,7 @@ X API posting is hardened with:
 - **Circuit breaker**: Disables posting for 30 minutes after 3 consecutive failures
 - **Idempotency**: Never posts the same receipt twice (fingerprint-based)
 - **Rate-limit handling**: Respects X API limits with exponential backoff (2min, 5min, 15min)
-- **State persistence**: All behavior tracked in `data/state.json`
+- **State persistence**: All behavior tracked in `STATE_PATH` (default `data/state.json`)
 
 ## 3) OAuth 1.0a credentials for X API posting
 
