@@ -37,6 +37,8 @@ const mockConfig: AppConfig = {
   CHAIN: "base-sepolia",
   WALLET_MODE: "private_key",
   PRIVATE_KEY: "0x0000000000000000000000000000000000000000000000000000000000000001",
+  STATE_PATH: "data/state.json",
+  ERC8004_ENABLED: false,
   OPENAI_API_KEY: "",
   ROUTER_TYPE: "aerodrome",
   ROUTER_ADDRESS: "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43" as Address,

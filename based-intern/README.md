@@ -116,12 +116,60 @@ npm run deploy:token -- --network baseSepolia
 npm run test
 ```
 
-Expected: 167 tests passing, ~600ms
+Expected: all tests passing
+
+### (Optional) ERC-8004: Register this agent on-chain
+
+ERC-8004 gives the agent a portable identifier: `eip155:<chainId>:<identityRegistry>#<agentId>`.
+
+```bash
+# Deploy the Identity Registry (writes deployments/<network>.json)
+npm run deploy:erc8004 -- --network baseSepolia
+
+# Register an agentId + agentURI (also persisted to deployments/<network>.json)
+ERC8004_AGENT_URI="ipfs://<cid>" npm run register:agent -- --network baseSepolia
+```
+
+To include the identifier in receipts, set:
+
+```bash
+ERC8004_ENABLED=true
+ERC8004_IDENTITY_REGISTRY=0x...
+ERC8004_AGENT_ID=123
+```
 
 ### Step 3: Launch Agent
 
 ```bash
 SOCIAL_MODE=x_api DRY_RUN=true TRADING_ENABLED=false npm run dev
+```
+
+### Multi-instance (Windows PowerShell)
+
+Run multiple agents in parallel (multi-wallet + multi ERC-8004 identities) by giving each process its own `STATE_PATH`.
+
+Terminal A:
+
+```powershell
+$env:PRIVATE_KEY="0x..."
+$env:STATE_PATH="data/state.a.json"
+npm run dev
+```
+
+Terminal B:
+
+```powershell
+$env:PRIVATE_KEY="0x..."
+$env:STATE_PATH="data/state.b.json"
+npm run dev
+```
+
+Optional (scripts): keep per-instance ERC-8004 deployment metadata separate via `DEPLOYMENTS_FILE`:
+
+```powershell
+$env:DEPLOYMENTS_FILE="deployments/a.baseSepolia.json"; npm run deploy:erc8004 -- --network baseSepolia
+$env:DEPLOYMENTS_FILE="deployments/a.baseSepolia.json"; $env:ERC8004_AGENT_URI="ipfs://<cid>"; npm run register:agent -- --network baseSepolia
+$env:DEPLOYMENTS_FILE="deployments/a.baseSepolia.json"; npm run set:agent-wallet -- --network baseSepolia
 ```
 
 See [Detailed PATH](#path) section below for complete 3-step execution flow.

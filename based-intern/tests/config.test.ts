@@ -20,6 +20,11 @@ describe("Config validation", () => {
     delete process.env.POOL_ADDRESS;
     delete process.env.MAX_SPEND_ETH_PER_TRADE;
     delete process.env.DAILY_TRADE_CAP;
+
+    delete process.env.ERC8004_ENABLED;
+    delete process.env.ERC8004_IDENTITY_REGISTRY;
+    delete process.env.ERC8004_AGENT_ID;
+    delete process.env.ERC8004_AGENT_URI;
   });
 
   afterEach(() => {
@@ -163,5 +168,38 @@ describe("Config validation", () => {
     const cfg = loadConfig();
     expect(cfg.TRADING_ENABLED).toBe(false);
     expect(cfg.DRY_RUN).toBe(true);
+  });
+
+  it("rejects ERC8004_ENABLED without ERC8004_IDENTITY_REGISTRY", () => {
+    process.env.RPC_URL = "http://localhost:8545";
+    process.env.PRIVATE_KEY = "0x" + "a".repeat(64);
+    process.env.ERC8004_ENABLED = "true";
+    process.env.ERC8004_AGENT_ID = "1";
+
+    expect(() => loadConfig()).toThrow(/ERC8004_IDENTITY_REGISTRY is required/);
+  });
+
+  it("rejects ERC8004_ENABLED without ERC8004_AGENT_ID", () => {
+    process.env.RPC_URL = "http://localhost:8545";
+    process.env.PRIVATE_KEY = "0x" + "a".repeat(64);
+    process.env.ERC8004_ENABLED = "true";
+    process.env.ERC8004_IDENTITY_REGISTRY = "0x1234567890123456789012345678901234567890";
+
+    expect(() => loadConfig()).toThrow(/ERC8004_AGENT_ID is required/);
+  });
+
+  it("accepts ERC8004_ENABLED with valid config and derives agentRef", () => {
+    process.env.RPC_URL = "http://localhost:8545";
+    process.env.PRIVATE_KEY = "0x" + "a".repeat(64);
+    process.env.CHAIN = "base-sepolia";
+    process.env.ERC8004_ENABLED = "true";
+    process.env.ERC8004_IDENTITY_REGISTRY = "0x1234567890123456789012345678901234567890";
+    process.env.ERC8004_AGENT_ID = "42";
+
+    const cfg = loadConfig();
+    expect(cfg.erc8004.enabled).toBe(true);
+    expect(cfg.erc8004.chainId).toBe(84532);
+    expect(cfg.erc8004.agentRegistryId).toBe("eip155:84532:0x1234567890123456789012345678901234567890");
+    expect(cfg.erc8004.agentRef).toBe("eip155:84532:0x1234567890123456789012345678901234567890#42");
   });
 });
