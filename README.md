@@ -139,9 +139,17 @@ If you want receipts to include a portable on-chain identifier, register the age
 - Strict/minimal template JSON (schema-first): [based-intern/docs/agent.registration.json](based-intern/docs/agent.registration.json)
 - Scripts live under `based-intern/scripts/` and are exposed as npm scripts in `based-intern/package.json`.
 
-Known Base mainnet (8453) ERC-8004 deployment:
+### ERC-8004 (Deployed on Base mainnet)
+
+ERC-8004 turns the agent into a **portable on-chain identity**:
+- Anyone can independently verify the agent’s canonical id and profile URI on Base.
+- The identity can be bound to a wallet (EIP-712 signed) without trusting off-chain claims.
+- Receipts can include a stable `Agent:` reference for attribution and monitoring.
+
+Deployed identity (Base mainnet 8453):
 - Identity Registry: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
-- Agent: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
+- Agent ref: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
+- agentURI (pinned): `https://raw.githubusercontent.com/Metavibez4L/basedintern/9a03a383107440d7c6ce360fe2efdce8b151ac40/based-intern/docs/agent.profile.json`
 
 ## 📝 License
 
