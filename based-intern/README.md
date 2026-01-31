@@ -75,7 +75,43 @@ npx hardhat verify --network base <TOKEN_ADDRESS>
 
 ---
 
+### Step 1c: Configuration Validation
+
+The agent validates your configuration at startup to prevent invalid trading setups. All environment variables are type-checked and cross-validated:
+
+**Basic validation** (all runs):
+- `PRIVATE_KEY` must be set (when `WALLET_MODE=private_key`)
+- `RPC_URL` or chain-specific RPC (`BASE_SEPOLIA_RPC_URL`, `BASE_RPC_URL`) required
+- `MAX_SPEND_ETH_PER_TRADE` must be a valid decimal number
+
+**Trading validation** (when `TRADING_ENABLED=true`):
+- `KILL_SWITCH` must be `false` to enable live trading
+- `ROUTER_ADDRESS` required (DEX router contract address)
+- `WETH_ADDRESS` required (wrapped ETH token address)
+- `ROUTER_TYPE` must not be `unknown` (e.g., `aerodrome`, `uniswap-v3`)
+- `DAILY_TRADE_CAP` must be > 0
+- `MAX_SPEND_ETH_PER_TRADE` must be > 0
+
+**Router-specific validation**:
+- If `ROUTER_TYPE=aerodrome`: `POOL_ADDRESS` required
+
+**Social posting validation** (when `SOCIAL_MODE=playwright`):
+- `X_COOKIES_PATH` or `X_COOKIES_B64` required for cookie-based auth
+
+**Example errors**:
+```
+Config validation errors:
+  - KILL_SWITCH must be false to enable trading (TRADING_ENABLED=true)
+  - ROUTER_ADDRESS is required when TRADING_ENABLED=true
+  - MAX_SPEND_ETH_PER_TRADE must be > 0 when TRADING_ENABLED=true
+```
+
+If validation fails, the agent exits immediately with a clear error message. All validation happens **before** any network calls, ensuring safe startup.
+
+---
+
 ### Step 2a: Run Tests (Recommended)
+
 
 Before deploying or running live, verify the codebase with automated tests:
 
@@ -85,17 +121,19 @@ npm run test
 
 **Output**:
 ```
- Test Files  5 passed (5)
-      Tests  131 passed (131)
+ Test Files  7 passed (7)
+      Tests  149 passed (149)
    Duration  ~571ms
 ```
 
 **What's tested**:
+- ✅ Config validation (trading setup, guardrails, social mode consistency)
 - ✅ Guardrails enforcement (KILL_SWITCH, TRADING_ENABLED, caps, intervals)
 - ✅ Receipt formatting (multi-line, balances, mood rotation)
 - ✅ Activity detection (nonce, ETH delta, token delta)
 - ✅ State management (UTC reset, trade recording)
 - ✅ Phase 1 X Mentions (command parsing, safe replies, deduplication)
+- ✅ DEX provider system (Aerodrome, HTTP fallback, price discovery)
 
 All tests are deterministic with mocked viem clients (no network calls). See [tests/README.md](tests/README.md) for details.
 

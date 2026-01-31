@@ -127,12 +127,64 @@ const envSchema = envSchemaBase.superRefine((cfg, ctx) => {
 
 export type AppConfig = z.infer<typeof envSchema>;
 
+function validateGuardrails(cfg: AppConfig): string[] {
+  const errors: string[] = [];
+
+  // Parse and validate MAX_SPEND_ETH_PER_TRADE
+  const spend = parseFloat(cfg.MAX_SPEND_ETH_PER_TRADE);
+  if (isNaN(spend) || spend < 0) {
+    errors.push(`MAX_SPEND_ETH_PER_TRADE must be a valid decimal: ${cfg.MAX_SPEND_ETH_PER_TRADE}`);
+  }
+
+  // If trading is enabled, enforce trading config
+  if (cfg.TRADING_ENABLED) {
+    if (cfg.KILL_SWITCH) {
+      errors.push("KILL_SWITCH must be false to enable trading (TRADING_ENABLED=true)");
+    }
+    if (!cfg.ROUTER_ADDRESS || !cfg.ROUTER_ADDRESS.trim()) {
+      errors.push("ROUTER_ADDRESS is required when TRADING_ENABLED=true");
+    }
+    if (!cfg.WETH_ADDRESS || !cfg.WETH_ADDRESS.trim()) {
+      errors.push("WETH_ADDRESS is required when TRADING_ENABLED=true");
+    }
+    if (cfg.ROUTER_TYPE === "unknown") {
+      errors.push("ROUTER_TYPE must not be 'unknown' when TRADING_ENABLED=true");
+    }
+    if (cfg.DAILY_TRADE_CAP <= 0) {
+      errors.push("DAILY_TRADE_CAP must be > 0 when TRADING_ENABLED=true");
+    }
+    if (spend <= 0) {
+      errors.push("MAX_SPEND_ETH_PER_TRADE must be > 0 when TRADING_ENABLED=true");
+    }
+  }
+
+  // If Aerodrome is configured, require POOL_ADDRESS
+  if (cfg.ROUTER_TYPE === "aerodrome" && (!cfg.POOL_ADDRESS || !cfg.POOL_ADDRESS.trim())) {
+    errors.push("POOL_ADDRESS is required when ROUTER_TYPE=aerodrome");
+  }
+
+  // Social mode consistency
+  if (cfg.SOCIAL_MODE === "playwright") {
+    if (!cfg.X_COOKIES_PATH && !cfg.X_COOKIES_B64) {
+      errors.push("X_COOKIES_PATH or X_COOKIES_B64 is required when SOCIAL_MODE=playwright");
+    }
+  }
+
+  return errors;
+}
+
 export function loadConfig(): AppConfig {
   const cfg = envSchema.parse(process.env);
 
-  // Enforce “private_key required by default” without blocking CDP experimentation.
+  // Enforce "private_key required by default" without blocking CDP experimentation.
   if (cfg.WALLET_MODE === "private_key" && !cfg.PRIVATE_KEY) {
     throw new Error("PRIVATE_KEY is required when WALLET_MODE=private_key");
+  }
+
+  // Validate guardrails and trading consistency
+  const guardErrors = validateGuardrails(cfg);
+  if (guardErrors.length > 0) {
+    throw new Error(`Config validation errors:\n${guardErrors.map((e) => `  - ${e}`).join("\n")}`);
   }
 
   return cfg;
