@@ -23,113 +23,145 @@ Based Intern is an autonomous agent with a deadpan "unpaid intern" persona that:
 - **Multiple Safety Layers**: TRADING_ENABLED, KILL_SWITCH, DRY_RUN, daily caps, spend caps, intervals
 - **Schema Versioning**: State file can evolve safely with backward compatibility
 
-### Activity & Posting
-- **Proof-of-Life Receipts**: Standardized receipt format (the "moat")
-- **Event-Driven Posting**: Posts ONLY when wallet activity detected (no spam)
-  - Detects: nonce increases, ETH balance changes, token balance changes
-  - Configurable thresholds: `MIN_ETH_DELTA`, `MIN_TOKEN_DELTA`
-- **Idempotency**: Never posts the same receipt twice (SHA256 fingerprinting)
-- **Circuit Breaker**: Auto-disables posting for 30 min after 3 consecutive failures
+# Based Intern
 
-### Trading Capabilities
-- **Modular DEX System**: Supports Aerodrome and custom DEX adapters
-- **Pool-Agnostic Price Oracle**: Falls back to HTTP (CoinGecko) if Aerodrome pool unavailable
-- **Capped Trading**: Daily limits, spend caps, minimum intervals
-- **Smart Fallback Decisions**: 
-  - Tier 1: No INTERN → BUY (establish position)
-  - Tier 2: Low ETH → SELL (rebalance)
-  - Tier 3: Price available → threshold-based (BUY <$0.50, SELL >$2.00)
-  - Tier 4: No signal → probabilistic HOLD/BUY/SELL
+**Based Intern** is an autonomous, safety-first trading and proof-of-life agent for Base L2 (Sepolia/mainnet). It posts receipts and executes capped trades on-chain, with a modular, extensible architecture and multiple independent guardrails. The agent is designed for reliability, deterministic fallback, and easy extensibility.
 
-### Intelligence & Extensibility
-- **LangChain Brain**: OpenAI GPT-4o-mini for context-aware decisions
-- **Tool-Calling Loop**: Agent can query wallet state before deciding
-- **Deterministic Fallback**: Always makes reasonable decisions (conservative)
-- **Provider Registry**: Pluggable DEX adapters for custom routing
+---
 
-### Social Posting
-- **X API (OAuth 1.0a)**: Secure, rate-limit aware, idempotency built-in
-- **Playwright (Browser)**: Cookie-based automation for accounts without API access
-- **Phase 1 Mentions**: Responds to mentions with intent recognition, explains decisions
-- **Local-Only Mode**: Safe testing without posting anything
+## ✨ Features
 
-## Deployment Targets
-- **Base Sepolia (84532)** - Testnet
-- **Base mainnet (8453)** - Production
+- **Safety-First Design:** Three independent guardrails (config validation, fallback policy, execution caps) ensure no single failure can cause loss of funds.
+- **Modular DEX System:** Supports Aerodrome and HTTP (CoinGecko) adapters; easy to extend for new DEXs or price sources.
+- **Deterministic Fallback:** If LLM, RPC, or price oracles fail, agent continues with a conservative, price/balance-aware HOLD policy.
+- **Config-Driven:** All runtime behavior is controlled via environment variables, validated at startup (Zod + custom guardrails).
+- **State Persistence:** Tracks trade history and resets daily; schema versioned for future migrations.
+- **Structured Logging:** All logs are structured; no console.log anywhere.
+- **Dual Social Posting:** Posts receipts to X (Twitter) via API or Playwright, or logs locally.
+- **Comprehensive Test Suite:** 167 deterministic tests across all modules (as of Jan 2026).
+- **Extensible:** Modular provider registry for DEXs, price oracles, and social posting.
 
-## Quick Start
+---
+
+## 🏗️ Architecture & Flow
+
+```
+Config → Chain Clients → Read State → Propose Action → Enforce Guardrails → Execute/Post
+   ↓         ↓              ↓              ↓               ↓                    ↓
+ Zod      viem       state.json      LangChain      Multi-check           Trade/Post
+ valdtn   (viem)     LLM fallback     decision       then execute          to X/chain
+```
+
+### Key Files & Directories
+
+- `src/index.ts` — Main loop entrypoint (`tick()`)
+- `src/config.ts` — Zod schema validation, config resolution
+- `src/agent/brain.ts` — Action proposal (LangChain + fallback policy)
+- `src/agent/decision.ts` — Guardrail enforcement (trade caps, intervals)
+- `src/chain/dex/` — Modular DEX provider system (Aerodrome, HTTP, registry)
+- `src/chain/price.ts` — Pool-agnostic price oracle
+- `src/agent/state.ts` — State persistence, schema versioning
+- `src/social/` — Social posting (X API, Playwright, mention poller)
+
+---
+
+## 🛡️ Safety Layers
+
+1. **Config validation:** Zod schema + custom guardrails, fail-fast on invalid env
+2. **Proposal fallback:** If LLM or price fails, use deterministic, price/balance-aware HOLD policy
+3. **Guardrail enforcement:** Hard caps on trades, spend, and intervals (see `enforceGuardrails()`)
+
+**Critical Flags:** (all must be satisfied for live trading)
+
+- `TRADING_ENABLED=true` (default: false)
+- `KILL_SWITCH=false` (default: true)
+- `DRY_RUN=false` (default: true)
+- `ROUTER_ADDRESS` must be set
+
+---
+
+## 🗃️ State & Receipts
+
+- Trades and state are persisted in `data/state.json` (schema versioned, atomic writes)
+- Every tick posts a receipt (action, balances, price, tx hash, mode)
+- Receipts are the "proof-of-life" moat: every tick, even if no trade
+
+---
+
+## 🔄 Modular DEX & Price Oracle
+
+- **Provider Registry:** All DEX and price adapters are registered in `src/chain/dex/`
+- **Aerodrome Adapter:** Native DEX integration (swap, price, slippage protection)
+- **HTTP Adapter:** CoinGecko fallback for price (read-only, no trading)
+- **Easy Extension:** Add new DEXs or price sources by implementing the provider interface
+- **Slippage Protection:** All trades use minOut with slippage bps
+- **Pool-Agnostic:** Price oracle works with any registered DEX or HTTP source
+
+---
+
+## 📣 Social Posting
+
+- `SOCIAL_MODE`: `none` (default), `playwright`, `x_api`
+- Posts receipts to X (Twitter) via API or Playwright, or logs locally
+- Mention poller for event-driven posting (see `src/social/x_mentions.ts`)
+
+---
+
+## 🚀 Quickstart
 
 ```bash
+git clone https://github.com/yourorg/based-intern.git
 cd based-intern
 npm install
-cp .env.example .env
-# Edit .env with your PRIVATE_KEY and RPC URLs
-
+npm run build
+# Compile contracts
 npm run build:contracts
+# Deploy token (optional)
 npm run deploy:token -- --network baseSepolia
+# Run agent in safe mode
 npm run dev
 ```
 
-See [based-intern/README.md](based-intern/README.md) for the complete 3-step execution path.
+---
 
-## Documentation
+## ⚙️ Configuration
 
-- **[Detailed Usage Guide](based-intern/README.md)** - Configuration, 3-step execution, trading setup
-- **[Execution Flow](based-intern/docs/FLOW.md)** - Step-by-step data flow, decision trees, safety checks
-- **[Implementation Status](based-intern/docs/STATUS.md)** - Feature inventory, architecture, known limitations
-- **[Build & Deployment](based-intern/docs/BUILD.md)** - Installation, compilation, deployment, troubleshooting
-- **[Railway Deployment](based-intern/docs/RAILWAY.md)** - Docker, cloud deployment, environment variables
-
-## Project Structure
+Set environment variables in `.env` (see `src/config.ts` for all options):
 
 ```
-baseintern/
-├── based-intern/                    # Main project directory
-│   ├── contracts/                   # Solidity contracts (ERC20 token)
-│   ├── scripts/                     # Hardhat deployment + utility scripts
-│   ├── src/
-│   │   ├── index.ts                # Main event loop (tick handler)
-│   │   ├── config.ts               # Zod-validated environment configuration
-│   │   ├── logger.ts               # Structured JSON logging
-│   │   ├── agent/                  # LangChain & decision-making
-│   │   │   ├── brain.ts            # Action proposal (LLM + fallback)
-│   │   │   ├── decision.ts         # Guardrail enforcement
-│   │   │   ├── prompt.ts           # System prompt + tool definitions
-│   │   │   ├── receipts.ts         # Receipt formatting
-│   │   │   ├── state.ts            # Persistent state (migrations)
-│   │   │   ├── tools.ts            # LangChain tool definitions
-│   │   │   ├── watch.ts            # Activity detection
-│   │   │   ├── x_mentions.ts       # X mention parsing
-│   │   └── chain/                  # Blockchain interaction (viem)
-│   │   │   ├── client.ts           # Public + wallet clients
-│   │   │   ├── chains.ts           # Chain definitions (Base)
-│   │   │   ├── erc20.ts            # ERC20 reads/approvals
-│   │   │   ├── price.ts            # Provider-driven price oracle
-│   │   │   ├── aerodrome.ts        # Aerodrome DEX queries
-│   │   │   ├── trade.ts            # Swap execution
-│   │   │   └── dex/                # Modular DEX provider system
-│   │   │       ├── index.ts        # Registry interface
-│   │   │       ├── aerodromeAdapter.ts  # Aerodrome provider
-│   │   │       └── httpAdapter.ts  # HTTP (CoinGecko) fallback
-│   │   └── social/                 # Social media posting
-│   │       ├── poster.ts           # Factory (mode-agnostic)
-│   │       ├── x_api.ts            # X API (OAuth 1.0a)
-│   │       ├── x_playwright.ts     # X Playwright (cookies)
-│   │       └── x_mentions.ts       # Mention poller
-│   ├── tests/                      # Comprehensive test suite (167 tests)
-│   │   ├── config.test.ts          # Config validation
-│   │   ├── brain.test.ts           # Fallback policy
-│   │   ├── decision.test.ts        # Guardrails
-│   │   ├── receipts.test.ts        # Receipt formatting
-│   │   ├── state.test.ts           # State management
-│   │   ├── state-persistence.test.ts  # Schema migration
-│   │   ├── watch.test.ts           # Activity detection
-│   │   ├── x_mentions.test.ts      # Mention parsing
-│   │   └── dex.test.ts             # DEX provider system
-│   ├── docs/                       # Comprehensive documentation
-│   │   ├── FLOW.md                 # 3-step execution flow
-│   │   ├── STATUS.md               # Feature inventory
-│   │   ├── BUILD.md                # Build & deployment
+TRADING_ENABLED=false
+KILL_SWITCH=true
+DRY_RUN=true
+ROUTER_TYPE=aerodrome
+ROUTER_ADDRESS=0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43
+POOL_ADDRESS=0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc
+WETH_ADDRESS=0x4200000000000000000000000000000000000006
+AERODROME_STABLE=false
+```
+
+---
+
+## 🧪 Testing
+
+```bash
+npm run lint
+npm run build
+npm test
+```
+
+---
+
+## 📚 Documentation
+
+- [based-intern/README.md](based-intern/README.md) — Developer guide
+- [docs/FLOW.md](based-intern/docs/FLOW.md) — Execution flow
+- [docs/STATUS.md](based-intern/docs/STATUS.md) — Feature status
+
+---
+
+## 📝 License
+
+MIT
 │   │   └── RAILWAY.md              # Cloud deployment
 │   ├── hardhat.config.ts           # Hardhat config (Base networks)
 │   ├── tsconfig.json               # TypeScript configuration (ESM)
