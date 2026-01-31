@@ -119,6 +119,29 @@ export function createTradeExecutor(cfg: AppConfig, clients: ChainClients, token
       try {
         logger.info("aerodrome_buy_start", { spendEth: spendEth.toString(), pool: poolAddress });
 
+        // Try provider-driven calldata if available
+        try {
+          const { getDexProviders } = await import("./dex/index.js");
+          const providers = getDexProviders();
+          const provider = providers.find((p: any) => p.name === cfg.ROUTER_TYPE && typeof p.buildBuyCalldata === "function");
+          if (provider && provider.buildBuyCalldata) {
+            const swap = await provider.buildBuyCalldata(cfg, clients, token, wethAddress, wallet, spendEth);
+            if (swap) {
+              const txHash = await clients.walletClient!.sendTransaction({
+                to: swap.to as Address,
+                data: swap.calldata,
+                value: swap.value,
+                account: wallet,
+                chain: undefined
+              });
+              logger.info(`${provider.name}_buy_submitted`, { txHash, spendEth: spendEth.toString() });
+              return txHash;
+            }
+          }
+        } catch (e) {
+          // Fall through to local Aerodrome implementation on any adapter error
+        }
+
         // Read pool to calculate output
         const pool = await readAerodromePool(clients, poolAddress, cfg.AERODROME_STABLE);
         if (!pool) {
@@ -197,6 +220,48 @@ export function createTradeExecutor(cfg: AppConfig, clients: ChainClients, token
     async executeSell(sellAmount: bigint): Promise<`0x${string}`> {
       try {
         logger.info("aerodrome_sell_start", { sellAmount: sellAmount.toString(), pool: poolAddress });
+
+        // Try provider-driven calldata if available (build calldata before allowance check when possible)
+        try {
+          const { getDexProviders } = await import("./dex/index.js");
+          const providers = getDexProviders();
+          const provider = providers.find((p: any) => p.name === cfg.ROUTER_TYPE && typeof p.buildSellCalldata === "function");
+          if (provider && provider.buildSellCalldata) {
+            const swap = await provider.buildSellCalldata(cfg, clients, token, wethAddress, wallet, sellAmount);
+            if (swap) {
+              // If provider returns calldata, ensure allowance then submit
+              try {
+                const allowanceResult = await ensureAllowance(
+                  clients.publicClient,
+                  clients.walletClient,
+                  token,
+                  wallet,
+                  swap.to as Address,
+                  sellAmount,
+                  cfg.APPROVE_MAX
+                );
+
+                if (allowanceResult.didApprove) {
+                  logger.info("dex_sell_approval_sent", { approveTxHash: allowanceResult.approveTxHash, tokenAmount: sellAmount.toString() });
+                }
+              } catch (err) {
+                throw err;
+              }
+
+              const txHash = await clients.walletClient!.sendTransaction({
+                to: swap.to as Address,
+                data: swap.calldata,
+                account: wallet,
+                chain: undefined
+              });
+
+              logger.info(`${provider.name}_sell_submitted`, { txHash, sellAmount: sellAmount.toString() });
+              return txHash;
+            }
+          }
+        } catch (e) {
+          // Fall through to local Aerodrome implementation on any adapter error
+        }
 
         // ============================================================
         // ENSURE ALLOWANCE (NEW)

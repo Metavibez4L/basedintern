@@ -267,11 +267,24 @@ SOCIAL_MODE=x_api DRY_RUN=true TRADING_ENABLED=false KILL_SWITCH=true \
 
 ### Notes on removed/changed pools
 
-- If you removed a test pool (POOL_ADDRESS), the agent will no longer be able to quote from that specific pool. With the DEX registry, you can register alternate adapters (e.g., TheGraph, on-chain factory query) to provide fallback pricing. If no provider returns a quote, the agent reports `price: unknown` and proceeds with the deterministic/fallback path.
+- If you removed a test pool (POOL_ADDRESS), the agent will no longer be able to quote from that specific pool.
+- **With the DEX provider system**, the agent now supports pluggable price oracles and trade routing:
+  - Price lookup tries each registered provider in order until one succeeds or all fail (returns `price: unknown`)
+  - Trade execution attempts provider-supplied calldata (if available), then falls back to the legacy Aerodrome logic
+  - If a single pool is removed, you can add an alternate provider (TheGraph, on-chain factory query, HTTP price feed) without modifying the core agent
 
 **Quick remediation**:
-- Add an adapter under `src/chain/dex` that implements `getPrice(cfg, clients, token, weth)` and register it. The Aerodrome adapter is a reference implementation at `src/chain/dex/aerodromeAdapter.ts`.
-- Alternatively, set `POOL_ADDRESS` back to a working pool or configure an external HTTP price feed in a future provider.
+1. **Add an adapter** under `src/chain/dex` implementing the `DexProvider` interface:
+   ```typescript
+   export const MyAdapter = {
+     name: "my-dex",
+     getPrice: async (cfg, clients, token, weth) => { /* fetch price */ },
+     buildBuyCalldata: async (cfg, clients, token, weth, wallet, spendEth) => { /* return calldata */ }
+   };
+   registerDexProvider(MyAdapter);
+   ```
+2. **Or**, set `POOL_ADDRESS` back to a working pool if you have an alternate Aerodrome pair
+3. **Example**: The Aerodrome adapter at `src/chain/dex/aerodromeAdapter.ts` shows how to implement price reading and calldata builders.
 
 **Commands**:
 ```bash

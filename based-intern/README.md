@@ -213,14 +213,22 @@ SOCIAL_MODE=x_api TRADING_ENABLED=true KILL_SWITCH=false DRY_RUN=false npm run d
 - `WETH_ADDRESS=0x4200000000000000000000000000000000000006`
 - `AERODROME_STABLE=false`
 
-**Pluggable DEX providers**
+**Pluggable DEX providers** (NEW)
 
-The agent now exposes a small DEX provider registry at `src/chain/dex`. A default Aerodrome adapter is included at `src/chain/dex/aerodromeAdapter.ts`.
+The agent now features a modular DEX provider registry at `src/chain/dex`. A complete Aerodrome adapter is included at `src/chain/dex/aerodromeAdapter.ts`.
 
-- To add a new provider, implement the `DexProvider` shape (see `src/chain/dex/index.ts`) and register the provider on import via `registerDexProvider()`.
-- Price lookups (`readBestEffortPrice`) and later trade routing will consult registered providers in order until a provider returns a usable quote. This makes the agent resilient to removed or unavailable test pools.
+**Architecture**:
+- **Price oracle**: Registered providers (`getPrice()`) are tried in order until one returns a valid result or all fail (returns "unknown").
+- **Trade execution**: Providers can optionally supply calldata builders (`buildBuyCalldata()`, `buildSellCalldata()`), which `src/chain/trade.ts` uses with a fallthrough to the legacy Aerodrome inline implementation.
+- **Resilience**: If a pool is removed or unavailable, the agent continues with the deterministic fallback (HOLD) and can be re-enabled by registering an alternate provider.
 
-If your `POOL_ADDRESS` was removed, either re-add a working pool address or add a fallback provider (TheGraph, on-chain factory query, or an HTTP price feed adapter).
+**To add a provider**:
+1. Create a new adapter under `src/chain/dex/`
+2. Implement `DexProvider` shape: `{ name, getPrice(), buildBuyCalldata?(), buildSellCalldata?() }`
+3. Call `registerDexProvider(adapter)` on module import
+4. The agent will automatically discover and use the provider
+
+**Example**: See `src/chain/dex/aerodromeAdapter.ts` for a reference implementation using Aerodrome pools and calldata encoding.
 
 **For SELL trades** (optional, default safe):
 - `APPROVE_MAX=false` (default): Approve exact amount needed per trade
@@ -240,6 +248,75 @@ If posting fails, the agent logs the error and **keeps running**.
 - Use a **fresh wallet** with tiny funds.
 - Never commit secrets (`.env`).
 - Leave `KILL_SWITCH=true` and `TRADING_ENABLED=false` until you explicitly opt in.
+
+---
+
+## Architecture: DEX Provider System
+
+The agent uses a pluggable DEX provider architecture for price discovery and trade routing.
+
+### Provider Interface
+
+```typescript
+type DexProvider = {
+  name: string;
+  getPrice: (cfg: AppConfig, clients: ChainClients, token: Address, weth: Address) => Promise<PriceResult | null>;
+  buildBuyCalldata?: (cfg, clients, token, weth, wallet, spendEth) => Promise<SwapCalldata | null>;
+  buildSellCalldata?: (cfg, clients, token, weth, wallet, sellAmount) => Promise<SwapCalldata | null>;
+};
+```
+
+### How It Works
+
+1. **Price Discovery** (`src/chain/price.ts`):
+   - Calls each registered provider's `getPrice()` in order
+   - Returns the first successful result or "unknown"
+   - Example: Aerodrome adapter queries pool reserves and calculates price
+
+2. **Trade Execution** (`src/chain/trade.ts`):
+   - Attempts to use provider's `buildBuyCalldata()` or `buildSellCalldata()` if available
+   - Falls back to legacy inline Aerodrome logic
+   - This allows old code to work while supporting new providers
+
+3. **Registration** (`src/chain/dex/index.ts`):
+   - Providers auto-register on module import via `registerDexProvider()`
+   - Example: Aerodrome adapter auto-registers at `src/chain/dex/aerodromeAdapter.ts`
+
+### Aerodrome Adapter (Reference Implementation)
+
+Located at `src/chain/dex/aerodromeAdapter.ts`:
+- **`getPrice()`**: Reads pool reserves from Aerodrome, calculates 1 INTERN = X ETH
+- **`buildBuyCalldata()`**: Returns calldata for WETH→INTERN swap with slippage protection
+- **`buildSellCalldata()`**: Returns calldata for INTERN→WETH swap with slippage protection
+- All methods gracefully return `null` if configuration is missing or pool is unavailable
+
+### Adding a Custom Provider
+
+1. Create `src/chain/dex/myAdapter.ts`:
+   ```typescript
+   import { registerDexProvider } from "./index.js";
+
+   export const MyAdapter = {
+     name: "my-dex",
+     getPrice: async (cfg, clients, token, weth) => {
+       // Fetch price from your DEX (API, on-chain, graph, etc.)
+       return { text: "$1.50", source: "my-dex" };
+     },
+     buildBuyCalldata: async (cfg, clients, token, weth, wallet, spendEth) => {
+       // Build swap calldata
+       return { to: routerAddress, calldata: "0x...", value: spendEth };
+     }
+   };
+
+   registerDexProvider(MyAdapter);
+   ```
+
+2. Import the adapter somewhere in your startup path:
+   ```typescript
+   import "./src/chain/dex/myAdapter.js";  // Auto-registers
+   ```
+
+3. The agent will automatically discover and use your provider for price and execution.
 
 ---
 

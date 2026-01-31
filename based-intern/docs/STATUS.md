@@ -92,11 +92,28 @@ This document tracks the current implementation status of all features in the Ba
 - [x] `src/chain/client.ts` - Public + wallet client creation
 - [x] `src/chain/chains.ts` - Base Sepolia + Base definitions
 - [x] `src/chain/erc20.ts` - ETH balance, ERC20 decimals, ERC20 balance reads
-  - [x] **ERC20 allowance/approval** (NEW)
+  - [x] **ERC20 allowance/approval**
     - [x] `readAllowance()` - Check current spender allowance
     - [x] `approveToken()` - Send approve() transaction with configurable amount
     - [x] Smart approval orchestration (check → approve if insufficient → swap)
-- [x] `src/chain/price.ts` - Best-effort price stub (returns "unknown")
+- [x] `src/chain/price.ts` - **Provider-driven price oracle** (NEW)
+  - [x] DEX provider registry lookup
+  - [x] Fallback to "unknown" when no provider available
+- [x] `src/chain/aerodrome.ts` - Aerodrome DEX helpers
+  - [x] Pool reading, reserve queries
+  - [x] Constant product (x*y=k) output calculation
+  - [x] Slippage application
+  - [x] Router-compatible calldata encoding
+- [x] **DEX Provider System** (NEW)
+  - [x] `src/chain/dex/index.ts` - Provider registry and interface
+  - [x] `src/chain/dex/aerodromeAdapter.ts` - Aerodrome adapter
+    - [x] `getPrice()` - Read Aerodrome pool reserves and compute price
+    - [x] `buildBuyCalldata()` - Generate WETH→INTERN swap calldata with quote
+    - [x] `buildSellCalldata()` - Generate INTERN→WETH swap calldata with quote
+- [x] `src/chain/trade.ts` - **Provider-driven trade execution** (NEW)
+  - [x] Try provider-supplied calldata first (if available and configured)
+  - [x] Fallthrough to legacy Aerodrome inline logic
+  - [x] Automatic ERC20 approval orchestration for sells
 - [x] Private key wallet support (WALLET_MODE=private_key)
 - [x] CDP wallet mode (experimental, read-only fallback)
 - [x] RPC URL configuration (per-chain or override)
