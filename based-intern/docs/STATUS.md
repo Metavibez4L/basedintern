@@ -40,6 +40,8 @@ Known Base mainnet (8453) deployment:
 - Agent: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
 - agentURI (pinned): `https://raw.githubusercontent.com/Metavibez4L/basedintern/9a03a383107440d7c6ce360fe2efdce8b151ac40/based-intern/docs/agent.profile.json`
 
+NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
+
 ### Agent Runtime Core
 - [x] `src/index.ts` - Main tick loop
 - [x] `src/config.ts` - Zod-validated environment config
@@ -337,12 +339,14 @@ npm run deploy:token -- --network hardhat  # ✅ Deploys + writes JSON
   - INTERN: `0x23926b2CA264e1CD1Fc641E1C5C6e9f2066c91c1`
   - deployer: `0x4Ba6B07626E6dF28120b04f772C4a89CC984Cc80`
   - deployedAt: `2026-01-29T01:27:29.598Z`
-- Base mainnet (8453) (verified)
+- Base mainnet (8453) — **LIVE** (verified)
   - INTERN: `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11`
   - deployer: `0x4Ba6B07626E6dF28120b04f772C4a89CC984Cc80`
   - deployTx: `0xd41e966bddc10c6b373f71b952809efb86709de7aa3da835cc0aa7967e8a1e66`
   - deployedAt: `2026-01-30T03:25:50.255Z`
   - BaseScan: `https://basescan.org/address/0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11#code`
+
+Operator warning: if you set `CHAIN=base` and flip `TRADING_ENABLED=true` + `KILL_SWITCH=false` + `DRY_RUN=false`, the agent can submit real mainnet transactions.
 
 #### Agent Startup (DRY_RUN)
 ```bash

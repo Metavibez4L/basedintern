@@ -194,7 +194,7 @@ npm run deploy:token -- --network base
 ### Known deployments
 
 - Base Sepolia (84532): `0x23926b2CA264e1CD1Fc641E1C5C6e9f2066c91c1`
-- Base mainnet (8453): `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11` (verified: `https://basescan.org/address/0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11#code`)
+- Base mainnet (8453) — **LIVE**: `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11` (verified: `https://basescan.org/address/0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11#code`)
 
 ### Step 3: Verify Deployment
 
@@ -271,7 +271,7 @@ ERC8004_IDENTITY_REGISTRY="0xe280e13FB24A26c81e672dB5f7976F8364bd1482"
 ERC8004_AGENT_ID="1"
 ```
 
-Known Base mainnet (8453) deployment:
+Known Base mainnet (8453) deployment — **LIVE**:
 - Identity Registry: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
 - Agent ref: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
 

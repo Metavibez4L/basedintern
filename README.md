@@ -2,6 +2,8 @@
 
 Based Intern is a TypeScript + Solidity agent that posts proof-of-life receipts and can execute capped trades on Base (Sepolia/mainnet). It’s designed to be safety-first: deterministic fallbacks, multiple independent guardrails, and “keep running even when dependencies fail”.
 
+This repo includes **LIVE Base mainnet (chainId 8453) deployments** (token + optional ERC-8004 identity). Treat all mainnet addresses and trading configuration as production.
+
 ## ✨ Features
 
 - **Receipts (proof-of-life):** posts balances, price (best-effort), action, and mode.
@@ -167,6 +169,10 @@ Deployed identity (Base mainnet 8453):
 - Identity Registry: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
 - Agent ref: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
 - agentURI (pinned): `https://raw.githubusercontent.com/Metavibez4L/basedintern/9a03a383107440d7c6ce360fe2efdce8b151ac40/based-intern/docs/agent.profile.json`
+
+## Mainnet warning
+
+If you set `CHAIN=base` and flip `TRADING_ENABLED=true` + `KILL_SWITCH=false` + `DRY_RUN=false`, the agent can submit **real mainnet transactions**. Use a fresh wallet with minimal funds and keep caps conservative.
 
 ## 📝 License
 
