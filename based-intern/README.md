@@ -2,7 +2,64 @@
 
 Senior TS + Solidity scaffold for a “Based Intern” agent that can post proof-of-life receipts and (optionally) trade with strict safety caps.
 
-## Current deployments
+## Features
+
+### Core Capabilities
+- **Autonomous Agent**: Runs continuously with 30-min ticks (configurable)
+- **Event-Driven Posting**: Posts ONLY when wallet activity detected (no spam)
+- **Proof-of-Life Receipts**: Standardized format showing action, balances, price, tx hash
+- **Trading (Optional)**: Execute BUY/SELL swaps with strict caps and guardrails
+
+### Intelligence
+- **LangChain Brain**: Uses OpenAI GPT-4o-mini for context-aware decisions
+- **Tool-Calling Agent**: Can query wallet state before proposing actions
+- **Deterministic Fallback**: Smart decisions even without OpenAI API
+  - Tier 1: No INTERN → BUY (establish position)
+  - Tier 2: Low ETH → SELL (rebalance)
+  - Tier 3: Price available → threshold-based (BUY <$0.50, SELL >$2.00)
+  - Tier 4: No signal → probabilistic HOLD/BUY/SELL
+
+### Safety & Reliability
+- **Startup Validation**: All config checked and validated at startup
+- **Multiple Safety Layers**: TRADING_ENABLED, KILL_SWITCH, DRY_RUN, daily caps
+- **Fail-Safe Design**: Continues running even when RPC/posting fails
+- **Schema Versioning**: State file format can evolve safely with migrations
+- **Comprehensive Tests**: 167 deterministic tests (no flaky tests)
+
+### Trading (Modular DEX System)
+- **Pool-Agnostic Price Oracle**: Falls back from Aerodrome to HTTP (CoinGecko)
+- **Aerodrome Integration**: Full support for volatile and stable pools
+- **Approval Orchestration**: Smart ERC20 approval (check → approve if needed)
+- **Trade Execution**: BUY/SELL swaps with slippage protection
+- **Pluggable Adapters**: Add custom DEX providers via provider registry
+
+### Social Posting (Multiple Modes)
+- **X API (OAuth 1.0a)**: Secure, rate-limit aware, idempotency built-in
+- **Playwright (Browser)**: Cookie-based automation for accounts without API access
+- **Phase 1 Mentions**: Responds to mentions with intent recognition (no execution)
+- **Local-Only Mode**: Safe testing without posting anything
+- **Circuit Breaker**: Auto-disables posting for 30 min after 3 consecutive failures
+
+### Activity Detection
+- **Nonce Tracking**: Detects when wallet has sent transactions
+- **ETH Balance Delta**: Configurable threshold (default: 0.00001 ETH)
+- **Token Balance Delta**: Configurable threshold (default: 1000 tokens)
+- **Block Number Tracking**: Ensures state is fresh
+
+### State Management
+- **Persistent State**: JSON file in `data/state.json`
+- **Daily Reset**: Automatic UTC midnight reset of trade counter
+- **Idempotency**: Never posts the same receipt twice (SHA256 fingerprinting)
+- **Migration Support**: Backward compatible schema versioning (v1→v2 ready)
+
+### Developer Experience
+- **Full TypeScript**: ESM modules, strict types, no `any`
+- **Comprehensive Tests**: 167 tests covering all paths
+- **Structured Logging**: JSON logging for observability
+- **Type-Safe Config**: Zod validation of all environment variables
+- **Docker Ready**: Cloud deployment support (Railway, etc.)
+
+## Current Deployments
 
 - **Base Sepolia (84532)**:
   - **INTERN**: `0x23926b2CA264e1CD1Fc641E1C5C6e9f2066c91c1`
@@ -15,7 +72,37 @@ Senior TS + Solidity scaffold for a “Based Intern” agent that can post proof
   - **deployedAt**: `2026-01-30T03:25:50.255Z`
   - **BaseScan (verified)**: `https://basescan.org/address/0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11#code`
 
-## PATH (MUST FOLLOW)
+## Quick Start
+
+### Step 1: Deploy Token
+
+```bash
+cd based-intern
+npm install
+cp .env.example .env
+# Edit .env with your PRIVATE_KEY and RPC URLs
+
+npm run build:contracts
+npm run deploy:token -- --network baseSepolia
+```
+
+### Step 2: Run Tests
+
+```bash
+npm run test
+```
+
+Expected: 167 tests passing, ~600ms
+
+### Step 3: Launch Agent
+
+```bash
+SOCIAL_MODE=x_api DRY_RUN=true TRADING_ENABLED=false npm run dev
+```
+
+See [Detailed PATH](#path) section below for complete 3-step execution flow.
+
+## Detailed PATH
 
 ### Step 1: Deploy token yourself (simple ERC20)
 
@@ -121,21 +208,22 @@ npm run test
 
 **Output**:
 ```
- Test Files  7 passed (7)
-      Tests  149 passed (149)
-   Duration  ~571ms
+ Test Files  9 passed (9)
+      Tests  167 passed (167)
+   Duration  ~600ms
 ```
 
 **What's tested**:
-- ✅ Config validation (trading setup, guardrails, social mode consistency)
-- ✅ Guardrails enforcement (KILL_SWITCH, TRADING_ENABLED, caps, intervals)
-- ✅ Receipt formatting (multi-line, balances, mood rotation)
-- ✅ Activity detection (nonce, ETH delta, token delta)
-- ✅ State management (UTC reset, trade recording)
-- ✅ Phase 1 X Mentions (command parsing, safe replies, deduplication)
-- ✅ DEX provider system (Aerodrome, HTTP fallback, price discovery)
+- ✅ **Config validation** (12 tests): Trading setup, guardrails, social mode, error messages
+- ✅ **Brain fallback policy** (11 tests): All 4 tiers (no balance, low ETH, price signals, probabilistic)
+- ✅ **Guardrails enforcement** (18 tests): KILL_SWITCH, caps, intervals, safety checks
+- ✅ **Receipt formatting** (22 tests): Multi-line, balances, price, mood rotation
+- ✅ **Activity detection** (32 tests): Nonce, ETH delta, token delta, edge cases
+- ✅ **State persistence** (30 tests): Fields, migrations, UTC resets, daily trade counter
+- ✅ **X Mentions** (37 tests): Command parsing, safe replies, deduplication, truncation
+- ✅ **DEX provider system** (6 tests): Registry interface, Aerodrome, HTTP fallback
 
-All tests are deterministic with mocked viem clients (no network calls). See [tests/README.md](tests/README.md) for details.
+All tests deterministic with mocked viem clients (no network calls). See [tests/README.md](tests/README.md) for details.
 
 **Watch mode** (auto-rerun on code changes):
 ```bash

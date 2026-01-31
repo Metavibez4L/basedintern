@@ -150,8 +150,82 @@ MIN_ETH_DELTA="0.001" MIN_TOKEN_DELTA="10000" SOCIAL_MODE=x_api ... npm run dev
 ```
 
 ---
-   ┌─────────────────▼───────────────────────┐
-   │ 5. Enforce Guardrails                   │
+
+## Brain Decision Logic
+
+The agent's decision-making uses a two-path approach:
+
+### Path 1: LangChain (If OPENAI_API_KEY Set)
+```
+┌─────────────────────────────────┐
+│ LangChain GPT-4o-mini Agent     │
+├─────────────────────────────────┤
+│ System Prompt (Based Intern)    │
+│ Tool: get_context() →           │
+│   - Wallet address              │
+│   - ETH balance, INTERN balance │
+│   - Current price               │
+│   - Trading status              │
+└─────────────────────────────────┘
+           │
+           ▼
+    ┌──────────────┐
+    │ LLM Output   │
+    │ {            │
+    │  action:     │
+    │    BUY|SELL  │
+    │    |HOLD     │
+    │  rationale   │
+    │ }            │
+    └──────────────┘
+```
+
+### Path 2: Deterministic Fallback (Always Available)
+Used when `OPENAI_API_KEY` missing or LLM fails. Four-tier strategy:
+
+```
+┌─────────────────────────────────────┐
+│ Tier 1: No INTERN Balance?          │
+│ → Propose BUY (establish position)  │
+└─────────────────────────────────────┘
+           │
+      NO   │ YES
+           │
+           ▼
+┌─────────────────────────────────────┐
+│ Tier 2: ETH Balance < 0.001?        │
+│ → Propose SELL (rebalance)          │
+└─────────────────────────────────────┘
+           │
+      NO   │ YES
+           │
+           ▼
+┌─────────────────────────────────────┐
+│ Tier 3: Price Available?            │
+│ Price < $0.50 → BUY                 │
+│ Price > $2.00 → SELL                │
+│ Otherwise → Continue                │
+└─────────────────────────────────────┘
+           │
+      NO   │ YES (neutral)
+           │
+           ▼
+┌─────────────────────────────────────┐
+│ Tier 4: Probabilistic               │
+│ Wallet hash % 100:                  │
+│ [0-16]    → BUY (16%)               │
+│ [16-32]   → SELL (16%)              │
+│ [32-100]  → HOLD (68%)              │
+└─────────────────────────────────────┘
+```
+
+**Key Features**:
+- Deterministic (no external randomness, wallet-address based)
+- Price-aware (uses available price signals)
+- Risk-aware (respects balance thresholds)
+- Always makes reasonable decisions (conservative)
+
+---
    │    - Check TRADING_ENABLED              │
    │    - Check KILL_SWITCH                  │
    │    - Check DRY_RUN                      │

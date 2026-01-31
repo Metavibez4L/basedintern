@@ -183,6 +183,47 @@ This document tracks the current implementation status of all features in the Ba
 - [x] Hardhat artifacts excluded
 - [x] Published to GitHub: `github.com/Metavibez4L/basedintern`
 
+### Configuration Validation (NEW)
+- [x] `src/config.ts` - Comprehensive startup validation
+  - [x] `validateGuardrails()` function checks:
+    - MAX_SPEND_ETH_PER_TRADE is valid decimal and > 0 when trading
+    - TRADING_ENABLED requires KILL_SWITCH=false, ROUTER_ADDRESS, WETH_ADDRESS
+    - ROUTER_TYPE not 'unknown' when trading enabled
+    - DAILY_TRADE_CAP > 0 when trading enabled
+    - POOL_ADDRESS required when ROUTER_TYPE=aerodrome
+    - X_COOKIES_PATH or X_COOKIES_B64 required when SOCIAL_MODE=playwright
+  - [x] Fail-fast at startup with clear error messages
+  - [x] All validation before any RPC calls
+  - [x] 12 unit tests covering all validation paths
+
+### Enhanced Deterministic Fallback (NEW)
+- [x] `src/agent/brain.ts` - Upgraded fallback policy with 4 tiers
+  - [x] Tier 1: No INTERN balance → BUY (establish position)
+  - [x] Tier 2: Low ETH (<0.001) → SELL (rebalance)
+  - [x] Tier 3: Price available → BUY if <$0.50, SELL if >$2.00
+  - [x] Tier 4: No signal → Probabilistic decision (68% HOLD, 16% BUY, 16% SELL)
+    - Uses deterministic hash of wallet address (no external randomness)
+  - [x] All tiers check TRADING_ENABLED, KILL_SWITCH, DRY_RUN for safety
+  - [x] 11 unit tests covering all fallback paths
+
+### State Persistence with Schema Versioning (NEW)
+- [x] `src/agent/state.ts` - Migration infrastructure
+  - [x] STATE_SCHEMA_VERSION = 2
+  - [x] `migrateState()` function for safe evolution
+  - [x] v1 → v2: Added lastSeenBlockNumber field
+  - [x] Backward compatible: old state files auto-upgraded
+  - [x] Ready for future migrations (v3, v4, etc.)
+  - [x] Logs migration events for debugging
+  - [x] 8 unit tests covering migration and field preservation
+
+### HTTP Price Fallback Adapter (NEW)
+- [x] `src/chain/dex/httpAdapter.ts` - CoinGecko free API fallback
+  - [x] `getPrice()` uses CoinGecko API for Base mainnet contracts
+  - [x] Returns null if Aerodrome pool is configured (preserves priority)
+  - [x] Graceful error handling for network issues
+  - [x] Rate limit aware (CoinGecko free tier friendly)
+  - [x] Auto-registered via provider registry
+
 ---
 
 ## 🚧 Scaffolded (Needs Implementation)
@@ -346,18 +387,21 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 
 | Area | Tests | Status | Location |
 |------|-------|--------|----------|
+| Config validation | 12 | ✅ | tests/config.test.ts |
+| Brain fallback policy | 11 | ✅ | tests/brain.test.ts |
+| DEX provider system | 6 | ✅ | tests/dex.test.ts |
 | Guardrails (decision.ts) | 18 | ✅ | tests/decision.test.ts |
 | Receipt formatting (receipts.ts) | 22 | ✅ | tests/receipts.test.ts |
 | Activity detection (watch.ts) | 32 | ✅ | tests/watch.test.ts |
-| State management (state.ts) | 22 | ✅ | tests/state.test.ts |
+| State persistence & migrations | 30 | ✅ | tests/state.test.ts + tests/state-persistence.test.ts |
 | X Mentions (x_mentions.ts) | 37 | ✅ | tests/x_mentions.test.ts |
-| **Total** | **131** | **✅ ALL PASS** | **tests/** |
+| **Total** | **167** | **✅ ALL PASS** | **tests/** |
 
-**Test Framework**: Vitest v1.0.0 (dev dependency)
+**Test Framework**: Vitest v1.6+ (dev dependency)
 
 **Running Tests**:
 ```bash
-npm run test           # Run all 94 tests once (~560ms)
+npm run test           # Run all 167 tests once (~600ms)
 npm run test:watch    # Watch mode (auto-rerun on changes)
 ```
 
@@ -365,14 +409,18 @@ npm run test:watch    # Watch mode (auto-rerun on changes)
 - ✅ 100% deterministic (no network calls, all mocked)
 - ✅ Zero external dependencies (vitest only)
 - ✅ Full TypeScript type safety
-- ✅ Covers all critical agent logic
+- ✅ Covers all critical agent logic and fallback paths
 - ✅ Includes error handling, edge cases, and integration scenarios
 
-**Test Coverage Details**:
-- **Guardrails**: TRADING_ENABLED, KILL_SWITCH, DRY_RUN, daily cap, intervals, spend limits, fraction caps
-- **Receipts**: Multi-line format, mode indicator, balance formatting, mood rotation, timestamp
-- **Activity Detection**: Nonce, ETH delta, token delta, state patching, error handling, restart scenarios
-- **State Management**: UTC reset logic, trade recording, field preservation, boundary cases
+**Coverage by Feature**:
+- **Config Validation**: All guardrail combinations, trading setup, social mode, error messages
+- **Brain & Fallback**: All 4 decision tiers, price signals, safety checks, probabilistic paths
+- **DEX Provider**: Registry interface, Aerodrome adapter, HTTP fallback, null handling
+- **Guardrails**: TRADING_ENABLED, KILL_SWITCH, DRY_RUN, daily cap, intervals, spend limits
+- **Receipts**: Multi-line format, mode indicator, balance formatting, mood rotation
+- **Activity Detection**: Nonce, ETH delta, token delta, state patching, RPC errors
+- **State Persistence**: Field preservation, migrations, UTC resets, daily counter resets
+- **Mentions**: Command parsing, intent recognition, safe replies, deduplication, truncation
 
 See [tests/README.md](../tests/README.md) for comprehensive test documentation.
 
@@ -380,26 +428,77 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
 
 ## 🚀 Next Steps for Production
 
-### Critical (Must Do)
-1. ✅ **Aerodrome price oracle** - DONE in `src/chain/price.ts`
-   - Reads pool reserves and calculates real-time prices
-   - Falls back gracefully to "unknown" if pool unavailable
-   - Ready for production use
+### Completed (✅ All Done)
+1. ✅ **Modular DEX system** - `src/chain/dex/` with Aerodrome + HTTP adapters
+   - Pool-agnostic price discovery with fallback support
+   - Ready for custom DEX adapter additions
 
-2. ✅ **Complete Aerodrome trading execution** - DONE in `src/chain/trade.ts`
-   - [x] Pool reading and quoting
-   - [x] Build Aerodrome route calldata
-     - Route[] struct encoding with from/to/stable/factory
-     - swapExactTokensForTokens() selector and parameters
-   - [x] Send transaction via `walletClient.sendTransaction()`
-   - [ ] Test on Base Sepolia with small amounts
-   - [ ] Monitor slippage protection
+2. ✅ **Config validation** - Startup checks prevent invalid trading setups
+   - All environment variables validated at startup
+   - Clear, actionable error messages
+   - 12 unit tests
 
-3. Test with real RPC + wallet on Base Sepolia
-   - Deploy token
-   - Configure Aerodrome (set POOL_ADDRESS, WETH_ADDRESS, etc.)
-   - Run agent for 1-2 hours in DRY_RUN
-   - Verify receipts show correct prices
+3. ✅ **Enhanced fallback policy** - 4-tier decision making without OpenAI
+   - Tier 1: Establish position (no INTERN)
+   - Tier 2: Rebalance (low ETH)
+   - Tier 3: Price signals (threshold-based)
+   - Tier 4: Probabilistic (no signal)
+
+4. ✅ **State schema versioning** - Safe evolution of state format
+   - v1 → v2 migration tested
+   - Ready for future schema changes
+   - 8 unit tests
+
+5. ✅ **HTTP price fallback** - CoinGecko API for when Aerodrome pool unavailable
+   - Auto-registered provider
+   - Graceful error handling
+
+### Critical (Must Do for Trading)
+1. **Test with real RPC + wallet on Base Sepolia**
+   - Deploy token with `npm run deploy:token -- --network baseSepolia`
+   - Configure Aerodrome: set `POOL_ADDRESS`, `WETH_ADDRESS`, `ROUTER_ADDRESS`
+   - Run agent for 1-2 hours in DRY_RUN mode
+   - Verify receipts show correct prices and activities
+   - Monitor logs for any errors
+
+2. **Live trading setup checklist**
+   - [ ] Agent running stably for 2+ hours in DRY_RUN
+   - [ ] Receipts posting correctly to X
+   - [ ] Price oracle returning values (not "unknown")
+   - [ ] Activity detection working (nonce/balance changes detected)
+   - [ ] Small initial trading cap (e.g., `MAX_SPEND_ETH_PER_TRADE=0.0001`)
+   - [ ] Daily cap small (e.g., `DAILY_TRADE_CAP=1`)
+   - [ ] Minimum interval set (e.g., `MIN_INTERVAL_MINUTES=120`)
+   - [ ] TRADING_ENABLED=true, KILL_SWITCH=false only AFTER verification
+
+### High Priority (Strengthen Agent)
+1. **Simulation/backtest harness** - Test trading strategies before live
+   - Replay historical price data
+   - Test guardrail enforcement
+   - Verify fallback policies
+
+2. **Forked-chain integration tests** - Full E2E on Anvil
+   - Deploy token locally
+   - Test trading execution
+   - Verify receipts
+
+3. **CI/CD pipeline** - Automated tests on every push
+   - Run 167 unit tests
+   - Type check
+   - Lint
+
+4. **Security audit**
+   - Key safety and management
+   - RPC endpoint security
+   - X API credential handling
+   - Contract audit
+
+### Medium Priority (Nice to Have)
+1. **Multi-route execution** - Try multiple DEX routes for best price
+2. **Configurable risk profiles** - Conservative/moderate/aggressive trading modes
+3. **Enhanced observability** - Metrics, dashboards, alerts
+4. **Social posting controls** - Rate limiting, content filters
+5. **Advanced monitoring** - Slack/Discord notifications, error alerts
    - Test live trading with tiny amounts
 
 ### Recommended (Should Do)
