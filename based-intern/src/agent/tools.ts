@@ -2,6 +2,7 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import type { AppConfig } from "../config.js";
 import type { BrainContext } from "./brain.js";
+import type { NewsItem } from "../news/types.js";
 
 /**
  * LangChain tools used by the agent brain.
@@ -40,6 +41,38 @@ export function buildTools(cfg: AppConfig, ctx: BrainContext) {
     }
   });
 
-  return [getContext];
+  const getNewsContext = new DynamicStructuredTool({
+    name: "get_news_context",
+    description:
+      "Return recent Base ecosystem news items and the news guardrails. Use this to generate a single news tweet that includes a source URL.",
+    schema: z.object({}),
+    func: async () => {
+      // NOTE: populated by the brain; default empty.
+      const items: NewsItem[] = (ctx.newsItems as NewsItem[] | undefined) ?? [];
+      const nowUtcIso: string = ctx.nowUtcIso ?? new Date().toISOString();
+      return JSON.stringify(
+        {
+          nowUtcIso,
+          items,
+          guardrails: {
+            NEWS_ENABLED: cfg.NEWS_ENABLED,
+            NEWS_MODE: cfg.NEWS_MODE,
+            NEWS_MAX_POSTS_PER_DAY: cfg.NEWS_MAX_POSTS_PER_DAY,
+            NEWS_MIN_INTERVAL_MINUTES: cfg.NEWS_MIN_INTERVAL_MINUTES,
+            NEWS_REQUIRE_LINK: cfg.NEWS_REQUIRE_LINK,
+            NEWS_REQUIRE_SOURCE_WHITELIST: cfg.NEWS_REQUIRE_SOURCE_WHITELIST,
+            NEWS_SOURCES: cfg.NEWS_SOURCES,
+            NEWS_DAILY_HOUR_UTC: cfg.NEWS_DAILY_HOUR_UTC,
+            NEWS_MAX_ITEMS_CONTEXT: cfg.NEWS_MAX_ITEMS_CONTEXT,
+            SOCIAL_MODE: cfg.SOCIAL_MODE
+          }
+        },
+        null,
+        2
+      );
+    }
+  });
+
+  return [getContext, getNewsContext];
 }
 

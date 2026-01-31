@@ -38,7 +38,17 @@ function mockConfig(overrides?: Partial<AppConfig>): AppConfig {
     X_ACCESS_TOKEN: undefined,
     X_ACCESS_SECRET: undefined,
     X_PHASE1_MENTIONS: false,
-    X_POLL_MINUTES: 2
+    X_POLL_MINUTES: 2,
+
+    NEWS_ENABLED: false,
+    NEWS_MODE: "event",
+    NEWS_MAX_POSTS_PER_DAY: 2,
+    NEWS_MIN_INTERVAL_MINUTES: 120,
+    NEWS_REQUIRE_LINK: true,
+    NEWS_REQUIRE_SOURCE_WHITELIST: true,
+    NEWS_SOURCES: "base_blog,base_dev_blog,cdp_launches",
+    NEWS_DAILY_HOUR_UTC: 15,
+    NEWS_MAX_ITEMS_CONTEXT: 8
   };
 
   return { ...base, ...overrides };
@@ -52,6 +62,11 @@ function mockState(overrides?: Partial<AgentState>): AgentState {
     lastExecutedTradeAtMs: null,
     dayKey: "2026-01-30",
     tradesExecutedToday: 0,
+    newsLastPostMs: null,
+    newsDailyCount: 0,
+    newsLastPostDayUtc: null,
+    seenNewsFingerprints: [],
+    lastPostedNewsFingerprint: null,
     xApiFailureCount: 0,
     xApiCircuitBreakerDisabledUntilMs: null,
     lastPostedReceiptFingerprint: null,

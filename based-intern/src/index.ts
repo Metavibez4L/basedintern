@@ -8,13 +8,16 @@ import { createChainClients } from "./chain/client.js";
 import { readEthBalance, readErc20Balance, readErc20Decimals } from "./chain/erc20.js";
 import { readBestEffortPrice } from "./chain/price.js";
 import { proposeAction } from "./agent/brain.js";
+import { generateNewsTweet } from "./agent/brain.js";
 import { enforceGuardrails } from "./agent/decision.js";
 import { buildReceiptMessage } from "./agent/receipts.js";
-import { loadState, recordExecutedTrade, saveState } from "./agent/state.js";
+import { loadState, recordExecutedTrade, recordNewsPosted, saveState } from "./agent/state.js";
 import { watchForActivity, parseMinEthDelta, parseMinTokenDelta, type ActivityWatchContext } from "./agent/watch.js";
 import { createPoster } from "./social/poster.js";
 import { createTradeExecutor } from "./chain/trade.js";
 import { pollMentionsAndRespond, type MentionPollerContext } from "./social/x_mentions.js";
+import { buildNewsPlan } from "./news/news.js";
+import { postNewsTweet } from "./social/news_poster.js";
 
 async function resolveTokenAddress(cfg: ReturnType<typeof loadConfig>): Promise<Address | null> {
   if (cfg.TOKEN_ADDRESS) return cfg.TOKEN_ADDRESS as Address;
@@ -149,81 +152,133 @@ async function tick(): Promise<void> {
   const shouldPost = activityResult.changed;
   // TODO: Optional heartbeat logic: check if no posts today and post 1/day
 
+  let workingState = nextState;
+
   if (!shouldPost) {
     logger.info("no activity detected, skipping receipt post", {
       minEthDelta: minEthDelta.toString(),
       minTokenDelta: minTokenDelta.toString()
     });
     // Still save updated watcher state
-    await saveState(nextState);
-    return;
-  }
+    await saveState(workingState);
+  } else {
+    logger.info("activity detected, posting receipt", {
+      reasons: activityResult.reasons
+    });
 
-  logger.info("activity detected, posting receipt", {
-    reasons: activityResult.reasons
-  });
+    // ============================================================
+    // PROPOSE & EXECUTE (existing logic, unchanged)
+    // ============================================================
+    const proposal = await proposeAction(cfg, {
+      wallet,
+      ethWei,
+      internAmount,
+      internDecimals,
+      priceText: price.text
+    });
 
-  // ============================================================
-  // PROPOSE & EXECUTE (existing logic, unchanged)
-  // ============================================================
-  const proposal = await proposeAction(cfg, {
-    wallet,
-    ethWei,
-    internAmount,
-    internDecimals,
-    priceText: price.text
-  });
+    const decision = enforceGuardrails(proposal, {
+      cfg,
+      state: workingState,
+      now,
+      wallet,
+      ethWei,
+      internAmount
+    });
 
-  const decision = enforceGuardrails(proposal, {
-    cfg,
-    state: nextState,
-    now,
-    wallet,
-    ethWei,
-    internAmount
-  });
-
-  let txHash: `0x${string}` | null = null;
-  if (decision.shouldExecute && tokenAddress) {
-    try {
-      const trader = createTradeExecutor(cfg, clients, tokenAddress);
-      if (decision.action === "BUY" && decision.buySpendWei) {
-        txHash = await trader.executeBuy(decision.buySpendWei);
-        await recordExecutedTrade(nextState, now);
-      } else if (decision.action === "SELL" && decision.sellAmount) {
-        txHash = await trader.executeSell(decision.sellAmount);
-        await recordExecutedTrade(nextState, now);
+    let txHash: `0x${string}` | null = null;
+    if (decision.shouldExecute && tokenAddress) {
+      try {
+        const trader = createTradeExecutor(cfg, clients, tokenAddress);
+        if (decision.action === "BUY" && decision.buySpendWei) {
+          txHash = await trader.executeBuy(decision.buySpendWei);
+          workingState = await recordExecutedTrade(workingState, now);
+        } else if (decision.action === "SELL" && decision.sellAmount) {
+          txHash = await trader.executeSell(decision.sellAmount);
+          workingState = await recordExecutedTrade(workingState, now);
+        }
+      } catch (err) {
+        logger.warn("trade execution failed; falling back to HOLD receipt", {
+          error: err instanceof Error ? err.message : String(err)
+        });
+        txHash = null;
       }
-    } catch (err) {
-      logger.warn("trade execution failed; falling back to HOLD receipt", {
-        error: err instanceof Error ? err.message : String(err)
-      });
-      txHash = null;
+    }
+
+    const receipt = buildReceiptMessage({
+      action: decision.action,
+      wallet,
+      ethWei,
+      internAmount,
+      internDecimals,
+      priceText: price.text,
+      txHash,
+      dryRun: cfg.DRY_RUN
+    });
+
+    // Post (or log) receipt.
+    await poster.post(receipt);
+
+    // Update state with new day marker
+    const postDay = utcDayKey(now);
+    workingState.lastPostDayUtc = postDay;
+    await saveState(workingState);
+
+    // Always show guardrail block reasons in logs for operator visibility.
+    if (decision.blockedReason) {
+      logger.info("guardrails blocked trade", { blockedReason: decision.blockedReason });
     }
   }
 
-  const receipt = buildReceiptMessage({
-    action: decision.action,
-    wallet,
-    ethWei,
-    internAmount,
-    internDecimals,
-    priceText: price.text,
-    txHash,
-    dryRun: cfg.DRY_RUN
-  });
+  // ============================================================
+  // Base News Brain (non-blocking)
+  // ============================================================
+  try {
+    const { plan, items, unseenItems } = await buildNewsPlan({ cfg, state: workingState, now });
 
-  // Post (or log) receipt.
-  await poster.post(receipt);
+    if (!plan.shouldPost || !plan.item) {
+      logger.info("news.skip", {
+        reasons: plan.reasons,
+        items: items.length,
+        unseen: unseenItems.length
+      });
+      return;
+    }
 
-  // Update state with new day marker
-  const postDay = utcDayKey(now);
-  nextState.lastPostDayUtc = postDay;
-  await saveState(nextState);
+    logger.info("news.post", {
+      reasons: plan.reasons,
+      source: plan.item.source,
+      url: plan.item.url
+    });
 
-  // Always show guardrail block reasons in logs for operator visibility.
-  if (decision.blockedReason) {
-    logger.info("guardrails blocked trade", { blockedReason: decision.blockedReason });
+    const tweet = await generateNewsTweet(cfg, {
+      items,
+      chosenItem: plan.item,
+      now
+    });
+
+    // Hard safety: enforce source URL
+    if (cfg.NEWS_REQUIRE_LINK && !tweet.includes(plan.item.url)) {
+      logger.warn("news.skip (tweet missing required url)", {
+        url: plan.item.url
+      });
+      return;
+    }
+
+    const postRes = await postNewsTweet(cfg, workingState, saveState, tweet);
+    workingState = postRes.state;
+
+    if (!postRes.posted) {
+      logger.info("news.skip", {
+        reasons: [...plan.reasons, postRes.reason ?? "not posted"],
+        source: plan.item.source
+      });
+      return;
+    }
+
+    workingState = await recordNewsPosted(workingState, now, plan.item.id);
+  } catch (err) {
+    logger.warn("news pipeline error", { error: err instanceof Error ? err.message : String(err) });
   }
 }
 

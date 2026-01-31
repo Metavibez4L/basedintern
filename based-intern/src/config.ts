@@ -18,6 +18,7 @@ const Chain = z.enum(["base-sepolia", "base"]);
 const WalletMode = z.enum(["private_key", "cdp"]);
 const SocialMode = z.enum(["none", "playwright", "x_api"]);
 const RouterType = z.enum(["unknown", "aerodrome", "uniswap-v3"]);
+const NewsMode = z.enum(["event", "daily"]);
 
 const envSchemaBase = z.object({
   // Wallet
@@ -79,7 +80,20 @@ const envSchemaBase = z.object({
   X_POLL_MINUTES: z.coerce.number().int().min(1).default(2), // How often to poll mentions (minutes)
 
   // LLM
-  OPENAI_API_KEY: z.string().optional()
+  OPENAI_API_KEY: z.string().optional(),
+
+  // =========================
+  // Base News Brain (optional)
+  // =========================
+  NEWS_ENABLED: BoolFromString.default("false"),
+  NEWS_MODE: NewsMode.default("event"),
+  NEWS_MAX_POSTS_PER_DAY: z.coerce.number().int().positive().default(2),
+  NEWS_MIN_INTERVAL_MINUTES: z.coerce.number().int().min(1).default(120),
+  NEWS_REQUIRE_LINK: BoolFromString.default("true"),
+  NEWS_REQUIRE_SOURCE_WHITELIST: BoolFromString.default("true"),
+  NEWS_SOURCES: z.string().default("base_blog,base_dev_blog,cdp_launches"),
+  NEWS_DAILY_HOUR_UTC: z.coerce.number().int().min(0).max(23).default(15),
+  NEWS_MAX_ITEMS_CONTEXT: z.coerce.number().int().min(1).max(50).default(8)
 });
 
 const envSchema = envSchemaBase.superRefine((cfg, ctx) => {
@@ -167,6 +181,27 @@ function validateGuardrails(cfg: AppConfig): string[] {
   if (cfg.SOCIAL_MODE === "playwright") {
     if (!cfg.X_COOKIES_PATH && !cfg.X_COOKIES_B64) {
       errors.push("X_COOKIES_PATH or X_COOKIES_B64 is required when SOCIAL_MODE=playwright");
+    }
+  }
+
+  // =========================
+  // News Brain guardrails
+  // =========================
+  if (cfg.NEWS_ENABLED) {
+    if (cfg.SOCIAL_MODE !== "x_api" && cfg.SOCIAL_MODE !== "none") {
+      errors.push("When NEWS_ENABLED=true, SOCIAL_MODE must be x_api or none");
+    }
+    if (cfg.NEWS_MAX_POSTS_PER_DAY <= 0) {
+      errors.push("NEWS_MAX_POSTS_PER_DAY must be > 0 when NEWS_ENABLED=true");
+    }
+    if (cfg.NEWS_MIN_INTERVAL_MINUTES < 1) {
+      errors.push("NEWS_MIN_INTERVAL_MINUTES must be >= 1 when NEWS_ENABLED=true");
+    }
+    if (cfg.NEWS_MODE === "daily") {
+      // Zod already constrains this, but keep a clear guardrail error for operators.
+      if (cfg.NEWS_DAILY_HOUR_UTC < 0 || cfg.NEWS_DAILY_HOUR_UTC > 23) {
+        errors.push("NEWS_DAILY_HOUR_UTC must be an integer 0-23 when NEWS_MODE=daily");
+      }
     }
   }
 

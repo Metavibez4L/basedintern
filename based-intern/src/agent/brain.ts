@@ -1,9 +1,10 @@
 import type { Address } from "viem";
 import type { AppConfig } from "../config.js";
 import { logger } from "../logger.js";
-import { BASED_INTERN_SYSTEM_PROMPT } from "./prompt.js";
+import { BASED_INTERN_SYSTEM_PROMPT, BASED_INTERN_NEWS_TWEET_PROMPT } from "./prompt.js";
 import type { ProposedAction } from "./decision.js";
 import { buildTools } from "./tools.js";
+import type { NewsItem } from "../news/types.js";
 
 export type BrainContext = {
   wallet: Address;
@@ -11,6 +12,9 @@ export type BrainContext = {
   internAmount: bigint;
   internDecimals: number;
   priceText: string | null;
+  // Optional: used by the news tweet generator tooling
+  newsItems?: Array<{ id: string; source: string; title: string; url: string; publishedAtMs?: number; excerpt?: string }>;
+  nowUtcIso?: string;
 };
 
 /**
@@ -33,6 +37,121 @@ export async function proposeAction(cfg: AppConfig, ctx: BrainContext): Promise<
     }
   }
   return fallbackPolicy(cfg, ctx);
+}
+
+export type NewsContext = {
+  items: NewsItem[];
+  chosenItem: NewsItem;
+  now: Date;
+};
+
+export async function generateNewsTweet(cfg: AppConfig, newsContext: NewsContext): Promise<string> {
+  const fallback = deterministicNewsTweet(newsContext.chosenItem);
+
+  if (!cfg.OPENAI_API_KEY) {
+    return fallback;
+  }
+
+  try {
+    const tweet = await generateNewsTweetWithLangChain(cfg, newsContext);
+    if (isValidNewsTweet(tweet, [newsContext.chosenItem.url], cfg.NEWS_REQUIRE_LINK)) {
+      return tweet;
+    }
+    logger.warn("news tweet failed validation; using deterministic fallback", {
+      len: tweet.length,
+      requireLink: cfg.NEWS_REQUIRE_LINK
+    });
+    return fallback;
+  } catch (err) {
+    logger.warn("news tweet generation failed; using deterministic fallback", {
+      error: err instanceof Error ? err.message : String(err)
+    });
+    return fallback;
+  }
+}
+
+function deterministicNewsTweet(item: NewsItem): string {
+  const base = `based intern memo \u{1F9FE} ${item.title} \u2014 ${item.url}`;
+  return truncateToMaxChars(base, 240);
+}
+
+function truncateToMaxChars(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const suffix = "…";
+  return s.slice(0, max - suffix.length).trimEnd() + suffix;
+}
+
+function isValidNewsTweet(text: string, allowedUrls: string[], requireLink: boolean): boolean {
+  if (typeof text !== "string") return false;
+  const t = text.trim();
+  if (!t) return false;
+  if (t.length > 240) return false;
+  if (!requireLink) return true;
+  return allowedUrls.some((u) => u && t.includes(u));
+}
+
+async function generateNewsTweetWithLangChain(cfg: AppConfig, newsContext: NewsContext): Promise<string> {
+  const { ChatOpenAI } = await import("@langchain/openai");
+  const { HumanMessage, SystemMessage, ToolMessage } = await import("@langchain/core/messages");
+
+  const baseModel = new ChatOpenAI({
+    apiKey: cfg.OPENAI_API_KEY,
+    model: "gpt-4o-mini",
+    temperature: 0.2
+  });
+
+  // Reuse the same tool builder; we pass news items via context.
+  const toolCtx: BrainContext = {
+    wallet: ("0x" + "0".repeat(40)) as any,
+    ethWei: 0n,
+    internAmount: 0n,
+    internDecimals: 18,
+    priceText: null,
+    newsItems: newsContext.items,
+    nowUtcIso: newsContext.now.toISOString()
+  };
+
+  const tools = buildTools(cfg, toolCtx);
+  const model = baseModel.bindTools(tools);
+
+  const messages: any[] = [
+    new SystemMessage(BASED_INTERN_NEWS_TWEET_PROMPT),
+    new HumanMessage([
+      "Call `get_news_context` first.",
+      "Then write ONE tweet reacting to exactly one item.",
+      "Remember: include the chosen item's URL exactly, and keep < 240 characters.",
+      "Return ONLY the tweet text."
+    ].join("\n"))
+  ];
+
+  for (let i = 0; i < 3; i++) {
+    const res: any = await model.invoke(messages);
+    messages.push(res);
+
+    const toolCalls: Array<any> | undefined =
+      res.tool_calls ?? res.additional_kwargs?.tool_calls ?? res.additional_kwargs?.toolCalls;
+
+    if (toolCalls && toolCalls.length) {
+      for (const call of toolCalls) {
+        const name: string | undefined = call.name ?? call.function?.name;
+        const id: string | undefined = call.id ?? call.tool_call_id;
+        const argsRaw = call.args ?? call.function?.arguments ?? {};
+
+        const tool = tools.find((t: any) => t.name === name);
+        if (!tool || !id) continue;
+
+        const args = typeof argsRaw === "string" ? safeParseArgs(argsRaw) : argsRaw;
+        const out = await tool.invoke(args ?? {});
+        messages.push(new ToolMessage({ tool_call_id: id, content: String(out) }));
+      }
+      continue;
+    }
+
+    const text = typeof res.content === "string" ? res.content : String(res.content ?? "");
+    return text.trim();
+  }
+
+  throw new Error("LLM did not produce a final tweet after tool calls");
 }
 
 function fallbackPolicy(cfg: AppConfig, ctx: BrainContext): ProposedAction {
