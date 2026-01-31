@@ -83,11 +83,6 @@ async function main() {
 
   const pk = process.env.ERC8004_NEW_WALLET_PRIVATE_KEY?.trim() ?? "";
   if (!signature) {
-    if (!pk) {
-      throw new Error("Missing signature. Provide ERC8004_WALLET_SIGNATURE or ERC8004_NEW_WALLET_PRIVATE_KEY.");
-    }
-
-    const newWalletSigner = new ethers.Wallet(pk, ethers.provider);
     const domain: TypedDataDomain = {
       name: "ERC8004IdentityRegistry",
       version: "1",
@@ -111,7 +106,18 @@ async function main() {
       deadline
     };
 
-    signature = await newWalletSigner.signTypedData(domain, types, message);
+    // If binding the agent to the SAME wallet that's executing this script (ownerSigner),
+    // we can sign without requiring an additional private key env var.
+    const ownerSignerAddress = await ownerSigner.getAddress();
+    if (newWallet.toLowerCase() === ownerSignerAddress.toLowerCase()) {
+      signature = await ownerSigner.signTypedData(domain, types, message);
+    } else {
+      if (!pk) {
+        throw new Error("Missing signature. Provide ERC8004_WALLET_SIGNATURE or ERC8004_NEW_WALLET_PRIVATE_KEY.");
+      }
+      const newWalletSigner = new ethers.Wallet(pk, ethers.provider);
+      signature = await newWalletSigner.signTypedData(domain, types, message);
+    }
   }
 
   console.log("identityRegistry:", identityRegistry);
