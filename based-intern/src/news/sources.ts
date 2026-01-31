@@ -8,6 +8,14 @@ const SOURCE_URLS: Record<NewsSourceId, string> = {
   cdp_launches: "https://www.coinbase.com/developer-platform/discover/launches"
 };
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function shouldRetryStatus(status: number): boolean {
+  return status === 429 || (status >= 500 && status <= 599);
+}
+
 function stripTags(s: string): string {
   return s.replace(/<[^>]+>/g, " ");
 }
@@ -160,26 +168,63 @@ export function parseNewsSourcesCsv(csv: string): string[] {
 export async function fetchAndParseNewsSource(source: NewsSourceId): Promise<ParsedNewsResult> {
   const url = SOURCE_URLS[source];
 
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: "GET",
-      headers: {
-        Accept: "text/html,application/xhtml+xml"
+  const maxAttempts = 3;
+  let lastErr: string | null = null;
+  let res: Response | null = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12_000);
+    try {
+      res = await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept: "text/html,application/xhtml+xml",
+          "Accept-Language": "en-US,en;q=0.9",
+          // Some sites respond with 403/429 to missing/odd UAs.
+          "User-Agent": "BasedIntern/0.1 (+https://github.com/Metavibez4L/basedintern)"
+        },
+        signal: controller.signal
+      });
+      lastErr = null;
+
+      if (res.ok) break;
+
+      const status = res.status;
+      logger.warn("news.fetch non-200", {
+        source,
+        url,
+        status,
+        statusText: (res as any).statusText ?? undefined,
+        finalUrl: (res as any).url ?? undefined,
+        attempt
+      });
+
+      if (attempt < maxAttempts && shouldRetryStatus(status)) {
+        await sleep(400 * attempt);
+        continue;
       }
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    logger.warn("news.fetch failed", { source, url, error: msg });
-    return { source, items: [], errors: [msg] };
+
+      // Non-retriable HTTP failure
+      return { source, items: [], errors: [`HTTP ${status}`] };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      lastErr = msg;
+      logger.warn("news.fetch failed", { source, url, attempt, error: msg });
+      if (attempt < maxAttempts) {
+        await sleep(400 * attempt);
+        continue;
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  if (!res || !res.ok) {
+    return { source, items: [], errors: [lastErr ?? "fetch failed"] };
   }
 
   const html = await res.text().catch(() => "");
-  if (!res.ok) {
-    const msg = `HTTP ${res.status}`;
-    logger.warn("news.fetch non-200", { source, url, status: res.status });
-    return { source, items: [], errors: [msg] };
-  }
 
   try {
     if (source === "base_blog" || source === "base_dev_blog") {
