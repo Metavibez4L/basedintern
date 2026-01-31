@@ -11,7 +11,9 @@ const repoRootEnvPath = path.resolve(process.cwd(), "..", ".env");
 if (existsSync(repoRootEnvPath)) dotenv.config({ path: repoRootEnvPath, override: false });
 
 const BoolFromString = z
-  .enum(["true", "false"])
+  .string()
+  .trim()
+  .pipe(z.enum(["true", "false"]))
   .transform((v) => v === "true");
 
 const Chain = z.enum(["base-sepolia", "base"]);
@@ -20,15 +22,19 @@ const SocialMode = z.enum(["none", "playwright", "x_api"]);
 const RouterType = z.enum(["unknown", "aerodrome", "uniswap-v3"]);
 const NewsMode = z.enum(["event", "daily"]);
 
+function trimmedEnum(schema: z.ZodTypeAny) {
+  return z.string().trim().pipe(schema);
+}
+
 const envSchemaBase = z.object({
   // Wallet
-  WALLET_MODE: WalletMode.default("private_key"),
+  WALLET_MODE: trimmedEnum(WalletMode).default("private_key"),
   PRIVATE_KEY: z.string().default(""),
   CDP_API_KEY_NAME: z.string().optional(),
   CDP_API_KEY_PRIVATE_KEY: z.string().optional(),
 
   // Network
-  CHAIN: Chain.default("base-sepolia"),
+  CHAIN: trimmedEnum(Chain).default("base-sepolia"),
   BASE_SEPOLIA_RPC_URL: z.string().optional(),
   BASE_RPC_URL: z.string().optional(),
   RPC_URL: z.string().optional(),
@@ -53,7 +59,7 @@ const envSchemaBase = z.object({
 
   // Trading config (scaffolded)
   WETH_ADDRESS: z.string().optional(),
-  ROUTER_TYPE: RouterType.default("unknown"),
+  ROUTER_TYPE: trimmedEnum(RouterType).default("unknown"),
   ROUTER_ADDRESS: z.string().optional(),
   POOL_ADDRESS: z.string().optional(),
 
@@ -62,7 +68,7 @@ const envSchemaBase = z.object({
   AERODROME_GAUGE_ADDRESS: z.string().optional(),
 
   // Social posting
-  SOCIAL_MODE: SocialMode.default("none"),
+  SOCIAL_MODE: trimmedEnum(SocialMode).default("none"),
   HEADLESS: BoolFromString.default("true"),
   X_USERNAME: z.string().optional(),
   X_PASSWORD: z.string().optional(),
@@ -86,7 +92,7 @@ const envSchemaBase = z.object({
   // Base News Brain (optional)
   // =========================
   NEWS_ENABLED: BoolFromString.default("false"),
-  NEWS_MODE: NewsMode.default("event"),
+  NEWS_MODE: trimmedEnum(NewsMode).default("event"),
   NEWS_MAX_POSTS_PER_DAY: z.coerce.number().int().positive().default(2),
   NEWS_MIN_INTERVAL_MINUTES: z.coerce.number().int().min(1).default(120),
   NEWS_REQUIRE_LINK: BoolFromString.default("true"),
