@@ -238,11 +238,12 @@ Known Base mainnet (8453) deployment:
 
 ### State Persistence with Schema Versioning (NEW)
 - [x] `src/agent/state.ts` - Migration infrastructure
-  - [x] STATE_SCHEMA_VERSION = 2
+  - [x] STATE_SCHEMA_VERSION = 3
   - [x] `migrateState()` function for safe evolution
   - [x] v1 → v2: Added lastSeenBlockNumber field
+  - [x] v2 → v3: Added Base News Brain fields (caps + dedupe + idempotency)
   - [x] Backward compatible: old state files auto-upgraded
-  - [x] Ready for future migrations (v3, v4, etc.)
+  - [x] Ready for future migrations (v4, v5, etc.)
   - [x] Logs migration events for debugging
   - [x] 8 unit tests covering migration and field preservation
 
@@ -256,22 +257,22 @@ Known Base mainnet (8453) deployment:
 
 ---
 
-## 🚧 Scaffolded (Needs Implementation)
+## 🧪 Implemented (Needs Onchain Verification)
 
 ### Aerodrome Integration
-- [x] `src/chain/aerodrome.ts` - Complete Aerodrome DEX integration
+- [x] `src/chain/aerodrome.ts` - Aerodrome DEX helpers (implemented; validate on Base Sepolia before mainnet)
   - [x] `readAerodromePool()` - Reads pool reserves from Aerodrome pairs
   - [x] `calculateAerodromeOutput()` - Computes swap output using constant product formula
-  - [x] Stable vs volatile pool support
+  - [x] Stable vs volatile pool flag (stable path is a simplified approximation; not full stableswap math)
   - [x] Slippage protection (via `applySlippage()`)
-  - [x] **buildAerodromeSwapCalldata()** - Full ABI encoding of swapExactTokensForTokens()
+  - [x] **buildAerodromeSwapCalldata()** - swapExactTokensForTokens() calldata builder (manual encoding)
     - Encodes Route[] struct with from/to/stable/factory fields
     - Encodes function selector and all parameters
     - Calculates deadline automatically
   - [x] `queryAerodromePool()` - Factory query for pool discovery
 
 ### Trading Execution
-- [x] `src/chain/trade.ts` - **Complete Aerodrome trading implementation**
+- [x] `src/chain/trade.ts` - Aerodrome trading implementation (implemented; validate on Base Sepolia before mainnet)
   - [x] Router type validation (ROUTER_TYPE must be "aerodrome")
   - [x] Pool reading and quote generation
   - [x] Slippage calculation
@@ -381,13 +382,13 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 | `MAX_SPEND_ETH_PER_TRADE` | ✅ | `0.0005` | Enforced by guardrails |
 | `SELL_FRACTION_BPS` | ✅ | `500` | 5% of holdings |
 | `SLIPPAGE_BPS` | ✅ | `300` | 3% slippage |
-| `ROUTER_TYPE` | ✅ | `aerodrome` | aerodrome (Uniswap V3 support planned) |
-| `ROUTER_ADDRESS` | ✅ | `0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43` | Aerodrome Router (Base & Sepolia) |
+| `ROUTER_TYPE` | ✅ | `unknown` | Must be set (e.g. `aerodrome`) before live trading |
+| `ROUTER_ADDRESS` | ✅ | (none) | Required for live trading |
 | `POOL_ADDRESS` | ✅ | (none) | INTERN/WETH pool address (e.g., Aerodrome) |
-| `WETH_ADDRESS` | ✅ | `0x4200000000000000000000000000000000000006` | Wrapped ETH on Base |
+| `WETH_ADDRESS` | ✅ | (none) | Required for live trading (Base WETH is `0x4200…0006`) |
 | `AERODROME_STABLE` | ✅ | `false` | Stable=true or volatile=false pool type |
 | `AERODROME_GAUGE_ADDRESS` | ⚪ | (none) | Optional; Aerodrome gauge for yield farming |
-| `SOCIAL_MODE` | ✅ | `none` | none/x_api |
+| `SOCIAL_MODE` | ✅ | `none` | none/x_api/playwright |
 | `X_API_KEY` | ✅ | (none) | OAuth 1.0a consumer key (X API recommended) |
 | `X_API_SECRET` | ✅ | (none) | OAuth 1.0a consumer secret (X API recommended) |
 | `X_ACCESS_TOKEN` | ✅ | (none) | OAuth 1.0a user access token (X API recommended) |
@@ -395,6 +396,16 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 | `X_PHASE1_MENTIONS` | ✅ | `false` | Enable Phase 1 mentions poller (intent recognition only) |
 | `X_POLL_MINUTES` | ✅ | `2` | Poll mentions interval in minutes |
 | `OPENAI_API_KEY` | ✅ | (none) | LangChain works when set |
+| `NEWS_ENABLED` | ✅ | `false` | Enable Base News Brain |
+| `NEWS_MODE` | ✅ | `event` | event/daily |
+| `NEWS_SOURCES` | ✅ | `defillama,github,rss` | CSV list; legacy HTML sources also supported |
+| `NEWS_MIN_SCORE` | ✅ | `0.5` | 0..1 threshold for ranked candidates |
+| `NEWS_FEEDS` | ✅ | (empty) | Required when `NEWS_SOURCES` includes `rss` |
+| `NEWS_GITHUB_FEEDS` | ✅ | (empty) | Required when `NEWS_SOURCES` includes `github` |
+| `NEWS_MAX_POSTS_PER_DAY` | ✅ | `2` | Daily cap |
+| `NEWS_MIN_INTERVAL_MINUTES` | ✅ | `120` | Minimum minutes between news posts |
+| `NEWS_REQUIRE_LINK` | ✅ | `true` | Hard safety: skip if post missing URL |
+| `NEWS_REQUIRE_SOURCE_WHITELIST` | ✅ | `true` | Enforce allowed source IDs |
 | `CDP_API_KEY_NAME` | 🚧 | (none) | CDP experimental |
 | `CDP_API_KEY_PRIVATE_KEY` | 🚧 | (none) | CDP experimental |
 
@@ -425,7 +436,7 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 | Activity detection (watch.ts) | 32 | ✅ | tests/watch.test.ts |
 | State persistence & migrations | 30 | ✅ | tests/state.test.ts + tests/state-persistence.test.ts |
 | X Mentions (x_mentions.ts) | 37 | ✅ | tests/x_mentions.test.ts |
-| **Total (Vitest)** | **185** | **✅ ALL PASS** | **tests/** |
+| **Total (Vitest)** | **196** | **✅ ALL PASS** | **tests/** |
 
 **Test Framework**: Vitest v1.6+ (dev dependency)
 
@@ -479,7 +490,7 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
    - Tier 4: Probabilistic (no signal)
 
 4. ✅ **State schema versioning** - Safe evolution of state format
-   - v1 → v2 migration tested
+  - v1 → v3 migrations tested
    - Ready for future schema changes
    - 8 unit tests
 
@@ -517,7 +528,7 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
    - Verify receipts
 
 3. **CI/CD pipeline** - Automated tests on every push
-  - Run Vitest unit tests (currently 185)
+  - Run Vitest unit tests (currently 196)
    - Type check
    - Lint
 

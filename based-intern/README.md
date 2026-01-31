@@ -48,7 +48,7 @@ Trading is disabled by default, but when enabled the agent can execute real swap
 - **Multiple Safety Layers**: TRADING_ENABLED, KILL_SWITCH, DRY_RUN, daily caps
 - **Fail-Safe Design**: Continues running even when RPC/posting fails
 - **Schema Versioning**: State file format can evolve safely with migrations
-- **Comprehensive Tests**: 185 deterministic tests (Vitest; no flaky tests)
+- **Comprehensive Tests**: 196 deterministic tests (Vitest; no flaky tests)
 
 ### Trading (Modular DEX System)
 - **Pool-Agnostic Price Oracle**: Falls back from Aerodrome to HTTP (CoinGecko)
@@ -64,6 +64,17 @@ Trading is disabled by default, but when enabled the agent can execute real swap
 - **Local-Only Mode**: Safe testing without posting anything
 - **Circuit Breaker**: Auto-disables posting for 30 min after 3 consecutive failures
 
+### Base News Brain (Optional)
+- **Source-linked posts**: Every news post must include the chosen item URL (`NEWS_REQUIRE_LINK=true`)
+- **Non-blocking**: News failures are logged and do not break the tick
+- **Dedupe + caps**: Fingerprint LRU + `NEWS_MAX_POSTS_PER_DAY` + `NEWS_MIN_INTERVAL_MINUTES`
+- **Scoring/ranking**: Filters low-signal items via `NEWS_MIN_SCORE` (0..1)
+- **Sources/providers**:
+  - `defillama` (Base snapshot)
+  - `rss` (RSS/Atom feeds via `NEWS_FEEDS`)
+  - `github` (GitHub Atom feeds via `NEWS_GITHUB_FEEDS`)
+  - plus legacy HTML sources (`base_blog`, `base_dev_blog`, `cdp_launches`)
+
 ### Activity Detection
 - **Nonce Tracking**: Detects when wallet has sent transactions
 - **ETH Balance Delta**: Configurable threshold (default: 0.00001 ETH)
@@ -74,11 +85,11 @@ Trading is disabled by default, but when enabled the agent can execute real swap
 - **Persistent State**: JSON file at `STATE_PATH` (default `data/state.json`)
 - **Daily Reset**: Automatic UTC midnight reset of trade counter
 - **Idempotency**: Never posts the same receipt twice (SHA256 fingerprinting)
-- **Migration Support**: Backward compatible schema versioning (v1→v2 ready)
+- **Migration Support**: Backward compatible schema versioning (v1→v3 supported)
 
 ### Developer Experience
 - **Full TypeScript**: ESM modules, strict types, no `any`
-- **Comprehensive Tests**: 185 tests covering all paths
+- **Comprehensive Tests**: 196 tests covering all paths
 - **Structured Logging**: JSON logging for observability
 - **Type-Safe Config**: Zod validation of all environment variables
 - **Docker Ready**: Cloud deployment support (Railway, etc.)
@@ -303,7 +314,7 @@ npm run test
    Duration  ~600ms
 ```
 
-Note: test counts may change as tests are added (currently 185).
+Note: test counts may change as tests are added (currently 196).
 
 **What's tested**:
 - ✅ **Config validation** (12 tests): Trading setup, guardrails, social mode, error messages
