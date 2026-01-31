@@ -139,7 +139,7 @@ npm run test
 - Tests guardrails, receipts, activity detection, state management, and X mentions (Phase 1)
 - Exit code 0 = all pass
 
-Note: test counts may change as tests are added (currently 185).
+Note: test counts may change as tests are added (currently 196).
 
 ### Run Hardhat Contract Tests
 

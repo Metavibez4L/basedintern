@@ -82,9 +82,26 @@ Safety guarantees:
 
 Supported sources:
 
+- `defillama` → DeFiLlama Base snapshot (TVL + top protocols)
+- `rss` → RSS/Atom feeds (configure via `NEWS_FEEDS`)
+- `github` → GitHub Atom feeds (configure via `NEWS_GITHUB_FEEDS`)
 - `base_blog` → https://blog.base.org/
 - `base_dev_blog` → https://blog.base.dev/
 - `cdp_launches` → https://www.coinbase.com/developer-platform/discover/launches
+
+Quick enable (log-only):
+
+```bash
+NEWS_ENABLED=true
+SOCIAL_MODE=none
+
+# choose sources
+NEWS_SOURCES=defillama,github,rss
+
+# required when rss/github enabled
+NEWS_FEEDS="https://example.com/feed.xml"
+NEWS_GITHUB_FEEDS="https://github.com/base-org/node/releases.atom"
+```
 
 ## 🚀 Quickstart
 
