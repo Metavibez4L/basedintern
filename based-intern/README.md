@@ -370,6 +370,10 @@ X API uses OAuth 1.0a for secure, reliable posting:
 - Rate-limit aware: Respects X API rate limits with exponential backoff
 - All state persisted to `STATE_PATH` (default `data/state.json`) for reliability
 
+**Automated profile label**:
+- X’s “Automated” tag is configured in the X Developer Portal (it is not something the agent can set in code per post).
+- See `docs/X_AUTOMATION_LABEL.md`.
+
 **Event-driven posting** (default):
 - Posts ONLY when meaningful onchain activity detected
 - Triggers: nonce increase, ETH balance change (≥ MIN_ETH_DELTA), token balance change (≥ MIN_TOKEN_DELTA)
