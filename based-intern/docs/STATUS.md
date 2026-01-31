@@ -152,6 +152,20 @@ Known Base mainnet (8453) deployment:
     - Respects rate-limit-reset headers
   - [x] SOCIAL_MODE=none (logs receipt only)
 
+### Base News Brain (Optional)
+- [x] `src/news/news.ts` - News plan builder (event/daily modes), cap enforcement, dedupe
+- [x] `src/news/providers/` - Provider pipeline
+  - [x] `defillama` (Base snapshot)
+  - [x] `rss` (RSS/Atom)
+  - [x] `github` (GitHub Atom feeds)
+- [x] `src/news/score.ts` - Scoring + ranking with deterministic tie-breakers
+- [x] `src/news/render.ts` - Deterministic fallback renderer (<= 240 chars) with occasional "NFA."
+- [x] `src/social/news_poster.ts` - News posting via the same poster abstraction
+- [x] Safety guardrails
+  - [x] Requires a link when `NEWS_REQUIRE_LINK=true`
+  - [x] Daily caps (`NEWS_MAX_POSTS_PER_DAY`) + interval caps (`NEWS_MIN_INTERVAL_MINUTES`)
+  - [x] Feed validation: `NEWS_FEEDS` required for `rss`, `NEWS_GITHUB_FEEDS` required for `github`
+
 ### X Mentions Poller (Phase 1: Intent Recognition)
 - [x] `src/social/x_mentions.ts` - **Comment → Intent recognition (NO TRADING)**
   - [x] **Command parsing**: help, status, buy, sell, why, unknown

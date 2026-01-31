@@ -22,6 +22,13 @@ const SocialMode = z.enum(["none", "playwright", "x_api"]);
 const RouterType = z.enum(["unknown", "aerodrome", "uniswap-v3"]);
 const NewsMode = z.enum(["event", "daily"]);
 
+function parseCsv(s: string): string[] {
+  return s
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
 function trimmedEnum(schema: z.ZodTypeAny) {
   return z.string().trim().pipe(schema);
 }
@@ -107,11 +114,21 @@ const envSchemaBase = z.object({
   // =========================
   NEWS_ENABLED: BoolFromString.default("false"),
   NEWS_MODE: trimmedEnum(NewsMode).default("event"),
+  // Back-compat names (existing)
   NEWS_MAX_POSTS_PER_DAY: z.coerce.number().int().positive().default(2),
   NEWS_MIN_INTERVAL_MINUTES: z.coerce.number().int().min(1).default(120),
+
+  // Requested names (aliases)
+  NEWS_POSTS_PER_DAY: z.coerce.number().int().positive().optional(),
+  NEWS_INTERVAL_MINUTES: z.coerce.number().int().min(1).optional(),
+
+  NEWS_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.5),
+  NEWS_FEEDS: z.string().default(""),
+  NEWS_GITHUB_FEEDS: z.string().default(""),
   NEWS_REQUIRE_LINK: BoolFromString.default("true"),
   NEWS_REQUIRE_SOURCE_WHITELIST: BoolFromString.default("true"),
-  NEWS_SOURCES: z.string().default("base_blog,base_dev_blog,cdp_launches"),
+  // Default updated to include new providers; legacy sources still supported.
+  NEWS_SOURCES: z.string().default("defillama,github,rss"),
   NEWS_DAILY_HOUR_UTC: z.coerce.number().int().min(0).max(23).default(15),
   NEWS_MAX_ITEMS_CONTEXT: z.coerce.number().int().min(1).max(50).default(8)
 });
@@ -248,15 +265,28 @@ function validateGuardrails(cfg: AppConfig): string[] {
   // News Brain guardrails
   // =========================
   if (cfg.NEWS_ENABLED) {
+    // Apply alias overrides if present
+    const postsPerDay = cfg.NEWS_POSTS_PER_DAY ?? cfg.NEWS_MAX_POSTS_PER_DAY;
+    const intervalMinutes = cfg.NEWS_INTERVAL_MINUTES ?? cfg.NEWS_MIN_INTERVAL_MINUTES;
+
     if (cfg.SOCIAL_MODE !== "x_api" && cfg.SOCIAL_MODE !== "none") {
       errors.push("When NEWS_ENABLED=true, SOCIAL_MODE must be x_api or none");
     }
-    if (cfg.NEWS_MAX_POSTS_PER_DAY <= 0) {
+    if (postsPerDay <= 0) {
       errors.push("NEWS_MAX_POSTS_PER_DAY must be > 0 when NEWS_ENABLED=true");
     }
-    if (cfg.NEWS_MIN_INTERVAL_MINUTES < 1) {
+    if (intervalMinutes < 1) {
       errors.push("NEWS_MIN_INTERVAL_MINUTES must be >= 1 when NEWS_ENABLED=true");
     }
+
+    const sources = parseCsv(cfg.NEWS_SOURCES);
+    if (sources.includes("rss") && parseCsv(cfg.NEWS_FEEDS).length === 0) {
+      errors.push("NEWS_FEEDS is required when NEWS_SOURCES includes rss");
+    }
+    if (sources.includes("github") && parseCsv(cfg.NEWS_GITHUB_FEEDS).length === 0) {
+      errors.push("NEWS_GITHUB_FEEDS is required when NEWS_SOURCES includes github");
+    }
+
     if (cfg.NEWS_MODE === "daily") {
       // Zod already constrains this, but keep a clear guardrail error for operators.
       if (cfg.NEWS_DAILY_HOUR_UTC < 0 || cfg.NEWS_DAILY_HOUR_UTC > 23) {
@@ -270,6 +300,15 @@ function validateGuardrails(cfg: AppConfig): string[] {
 
 export function loadConfig(): ResolvedConfig {
   const baseCfg = envSchema.parse(process.env);
+
+  // Apply News Brain alias env vars (requested names) onto the existing names.
+  // This keeps the rest of the codebase stable while supporting both.
+  if (baseCfg.NEWS_POSTS_PER_DAY !== undefined && baseCfg.NEWS_POSTS_PER_DAY !== null) {
+    (baseCfg as any).NEWS_MAX_POSTS_PER_DAY = baseCfg.NEWS_POSTS_PER_DAY;
+  }
+  if (baseCfg.NEWS_INTERVAL_MINUTES !== undefined && baseCfg.NEWS_INTERVAL_MINUTES !== null) {
+    (baseCfg as any).NEWS_MIN_INTERVAL_MINUTES = baseCfg.NEWS_INTERVAL_MINUTES;
+  }
 
   const chainId = chainIdFor(baseCfg.CHAIN);
   const identityRegistry = baseCfg.ERC8004_IDENTITY_REGISTRY?.trim() || undefined;

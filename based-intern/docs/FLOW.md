@@ -181,6 +181,30 @@ MIN_ETH_DELTA="0.001" MIN_TOKEN_DELTA="10000" SOCIAL_MODE=x_api ... npm run dev
 
 ---
 
+## Optional: Base News Brain (News Posts)
+
+Runs alongside receipts and (if enabled) posts short, source-linked updates about the Base ecosystem.
+
+**High-level flow (per tick)**:
+1. Fetch items from enabled sources
+2. Canonicalize URLs + fingerprint items; dedupe using persisted state
+3. Score and rank candidates; filter by `NEWS_MIN_SCORE`
+4. Enforce caps (`NEWS_MAX_POSTS_PER_DAY`, `NEWS_MIN_INTERVAL_MINUTES`)
+5. Generate post:
+   - If `OPENAI_API_KEY` is set: LLM generates copy
+   - Otherwise: deterministic renderer (always includes link)
+6. Post via the same social poster using a separate idempotency channel ("news")
+
+**Config knobs**:
+- `NEWS_ENABLED`: enable/disable news posting
+- `NEWS_MODE`: `event` (post when there is unseen news) or `daily` (post at `NEWS_DAILY_HOUR_UTC`)
+- `NEWS_SOURCES`: comma-separated list; supports `defillama`, `github`, `rss` plus legacy HTML sources
+- `NEWS_FEEDS`: required when `NEWS_SOURCES` includes `rss` (comma-separated feed URLs)
+- `NEWS_GITHUB_FEEDS`: required when `NEWS_SOURCES` includes `github` (comma-separated GitHub Atom feed URLs)
+- `NEWS_MIN_SCORE`: 0..1 threshold; higher means fewer posts
+
+---
+
 ## Brain Decision Logic
 
 The agent's decision-making uses a two-path approach:

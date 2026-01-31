@@ -63,7 +63,12 @@ function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
     NEWS_MIN_INTERVAL_MINUTES: 120,
     NEWS_REQUIRE_LINK: true,
     NEWS_REQUIRE_SOURCE_WHITELIST: true,
-    NEWS_SOURCES: "base_blog,base_dev_blog,cdp_launches",
+    NEWS_SOURCES: "defillama,github,rss,base_blog,base_dev_blog,cdp_launches",
+    NEWS_FEEDS: "",
+    NEWS_GITHUB_FEEDS: "",
+    NEWS_MIN_SCORE: 0.5,
+    NEWS_POSTS_PER_DAY: undefined,
+    NEWS_INTERVAL_MINUTES: undefined,
     NEWS_DAILY_HOUR_UTC: 15,
     NEWS_MAX_ITEMS_CONTEXT: 8
   };
@@ -197,8 +202,8 @@ describe("dedupe + posting logic", () => {
   });
 
   it("filters unseen items by fingerprint id", () => {
-    const itemA = { id: "a", source: "base_blog" as const, title: "A", url: "https://blog.base.org/a" };
-    const itemB = { id: "b", source: "base_blog" as const, title: "B", url: "https://blog.base.org/b" };
+    const itemA = { id: "a", fingerprint: "a", source: "base_blog" as const, title: "A", url: "https://blog.base.org/a" };
+    const itemB = { id: "b", fingerprint: "b", source: "base_blog" as const, title: "B", url: "https://blog.base.org/b" };
 
     const state = mockState({ seenNewsFingerprints: ["a"] });
     const unseen = filterUnseenNewsItems(state, [itemA, itemB]);
@@ -210,7 +215,7 @@ describe("dedupe + posting logic", () => {
     const now = new Date("2026-01-30T12:00:00Z");
 
     const state = mockState({ newsDailyCount: 0, newsLastPostMs: null });
-    const item = { id: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
+    const item = { id: "x", fingerprint: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
 
     const plan = shouldPostNewsNow({ cfg, state, now, unseenItems: [item] });
     expect(plan.shouldPost).toBe(true);
@@ -219,7 +224,7 @@ describe("dedupe + posting logic", () => {
 
   it("daily mode posts only at configured UTC hour", () => {
     const cfg = mockCfg({ NEWS_MODE: "daily", NEWS_DAILY_HOUR_UTC: 15, NEWS_ENABLED: true });
-    const item = { id: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
+    const item = { id: "x", fingerprint: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
 
     const state = mockState({ newsDailyCount: 0, newsLastPostDayUtc: null });
 
@@ -233,7 +238,7 @@ describe("dedupe + posting logic", () => {
   it("respects min interval and daily cap", () => {
     const cfg = mockCfg({ NEWS_ENABLED: true, NEWS_MIN_INTERVAL_MINUTES: 120, NEWS_MAX_POSTS_PER_DAY: 2 });
     const now = new Date("2026-01-30T12:00:00Z");
-    const item = { id: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
+    const item = { id: "x", fingerprint: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
 
     const tooSoon = shouldPostNewsNow({
       cfg,
@@ -255,7 +260,7 @@ describe("dedupe + posting logic", () => {
   it("resets daily count at UTC midnight", () => {
     const cfg = mockCfg({ NEWS_ENABLED: true, NEWS_MAX_POSTS_PER_DAY: 2 });
     const now = new Date("2026-01-31T00:01:00Z");
-    const item = { id: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
+    const item = { id: "x", fingerprint: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
 
     const state = mockState({ newsDailyCount: 2, newsLastPostDayUtc: "2026-01-30" });
     const plan = shouldPostNewsNow({ cfg, state, now, unseenItems: [item] });
