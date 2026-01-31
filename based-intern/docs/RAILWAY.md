@@ -35,7 +35,9 @@ If you prefer explicit configuration (recommended for ops clarity), or if you de
 
 Known deployments:
 - Base Sepolia (84532): `0x23926b2CA264e1CD1Fc641E1C5C6e9f2066c91c1`
-- Base mainnet (8453): `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11` (verified: `https://basescan.org/address/0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11#code`)
+- Base mainnet (8453) — **LIVE**: `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11` (verified: `https://basescan.org/address/0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11#code`)
+
+Mainnet warning: if you set `CHAIN=base` and flip `TRADING_ENABLED=true` + `KILL_SWITCH=false` + `DRY_RUN=false`, the agent can submit real mainnet transactions.
 
 ### Aerodrome trading (optional)
 If you want to enable trading with Aerodrome, set:

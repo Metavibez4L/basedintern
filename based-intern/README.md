@@ -102,7 +102,7 @@ Hardhat contract tests are also included (run with `npx hardhat test`).
   - **INTERN**: `0x23926b2CA264e1CD1Fc641E1C5C6e9f2066c91c1`
   - **deployer**: `0x4Ba6B07626E6dF28120b04f772C4a89CC984Cc80`
   - **deployedAt**: `2026-01-29T01:27:29.598Z`
-- **Base mainnet (8453)**:
+- **Base mainnet (8453) — LIVE**:
   - **INTERN**: `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11`
   - **deployer**: `0x4Ba6B07626E6dF28120b04f772C4a89CC984Cc80`
   - **deployTx**: `0xd41e966bddc10c6b373f71b952809efb86709de7aa3da835cc0aa7967e8a1e66`
@@ -111,7 +111,7 @@ Hardhat contract tests are also included (run with `npx hardhat test`).
 
 ### ERC-8004 (Identity Registry)
 
-- **Base mainnet (8453)**:
+- **Base mainnet (8453) — LIVE**:
   - **Identity Registry**: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
   - **deployTx**: `0x803beaa7e7e06b30aca5cecb699f7d634a9437dec5a646855783d952e9bb4e6f`
   - **Agent**: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
