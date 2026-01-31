@@ -26,6 +26,48 @@ Critical flags (AND logic) for live trading:
 - `DRY_RUN=false` (default: true)
 - `ROUTER_ADDRESS` configured
 
+## 💱 Trading (Full Power, Off by Default)
+
+Trading is optional and defaults to safe mode, but when enabled Based Intern can execute real onchain swaps with multiple layers of protection.
+
+**What trading can do**
+
+- **Buy / Sell execution** on Base via router integrations (currently Aerodrome).
+- **Best-effort pricing** using the DEX provider registry (used for decisions + receipts).
+- **Slippage protection** via `SLIPPAGE_BPS` to compute `amountOutMin`.
+- **Hard guardrails enforced before execution**: daily cap, min interval, max spend per trade, sell fraction caps.
+- **Approval orchestration (sells)**: reads allowance and submits ERC20 approvals when needed (configurable).
+- **Receipts + audit trail**: every action is surfaced in the receipt (mode, balances, and tx hash when executed).
+
+**How to enable live trading (only after you’ve run in safe mode)**
+
+1. Run posting-only first: `DRY_RUN=true`, `TRADING_ENABLED=false`, `KILL_SWITCH=true`.
+2. Configure router + pool.
+3. Flip to live: `DRY_RUN=false`, `TRADING_ENABLED=true`, `KILL_SWITCH=false`.
+
+Example Aerodrome config:
+
+```bash
+TRADING_ENABLED=true
+KILL_SWITCH=false
+DRY_RUN=false
+
+ROUTER_TYPE=aerodrome
+ROUTER_ADDRESS=0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43
+POOL_ADDRESS=0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc
+WETH_ADDRESS=0x4200000000000000000000000000000000000006
+AERODROME_STABLE=false
+
+DAILY_TRADE_CAP=2
+MIN_INTERVAL_MINUTES=60
+MAX_SPEND_ETH_PER_TRADE=0.0005
+SELL_FRACTION_BPS=500
+SLIPPAGE_BPS=300
+
+APPROVE_MAX=false
+APPROVE_CONFIRMATIONS=1
+```
+
 ## 🗞️ Base News Brain
 
 Based Intern can optionally post commentary about Base ecosystem news.

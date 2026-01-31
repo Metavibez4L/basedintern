@@ -10,6 +10,30 @@ Senior TS + Solidity scaffold for a “Based Intern” agent that can post proof
 - **Proof-of-Life Receipts**: Standardized format showing action, balances, price, tx hash
 - **Trading (Optional)**: Execute BUY/SELL swaps with strict caps and guardrails
 
+### Trading (Full Power, Off by Default)
+
+Trading is disabled by default, but when enabled the agent can execute real swaps with multiple independent safety layers.
+
+**What “full trading power” includes**
+
+- **Onchain execution**: `BUY`/`SELL` via router integration (currently Aerodrome).
+- **Best-effort pricing**: reads pool-based price via the DEX provider registry (used in receipts and decision logic).
+- **Slippage protection**: computes `amountOutMin` from `SLIPPAGE_BPS`.
+- **Allowance + approvals** (SELL path): reads ERC20 allowance and submits approvals when needed (`APPROVE_MAX`, `APPROVE_CONFIRMATIONS`).
+- **Hard guardrails** (always enforced before execution):
+  - daily trade cap (`DAILY_TRADE_CAP`)
+  - minimum interval between trades (`MIN_INTERVAL_MINUTES`)
+  - maximum spend per BUY (`MAX_SPEND_ETH_PER_TRADE`)
+  - maximum SELL size (`SELL_FRACTION_BPS`)
+- **Receipts with tx hash**: when a trade executes, the receipt includes the tx hash.
+
+**Enable checklist (AND logic)**
+
+- `TRADING_ENABLED=true`
+- `KILL_SWITCH=false`
+- `DRY_RUN=false`
+- Router configured (`ROUTER_TYPE`, `ROUTER_ADDRESS`, `WETH_ADDRESS`, and router-specific fields like `POOL_ADDRESS` for Aerodrome)
+
 ### Intelligence
 - **LangChain Brain**: Uses OpenAI GPT-4o-mini for context-aware decisions
 - **Tool-Calling Agent**: Can query wallet state before proposing actions
@@ -24,7 +48,7 @@ Senior TS + Solidity scaffold for a “Based Intern” agent that can post proof
 - **Multiple Safety Layers**: TRADING_ENABLED, KILL_SWITCH, DRY_RUN, daily caps
 - **Fail-Safe Design**: Continues running even when RPC/posting fails
 - **Schema Versioning**: State file format can evolve safely with migrations
-- **Comprehensive Tests**: 167 deterministic tests (no flaky tests)
+- **Comprehensive Tests**: 181 deterministic tests (no flaky tests)
 
 ### Trading (Modular DEX System)
 - **Pool-Agnostic Price Oracle**: Falls back from Aerodrome to HTTP (CoinGecko)
