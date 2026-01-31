@@ -2,6 +2,7 @@ import { formatEther, formatUnits, type Address } from "viem";
 
 export type ReceiptInput = {
   action: "HOLD" | "BUY" | "SELL";
+  agentRef?: string | null; // e.g. eip155:8453:0x...#123
   wallet: Address;
   ethWei: bigint;
   internAmount: bigint;
@@ -34,18 +35,21 @@ export function buildReceiptMessage(input: ReceiptInput): string {
   const note = pickMoodLine(input.action);
   const ts = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
 
+  const agentLine = input.agentRef ? `Agent: ${input.agentRef}` : null;
+
   return [
     "BASED INTERN REPORT",
     `ts: ${ts}`,
     `action: ${input.action}`,
     `wallet: ${input.wallet}`,
+    agentLine,
     `eth: ${eth}`,
     `intern: ${intern}`,
     `price: ${price}`,
     `tx: ${tx}`,
     `mode: ${mode}`,
     `note: ${note}`
-  ].join("\n");
+  ].filter((l): l is string => Boolean(l)).join("\n");
 }
 
 function pickMoodLine(action: ReceiptInput["action"]): string {

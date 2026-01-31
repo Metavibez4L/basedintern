@@ -10,6 +10,7 @@ Based Intern is a TypeScript + Solidity agent that posts proof-of-life receipts 
 - **Dual social posting:** `SOCIAL_MODE=none|playwright|x_api`.
 - **Phase 1 mentions poller:** intent recognition + replies (no execution).
 - **Base News Brain:** optional AI-generated (or deterministic) news commentary with strict dedupe + caps.
+- **(Optional) ERC-8004 identity:** on-chain agent registry id + wallet binding.
 
 ## 🛡️ Safety Model
 
@@ -125,8 +126,30 @@ SOCIAL_MODE=x_api
 ## 📚 Documentation
 
 - [based-intern/README.md](based-intern/README.md) — Developer guide
+- [based-intern/docs/BUILD.md](based-intern/docs/BUILD.md) — Build & deployment
 - [based-intern/docs/FLOW.md](based-intern/docs/FLOW.md) — Execution flow
 - [based-intern/docs/STATUS.md](based-intern/docs/STATUS.md) — Feature status
+
+## (Optional) ERC-8004 agent identity
+
+If you want receipts to include a portable on-chain identifier, register the agent in the ERC-8004 Identity Registry.
+
+- Registration/profile template JSON: [based-intern/docs/agent.registration.json](based-intern/docs/agent.registration.json)
+- Profile-first template JSON (recommended for hosted/IPFS profile): [based-intern/docs/agent.profile.json](based-intern/docs/agent.profile.json)
+- Strict/minimal template JSON (schema-first): [based-intern/docs/agent.registration.json](based-intern/docs/agent.registration.json)
+- Scripts live under `based-intern/scripts/` and are exposed as npm scripts in `based-intern/package.json`.
+
+### ERC-8004 (Deployed on Base mainnet)
+
+ERC-8004 turns the agent into a **portable on-chain identity**:
+- Anyone can independently verify the agent’s canonical id and profile URI on Base.
+- The identity can be bound to a wallet (EIP-712 signed) without trusting off-chain claims.
+- Receipts can include a stable `Agent:` reference for attribution and monitoring.
+
+Deployed identity (Base mainnet 8453):
+- Identity Registry: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
+- Agent ref: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
+- agentURI (pinned): `https://raw.githubusercontent.com/Metavibez4L/basedintern/9a03a383107440d7c6ce360fe2efdce8b151ac40/based-intern/docs/agent.profile.json`
 
 ## 📝 License
 

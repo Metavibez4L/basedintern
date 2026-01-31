@@ -44,11 +44,14 @@ function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
   const base: AppConfig = {
     WALLET_MODE: "private_key",
     PRIVATE_KEY: "0x" + "1".repeat(64),
+    STATE_PATH: "data/state.json",
     BASE_SEPOLIA_RPC_URL: "http://localhost:8545",
     BASE_RPC_URL: "http://localhost:8545",
     CHAIN: "base-sepolia",
     RPC_URL: undefined,
     TOKEN_ADDRESS: undefined,
+
+    ERC8004_ENABLED: false,
 
     LOOP_MINUTES: 30,
     DRY_RUN: true,

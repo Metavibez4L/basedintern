@@ -48,7 +48,7 @@ Trading is disabled by default, but when enabled the agent can execute real swap
 - **Multiple Safety Layers**: TRADING_ENABLED, KILL_SWITCH, DRY_RUN, daily caps
 - **Fail-Safe Design**: Continues running even when RPC/posting fails
 - **Schema Versioning**: State file format can evolve safely with migrations
-- **Comprehensive Tests**: 181 deterministic tests (no flaky tests)
+- **Comprehensive Tests**: 185 deterministic tests (Vitest; no flaky tests)
 
 ### Trading (Modular DEX System)
 - **Pool-Agnostic Price Oracle**: Falls back from Aerodrome to HTTP (CoinGecko)
@@ -71,17 +71,19 @@ Trading is disabled by default, but when enabled the agent can execute real swap
 - **Block Number Tracking**: Ensures state is fresh
 
 ### State Management
-- **Persistent State**: JSON file in `data/state.json`
+- **Persistent State**: JSON file at `STATE_PATH` (default `data/state.json`)
 - **Daily Reset**: Automatic UTC midnight reset of trade counter
 - **Idempotency**: Never posts the same receipt twice (SHA256 fingerprinting)
 - **Migration Support**: Backward compatible schema versioning (v1→v2 ready)
 
 ### Developer Experience
 - **Full TypeScript**: ESM modules, strict types, no `any`
-- **Comprehensive Tests**: 167 tests covering all paths
+- **Comprehensive Tests**: 185 tests covering all paths
 - **Structured Logging**: JSON logging for observability
 - **Type-Safe Config**: Zod validation of all environment variables
 - **Docker Ready**: Cloud deployment support (Railway, etc.)
+
+Hardhat contract tests are also included (run with `npx hardhat test`).
 
 ## Current Deployments
 
@@ -95,6 +97,14 @@ Trading is disabled by default, but when enabled the agent can execute real swap
   - **deployTx**: `0xd41e966bddc10c6b373f71b952809efb86709de7aa3da835cc0aa7967e8a1e66`
   - **deployedAt**: `2026-01-30T03:25:50.255Z`
   - **BaseScan (verified)**: `https://basescan.org/address/0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11#code`
+
+### ERC-8004 (Identity Registry)
+
+- **Base mainnet (8453)**:
+  - **Identity Registry**: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
+  - **deployTx**: `0x803beaa7e7e06b30aca5cecb699f7d634a9437dec5a646855783d952e9bb4e6f`
+  - **Agent**: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
+  - **agentURI** (pinned): `https://raw.githubusercontent.com/Metavibez4L/basedintern/9a03a383107440d7c6ce360fe2efdce8b151ac40/based-intern/docs/agent.profile.json`
 
 ## Quick Start
 
@@ -116,12 +126,68 @@ npm run deploy:token -- --network baseSepolia
 npm run test
 ```
 
-Expected: 167 tests passing, ~600ms
+Expected: all tests passing
+
+### (Optional) ERC-8004: Register this agent on-chain
+
+ERC-8004 gives the agent a portable identifier: `eip155:<chainId>:<identityRegistry>#<agentId>`.
+
+```bash
+# Deploy the Identity Registry (writes deployments/<network>.json)
+npm run deploy:erc8004 -- --network baseSepolia
+
+# Mainnet:
+# npm run deploy:erc8004 -- --network base
+
+# Register an agentId + agentURI (also persisted to deployments/<network>.json)
+ERC8004_AGENT_URI="ipfs://<cid>" npm run register:agent -- --network baseSepolia
+
+# Mainnet example (domain not required; raw GitHub works fine):
+# ERC8004_AGENT_URI="https://raw.githubusercontent.com/Metavibez4L/basedintern/<commit>/based-intern/docs/agent.profile.json" npm run register:agent -- --network base
+```
+
+Tip: make sure `BASE_RPC_URL` really points to Base mainnet (chainId 8453). If your RPC is accidentally Base Sepolia (84532), Hardhat will error with a chainId mismatch.
+
+To include the identifier in receipts, set:
+
+```bash
+ERC8004_ENABLED=true
+ERC8004_IDENTITY_REGISTRY=0x...
+ERC8004_AGENT_ID=123
+```
 
 ### Step 3: Launch Agent
 
 ```bash
 SOCIAL_MODE=x_api DRY_RUN=true TRADING_ENABLED=false npm run dev
+```
+
+### Multi-instance (Windows PowerShell)
+
+Run multiple agents in parallel (multi-wallet + multi ERC-8004 identities) by giving each process its own `STATE_PATH`.
+
+Terminal A:
+
+```powershell
+$env:PRIVATE_KEY="0x..."
+$env:STATE_PATH="data/state.a.json"
+npm run dev
+```
+
+Terminal B:
+
+```powershell
+$env:PRIVATE_KEY="0x..."
+$env:STATE_PATH="data/state.b.json"
+npm run dev
+```
+
+Optional (scripts): keep per-instance ERC-8004 deployment metadata separate via `DEPLOYMENTS_FILE`:
+
+```powershell
+$env:DEPLOYMENTS_FILE="deployments/a.baseSepolia.json"; npm run deploy:erc8004 -- --network baseSepolia
+$env:DEPLOYMENTS_FILE="deployments/a.baseSepolia.json"; $env:ERC8004_AGENT_URI="ipfs://<cid>"; npm run register:agent -- --network baseSepolia
+$env:DEPLOYMENTS_FILE="deployments/a.baseSepolia.json"; npm run set:agent-wallet -- --network baseSepolia
 ```
 
 See [Detailed PATH](#path) section below for complete 3-step execution flow.
@@ -233,9 +299,11 @@ npm run test
 **Output**:
 ```
  Test Files  9 passed (9)
-      Tests  167 passed (167)
+  Tests  ... passed
    Duration  ~600ms
 ```
+
+Note: test counts may change as tests are added (currently 185).
 
 **What's tested**:
 - ✅ **Config validation** (12 tests): Trading setup, guardrails, social mode, error messages
@@ -289,7 +357,7 @@ X API uses OAuth 1.0a for secure, reliable posting:
 - Circuit breaker: Disables posting for 30 minutes after 3 consecutive failures
 - Idempotency: Never posts the same receipt twice (SHA256 fingerprinting)
 - Rate-limit aware: Respects X API rate limits with exponential backoff
-- All state persisted to `data/state.json` for reliability
+- All state persisted to `STATE_PATH` (default `data/state.json`) for reliability
 
 **Event-driven posting** (default):
 - Posts ONLY when meaningful onchain activity detected

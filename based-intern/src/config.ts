@@ -33,12 +33,26 @@ const envSchemaBase = z.object({
   CDP_API_KEY_NAME: z.string().optional(),
   CDP_API_KEY_PRIVATE_KEY: z.string().optional(),
 
+  // Multi-instance support (safe defaults)
+  // Allows running multiple agents in parallel without clobbering state.json.
+  STATE_PATH: z.string().trim().min(1).default("data/state.json"),
+
+  // Optional override for scripts to persist to a different deployments file.
+  // If unset, scripts use deployments/<network>.json
+  DEPLOYMENTS_FILE: z.string().trim().optional(),
+
   // Network
   CHAIN: trimmedEnum(Chain).default("base-sepolia"),
   BASE_SEPOLIA_RPC_URL: z.string().optional(),
   BASE_RPC_URL: z.string().optional(),
   RPC_URL: z.string().optional(),
   TOKEN_ADDRESS: z.string().optional(),
+
+  // ERC-8004 (optional)
+  ERC8004_ENABLED: BoolFromString.default("false"),
+  ERC8004_IDENTITY_REGISTRY: z.string().optional(),
+  ERC8004_AGENT_ID: z.string().optional(), // uint256 as decimal string
+  ERC8004_AGENT_URI: z.string().optional(),
 
   // Agent runtime
   LOOP_MINUTES: z.coerce.number().int().positive().default(30),
@@ -143,9 +157,49 @@ const envSchema = envSchemaBase.superRefine((cfg, ctx) => {
     req("X_ACCESS_TOKEN");
     req("X_ACCESS_SECRET");
   }
+
+  // ERC-8004 requirements
+  if (cfg.ERC8004_ENABLED) {
+    if (!cfg.ERC8004_IDENTITY_REGISTRY || !cfg.ERC8004_IDENTITY_REGISTRY.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["ERC8004_IDENTITY_REGISTRY"],
+        message: "ERC8004_IDENTITY_REGISTRY is required when ERC8004_ENABLED=true"
+      });
+    }
+    if (!cfg.ERC8004_AGENT_ID || !cfg.ERC8004_AGENT_ID.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["ERC8004_AGENT_ID"],
+        message: "ERC8004_AGENT_ID is required when ERC8004_ENABLED=true"
+      });
+    } else if (!/^\d+$/.test(cfg.ERC8004_AGENT_ID.trim())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["ERC8004_AGENT_ID"],
+        message: "ERC8004_AGENT_ID must be a uint256 decimal string"
+      });
+    }
+  }
 });
 
+export type Erc8004Config = {
+  enabled: boolean;
+  chainId: number;
+  identityRegistry?: string;
+  agentId?: bigint;
+  agentUri?: string;
+  agentRegistryId?: string;
+  agentRef?: string;
+};
+
 export type AppConfig = z.infer<typeof envSchema>;
+
+export type ResolvedConfig = AppConfig & { erc8004: Erc8004Config };
+
+function chainIdFor(chain: AppConfig["CHAIN"]): number {
+  return chain === "base" ? 8453 : 84532;
+}
 
 function validateGuardrails(cfg: AppConfig): string[] {
   const errors: string[] = [];
@@ -214,8 +268,28 @@ function validateGuardrails(cfg: AppConfig): string[] {
   return errors;
 }
 
-export function loadConfig(): AppConfig {
-  const cfg = envSchema.parse(process.env);
+export function loadConfig(): ResolvedConfig {
+  const baseCfg = envSchema.parse(process.env);
+
+  const chainId = chainIdFor(baseCfg.CHAIN);
+  const identityRegistry = baseCfg.ERC8004_IDENTITY_REGISTRY?.trim() || undefined;
+  const agentUri = baseCfg.ERC8004_AGENT_URI?.trim() || undefined;
+  const agentId = baseCfg.ERC8004_AGENT_ID?.trim() ? BigInt(baseCfg.ERC8004_AGENT_ID.trim()) : undefined;
+  const agentRegistryId = identityRegistry ? `eip155:${chainId}:${identityRegistry}` : undefined;
+  const agentRef = agentRegistryId && agentId !== undefined ? `${agentRegistryId}#${agentId.toString()}` : undefined;
+
+  const cfg: ResolvedConfig = {
+    ...baseCfg,
+    erc8004: {
+      enabled: baseCfg.ERC8004_ENABLED,
+      chainId,
+      identityRegistry,
+      agentId,
+      agentUri,
+      agentRegistryId,
+      agentRef
+    }
+  };
 
   // Enforce "private_key required by default" without blocking CDP experimentation.
   if (cfg.WALLET_MODE === "private_key" && !cfg.PRIVATE_KEY) {
@@ -223,7 +297,7 @@ export function loadConfig(): AppConfig {
   }
 
   // Validate guardrails and trading consistency
-  const guardErrors = validateGuardrails(cfg);
+  const guardErrors = validateGuardrails(baseCfg);
   if (guardErrors.length > 0) {
     throw new Error(`Config validation errors:\n${guardErrors.map((e) => `  - ${e}`).join("\n")}`);
   }

@@ -8,12 +8,16 @@
   "scripts": {
     "prebuild": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/src/index.js",
     "lint": "eslint .",
     "test": "vitest --run",
     "test:watch": "vitest",
     "build:contracts": "hardhat compile",
     "deploy:token": "hardhat run scripts/deploy-token.ts",
+    "deploy:erc8004": "hardhat run scripts/deploy-erc8004.ts",
+    "register:agent": "hardhat run scripts/register-agent.ts",
+    "set:agent-wallet": "hardhat run scripts/set-agent-wallet.ts",
     "dev": "tsx src/index.ts",
     "x:cookies": "tsx scripts/save-x-cookies.ts"
   },

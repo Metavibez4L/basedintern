@@ -70,7 +70,9 @@ export const DEFAULT_STATE: AgentState = {
 };
 
 export function statePath(): string {
-  return path.join(process.cwd(), "data", "state.json");
+  const fromEnv = process.env.STATE_PATH?.trim();
+  const rel = fromEnv && fromEnv.length > 0 ? fromEnv : "data/state.json";
+  return path.resolve(process.cwd(), rel);
 }
 
 /**
@@ -227,7 +229,7 @@ function utcDayKey(d: Date): string {
 }
 
 async function ensureStateDir(): Promise<void> {
-  const dir = path.join(process.cwd(), "data");
+  const dir = path.dirname(statePath());
   await mkdir(dir, { recursive: true });
 }
 

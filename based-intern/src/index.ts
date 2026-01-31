@@ -207,6 +207,7 @@ async function tick(): Promise<void> {
 
     const receipt = buildReceiptMessage({
       action: decision.action,
+      agentRef: cfg.erc8004.enabled ? (cfg.erc8004.agentRef ?? null) : null,
       wallet,
       ethWei,
       internAmount,

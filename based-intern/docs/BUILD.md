@@ -102,6 +102,14 @@ npm run build
 - Outputs to `dist/` (gitignored)
 - Validates types across entire codebase
 
+### Typecheck (No Emit)
+
+```bash
+npm run typecheck
+```
+
+Use this instead of running `tsc` on individual files (it uses the project `tsconfig.json`).
+
 ### Lint Code
 
 ```bash
@@ -120,16 +128,26 @@ npm run test
 
 **Expected output**:
 ```
- Test Files  5 passed (5)
-      Tests  131 passed (131)
+ Test Files  ... passed
+  Tests  ... passed
    Start at  12:34:53
    Duration  571ms
 ```
 
 **What this does**:
-- Runs all 131 Vitest unit tests (deterministic, no network calls)
+- Runs all Vitest unit tests (deterministic, no network calls)
 - Tests guardrails, receipts, activity detection, state management, and X mentions (Phase 1)
 - Exit code 0 = all pass
+
+Note: test counts may change as tests are added (currently 185).
+
+### Run Hardhat Contract Tests
+
+```bash
+npx hardhat test
+```
+
+This runs the Solidity/Hardhat test suite (separate from Vitest).
 
 **Watch Mode** (auto-rerun on changes):
 ```bash
@@ -213,6 +231,53 @@ npx hardhat verify --network base <TOKEN_ADDRESS>
 
 ---
 
+## (Optional) ERC-8004 (Trustless Agent Identity)
+
+ERC-8004 lets you register a portable on-chain agent identity:
+
+- `agentURI` points to a JSON profile (HTTPS or `ipfs://...`)
+- `agentId` is an on-chain identifier that can be referenced as:
+  `eip155:<chainId>:<identityRegistry>#<agentId>`
+
+### Mainnet Quickstart (Base)
+
+1) Deploy the Identity Registry:
+
+```bash
+npm run deploy:erc8004 -- --network base
+```
+
+2) Register the agent (domain not required; you can use a pinned raw GitHub URL):
+
+```bash
+ERC8004_AGENT_URI="https://raw.githubusercontent.com/Metavibez4L/basedintern/9a03a383107440d7c6ce360fe2efdce8b151ac40/based-intern/docs/agent.profile.json" \
+  npm run register:agent -- --network base
+```
+
+3) Bind the agentId to a wallet (optional):
+
+```bash
+ERC8004_NEW_WALLET="0x..." npm run set:agent-wallet -- --network base
+```
+
+If `ERC8004_NEW_WALLET` equals the deployer wallet running the script, it can auto-sign the EIP-712 payload.
+
+4) Enable the `Agent:` line in receipts:
+
+```bash
+CHAIN="base"
+ERC8004_ENABLED="true"
+ERC8004_IDENTITY_REGISTRY="0xe280e13FB24A26c81e672dB5f7976F8364bd1482"
+ERC8004_AGENT_ID="1"
+```
+
+Known Base mainnet (8453) deployment:
+- Identity Registry: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
+- Agent ref: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
+
+
+---
+
 ## Running the Agent
 
 ### Development Mode (Safe)
@@ -285,7 +350,7 @@ npm run dev
 - **Idempotency**: Never posts the same receipt twice (SHA256 fingerprinting)
 - **Rate-limit handling**: Detects 429, respects rate-limit-reset headers
 - **Exponential backoff**: 2min, 5min, 15min for rate-limited errors
-- **State persistence**: All behavior tracked in `data/state.json`
+- **State persistence**: All behavior tracked in `STATE_PATH` (default `data/state.json`)
 
 **Get X API credentials**:
 1. Create X Developer App at `https://developer.twitter.com/`

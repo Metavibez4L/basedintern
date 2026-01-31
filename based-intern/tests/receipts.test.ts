@@ -27,6 +27,7 @@ describe("buildReceiptMessage", () => {
     it("includes all required fields", () => {
       const receipt = mockReceipt({
         action: "BUY",
+        agentRef: "eip155:8453:0x1234567890123456789012345678901234567890#7",
         wallet: "0x1234567890123456789012345678901234567890",
         ethWei: 2n * 10n ** 18n,
         internAmount: 20_000n * 10n ** 18n,
@@ -51,6 +52,9 @@ describe("buildReceiptMessage", () => {
       // Should include wallet (shortened format shows full address)
       expect(message).toContain("0x1234567890123456789012345678901234567890");
 
+      // Should include ERC-8004 agent ref when provided
+      expect(message).toContain("Agent: eip155:8453:0x1234567890123456789012345678901234567890#7");
+
       // Should include balances
       expect(message).toContain("eth:");
       expect(message).toContain("intern:");
@@ -60,6 +64,13 @@ describe("buildReceiptMessage", () => {
 
       // Should include transaction hash
       expect(message).toContain("0xabcdef");
+    });
+
+    it("omits Agent line when agentRef is null/undefined", () => {
+      const receipt = mockReceipt({ agentRef: null });
+      const message = buildReceiptMessage(receipt);
+
+      expect(message).not.toContain("Agent:");
     });
 
     it("shows mode as LIVE when dryRun=false", () => {

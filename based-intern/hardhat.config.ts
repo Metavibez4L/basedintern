@@ -1,8 +1,15 @@
 import "@nomicfoundation/hardhat-toolbox";
 import { HardhatUserConfig } from "hardhat/config";
 import * as dotenv from "dotenv";
+import { existsSync } from "node:fs";
+import path from "node:path";
 
-dotenv.config();
+// Load env from project dir first, then fall back to repo-root (.env) if present.
+// This avoids confusion when running from `based-intern/` while editing `../.env`.
+const localEnvPath = path.join(process.cwd(), ".env");
+if (existsSync(localEnvPath)) dotenv.config({ path: localEnvPath });
+const repoRootEnvPath = path.resolve(process.cwd(), "..", ".env");
+if (existsSync(repoRootEnvPath)) dotenv.config({ path: repoRootEnvPath, override: false });
 
 const PRIVATE_KEY = process.env.PRIVATE_KEY ?? "";
 // BaseScan API key used by `hardhat verify` (applies to both Base + Base Sepolia).
