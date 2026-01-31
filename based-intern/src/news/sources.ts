@@ -2,7 +2,9 @@ import { logger } from "../logger.js";
 import { canonicalizeUrl, fingerprintNewsItem } from "./fingerprint.js";
 import type { NewsItem, NewsSourceId, ParsedNewsResult } from "./types.js";
 
-const SOURCE_URLS: Record<NewsSourceId, string> = {
+type HtmlNewsSourceId = "base_blog" | "base_dev_blog" | "cdp_launches";
+
+const SOURCE_URLS: Record<HtmlNewsSourceId, string> = {
   base_blog: "https://blog.base.org/",
   base_dev_blog: "https://blog.base.dev/",
   cdp_launches: "https://www.coinbase.com/developer-platform/discover/launches"
@@ -107,6 +109,7 @@ function parseBaseBlogLike(args: { source: "base_blog" | "base_dev_blog"; html: 
 
     items.push({
       id,
+      fingerprint: id,
       source: args.source,
       title,
       url: canonical
@@ -141,6 +144,7 @@ function parseCdpLaunches(html: string): ParsedNewsResult {
 
     items.push({
       id,
+      fingerprint: id,
       source,
       title,
       url: canonical
@@ -155,7 +159,7 @@ function parseCdpLaunches(html: string): ParsedNewsResult {
 }
 
 export function allKnownNewsSources(): NewsSourceId[] {
-  return ["base_blog", "base_dev_blog", "cdp_launches"];
+  return ["defillama", "github", "rss", "base_blog", "base_dev_blog", "cdp_launches"];
 }
 
 export function parseNewsSourcesCsv(csv: string): string[] {
@@ -166,7 +170,11 @@ export function parseNewsSourcesCsv(csv: string): string[] {
 }
 
 export async function fetchAndParseNewsSource(source: NewsSourceId): Promise<ParsedNewsResult> {
-  const url = SOURCE_URLS[source];
+  if (source !== "base_blog" && source !== "base_dev_blog" && source !== "cdp_launches") {
+    return { source, items: [], errors: ["unsupported source (handled by provider pipeline)"] };
+  }
+
+  const url = SOURCE_URLS[source as HtmlNewsSourceId];
 
   const maxAttempts = 3;
   let lastErr: string | null = null;

@@ -4,6 +4,9 @@ import { addSeenNewsFingerprint, resetNewsDailyCountIfNeeded } from "../agent/st
 import { logger } from "../logger.js";
 import { canonicalizeUrl, fingerprintNewsItem } from "./fingerprint.js";
 import { allKnownNewsSources, fetchAndParseNewsSource, parseNewsSourcesCsv } from "./sources.js";
+import { fetchDefiLlamaBaseSnapshot } from "./providers/defillama.js";
+import { fetchGitHubAtomFeed, fetchRssAtomFeed, safeUrlList } from "./providers/rssAtom.js";
+import { rankNewsItems } from "./score.js";
 import type { NewsItem, NewsPlan, NewsSourceId } from "./types.js";
 
 function utcDayKey(d: Date): string {
@@ -14,7 +17,14 @@ function utcDayKey(d: Date): string {
 }
 
 export function isKnownNewsSource(s: string): s is NewsSourceId {
-  return s === "base_blog" || s === "base_dev_blog" || s === "cdp_launches";
+  return (
+    s === "base_blog" ||
+    s === "base_dev_blog" ||
+    s === "cdp_launches" ||
+    s === "defillama" ||
+    s === "github" ||
+    s === "rss"
+  );
 }
 
 export function selectedNewsSourcesFromConfig(cfg: AppConfig): { sources: NewsSourceId[]; rejected: string[] } {
@@ -52,6 +62,7 @@ export async function getLatestNews(args: { sources: NewsSourceId[]; maxItems: n
       items.push({
         ...it,
         id,
+        fingerprint: it.fingerprint && it.fingerprint.trim() ? it.fingerprint : id,
         url: canonicalUrl
       });
     }
@@ -68,6 +79,75 @@ export async function getLatestNews(args: { sources: NewsSourceId[]; maxItems: n
   const seen = new Set<string>();
   const uniq: NewsItem[] = [];
   for (const it of items) {
+    const key = canonicalizeUrl(it.url);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    uniq.push(it);
+  }
+
+  return uniq.slice(0, args.maxItems);
+}
+
+async function getLatestNewsFromProviders(args: { cfg: AppConfig; sources: NewsSourceId[]; maxItems: number }): Promise<NewsItem[]> {
+  const items: NewsItem[] = [];
+
+  // HTML sources (Base blogs, CDP launches)
+  const htmlSources = args.sources.filter((s) => s === "base_blog" || s === "base_dev_blog" || s === "cdp_launches");
+  if (htmlSources.length) {
+    const htmlItems = await getLatestNews({ sources: htmlSources, maxItems: args.maxItems });
+    items.push(...htmlItems);
+  }
+
+  // DeFiLlama snapshot
+  if (args.sources.includes("defillama")) {
+    try {
+      items.push(...(await fetchDefiLlamaBaseSnapshot()));
+    } catch (err) {
+      logger.warn("news.defillama failed", { error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  // RSS/Atom feeds
+  if (args.sources.includes("rss")) {
+    const feeds = safeUrlList(args.cfg.NEWS_FEEDS);
+    for (const url of feeds) {
+      try {
+        items.push(...(await fetchRssAtomFeed(url)));
+      } catch (err) {
+        logger.warn("news.rss failed", { url, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+  }
+
+  // GitHub Atom feeds
+  if (args.sources.includes("github")) {
+    const feeds = safeUrlList(args.cfg.NEWS_GITHUB_FEEDS);
+    for (const url of feeds) {
+      try {
+        items.push(...(await fetchGitHubAtomFeed(url)));
+      } catch (err) {
+        logger.warn("news.github failed", { url, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+  }
+
+  // Normalize invariants and dedupe by canonical URL
+  const normalized: NewsItem[] = [];
+  for (const it of items) {
+    if (!it.url || !it.title) continue;
+    const canonicalUrl = canonicalizeUrl(it.url);
+    const id = it.id && it.id.trim() ? it.id : fingerprintNewsItem({ source: it.source, title: it.title, url: canonicalUrl });
+    normalized.push({
+      ...it,
+      id,
+      fingerprint: it.fingerprint && it.fingerprint.trim() ? it.fingerprint : id,
+      url: canonicalUrl
+    });
+  }
+
+  const seen = new Set<string>();
+  const uniq: NewsItem[] = [];
+  for (const it of normalized) {
     const key = canonicalizeUrl(it.url);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -150,7 +230,11 @@ export async function buildNewsPlan(args: { cfg: AppConfig; state: AgentState; n
     logger.warn("news.sources rejected", { rejected });
   }
 
-  const items = await getLatestNews({ sources, maxItems: args.cfg.NEWS_MAX_ITEMS_CONTEXT });
+  const rawItems = await getLatestNewsFromProviders({ cfg: args.cfg, sources, maxItems: Math.max(args.cfg.NEWS_MAX_ITEMS_CONTEXT, 25) });
+
+  // Score + rank, then apply NEWS_MIN_SCORE threshold.
+  const ranked = rankNewsItems(args.now.getTime(), rawItems).filter((it) => (it.score ?? 0) >= args.cfg.NEWS_MIN_SCORE);
+  const items = ranked.slice(0, args.cfg.NEWS_MAX_ITEMS_CONTEXT);
   const unseenItems = filterUnseenNewsItems(args.state, items);
 
   const plan = shouldPostNewsNow({

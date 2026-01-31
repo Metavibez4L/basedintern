@@ -109,6 +109,7 @@ describe("generateNewsTweet", () => {
     const cfg = mockCfg({ OPENAI_API_KEY: undefined });
     const chosenItem = {
       id: "x",
+      fingerprint: "x",
       source: "base_blog" as const,
       title: "Base posted something interesting",
       url: "https://blog.base.org/posts/hello"
@@ -128,6 +129,7 @@ describe("generateNewsTweet", () => {
     const cfg = mockCfg({ OPENAI_API_KEY: "fake" });
     const chosenItem = {
       id: "x",
+      fingerprint: "x",
       source: "base_blog" as const,
       title: "Some Base news",
       url: "https://blog.base.org/posts/hello"

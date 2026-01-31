@@ -5,6 +5,7 @@ import { BASED_INTERN_SYSTEM_PROMPT, BASED_INTERN_NEWS_TWEET_PROMPT } from "./pr
 import type { ProposedAction } from "./decision.js";
 import { buildTools } from "./tools.js";
 import type { NewsItem } from "../news/types.js";
+import { renderDeterministicNewsPost } from "../news/render.js";
 
 export type BrainContext = {
   wallet: Address;
@@ -46,7 +47,7 @@ export type NewsContext = {
 };
 
 export async function generateNewsTweet(cfg: AppConfig, newsContext: NewsContext): Promise<string> {
-  const fallback = deterministicNewsTweet(newsContext.chosenItem);
+  const fallback = deterministicNewsTweet(newsContext.now.getTime(), newsContext.chosenItem);
 
   if (!cfg.OPENAI_API_KEY) {
     return fallback;
@@ -70,9 +71,8 @@ export async function generateNewsTweet(cfg: AppConfig, newsContext: NewsContext
   }
 }
 
-function deterministicNewsTweet(item: NewsItem): string {
-  const base = `based intern memo \u{1F9FE} ${item.title} \u2014 ${item.url}`;
-  return truncateToMaxChars(base, 240);
+function deterministicNewsTweet(nowMs: number, item: NewsItem): string {
+  return renderDeterministicNewsPost(nowMs, item);
 }
 
 function truncateToMaxChars(s: string, max: number): string {
