@@ -28,7 +28,9 @@ This repo runs well on Railway as an always-on worker that posts receipts on a s
 - `BASE_RPC_URL=...` (only required if `CHAIN=base` OR if you prefer setting both)
 
 ### Token address (important on Railway)
-Because `deployments/*.json` is gitignored and not shipped inside the Docker image, you should set:
+By default, the Docker build copies `deployments/*.json`, so the runtime can auto-resolve `TOKEN_ADDRESS` from `deployments/<network>.json`.
+
+If you prefer explicit configuration (recommended for ops clarity), or if you deploy an image that does NOT include `deployments/`, set:
 - `TOKEN_ADDRESS=0x...` (the INTERN token address for the selected `CHAIN`)
 
 Known deployments:

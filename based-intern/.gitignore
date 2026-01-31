@@ -3,7 +3,6 @@ dist/
 artifacts/
 cache/
 typechain-types/
-deployments/*.json
 .env
 x_cookies.json
 

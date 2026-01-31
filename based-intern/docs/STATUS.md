@@ -194,7 +194,7 @@ Known Base mainnet (8453) deployment:
 
 ### Git Setup
 - [x] `.gitignore` - Excludes node_modules, .env, generated files
-- [x] Deployments JSON excluded (via `deployments/*.json`)
+- [x] Deployments JSON tracked (`deployments/*.json`) so networks/addresses are preserved
 - [x] State JSON excluded (default: `data/state.json`)
 - [x] Hardhat artifacts excluded
 - [x] Published to GitHub: `github.com/Metavibez4L/basedintern`
