@@ -98,6 +98,14 @@ Hardhat contract tests are also included (run with `npx hardhat test`).
   - **deployedAt**: `2026-01-30T03:25:50.255Z`
   - **BaseScan (verified)**: `https://basescan.org/address/0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11#code`
 
+### ERC-8004 (Identity Registry)
+
+- **Base mainnet (8453)**:
+  - **Identity Registry**: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
+  - **deployTx**: `0x803beaa7e7e06b30aca5cecb699f7d634a9437dec5a646855783d952e9bb4e6f`
+  - **Agent**: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
+  - **agentURI** (pinned): `https://raw.githubusercontent.com/Metavibez4L/basedintern/9a03a383107440d7c6ce360fe2efdce8b151ac40/based-intern/docs/agent.profile.json`
+
 ## Quick Start
 
 ### Step 1: Deploy Token
@@ -128,9 +136,17 @@ ERC-8004 gives the agent a portable identifier: `eip155:<chainId>:<identityRegis
 # Deploy the Identity Registry (writes deployments/<network>.json)
 npm run deploy:erc8004 -- --network baseSepolia
 
+# Mainnet:
+# npm run deploy:erc8004 -- --network base
+
 # Register an agentId + agentURI (also persisted to deployments/<network>.json)
 ERC8004_AGENT_URI="ipfs://<cid>" npm run register:agent -- --network baseSepolia
+
+# Mainnet example (domain not required; raw GitHub works fine):
+# ERC8004_AGENT_URI="https://raw.githubusercontent.com/Metavibez4L/basedintern/<commit>/based-intern/docs/agent.profile.json" npm run register:agent -- --network base
 ```
+
+Tip: make sure `BASE_RPC_URL` really points to Base mainnet (chainId 8453). If your RPC is accidentally Base Sepolia (84532), Hardhat will error with a chainId mismatch.
 
 To include the identifier in receipts, set:
 

@@ -43,16 +43,27 @@ If you want receipts to include a portable identifier, register this agent in th
 # Deploy the Identity Registry
 npm run deploy:erc8004 -- --network baseSepolia
 
+# Mainnet:
+# npm run deploy:erc8004 -- --network base
+
 # Register an agentId + agentURI
 ERC8004_AGENT_URI="ipfs://<cid>" npm run register:agent -- --network baseSepolia
 
+# Mainnet example (domain not required):
+# ERC8004_AGENT_URI="https://raw.githubusercontent.com/Metavibez4L/basedintern/<commit>/based-intern/docs/agent.profile.json" npm run register:agent -- --network base
+
 # Bind the agentId to the current wallet (EIP-712 signature)
 npm run set:agent-wallet -- --network baseSepolia
+
+# Mainnet:
+# ERC8004_NEW_WALLET="0x..." npm run set:agent-wallet -- --network base
 ```
 
 Notes:
 - Scripts persist to `deployments/<network>.json` by default; set `DEPLOYMENTS_FILE` to override.
 - To include the identifier in receipts, set `ERC8004_ENABLED=true` plus `ERC8004_IDENTITY_REGISTRY` and `ERC8004_AGENT_ID`.
+- If `ERC8004_NEW_WALLET` equals the deployer wallet running the script, the wallet-binding flow can auto-sign (no extra private key env var needed).
+- If Hardhat errors with a chainId mismatch, your RPC URL is pointing at the wrong network (Base mainnet is 8453 / `0x2105`, Base Sepolia is 84532 / `0x14a34`).
 
 ---
 

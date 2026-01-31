@@ -35,6 +35,11 @@ This document tracks the current implementation status of all features in the Ba
 - [x] Profile-first template JSON (`docs/agent.profile.json`)
 - [x] Strict/minimal template JSON (`docs/agent.registration.json`)
 
+Known Base mainnet (8453) deployment:
+- Identity Registry: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
+- Agent: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
+- agentURI (pinned): `https://raw.githubusercontent.com/Metavibez4L/basedintern/9a03a383107440d7c6ce360fe2efdce8b151ac40/based-intern/docs/agent.profile.json`
+
 ### Agent Runtime Core
 - [x] `src/index.ts` - Main tick loop
 - [x] `src/config.ts` - Zod-validated environment config
@@ -564,6 +569,9 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
 
 ### 2026-01-31
 - ✅ ERC-8004 Identity Registry support (deploy/register/bind wallet) + optional receipt `Agent:` line
+  - ✅ Base mainnet deploy: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
+  - ✅ Registered agentId: `1`
+  - ✅ set-agent-wallet executed on mainnet
 - ✅ Multi-instance support via `STATE_PATH` and script-level `DEPLOYMENTS_FILE`
 - ✅ Hardhat contract tests added (`npx hardhat test`)
 

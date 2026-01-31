@@ -139,6 +139,10 @@ If you want receipts to include a portable on-chain identifier, register the age
 - Strict/minimal template JSON (schema-first): [based-intern/docs/agent.registration.json](based-intern/docs/agent.registration.json)
 - Scripts live under `based-intern/scripts/` and are exposed as npm scripts in `based-intern/package.json`.
 
+Known Base mainnet (8453) ERC-8004 deployment:
+- Identity Registry: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
+- Agent: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
+
 ## 📝 License
 
 MIT
