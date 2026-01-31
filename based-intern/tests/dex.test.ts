@@ -66,7 +66,17 @@ const mockConfig: AppConfig = {
   X_COOKIES_B64: "",
   X_COOKIES_PATH: "",
   BASE_SEPOLIA_RPC_URL: "https://sepolia.base.org",
-  BASE_RPC_URL: "https://mainnet.base.org"
+  BASE_RPC_URL: "https://mainnet.base.org",
+
+  NEWS_ENABLED: false,
+  NEWS_MODE: "event",
+  NEWS_MAX_POSTS_PER_DAY: 2,
+  NEWS_MIN_INTERVAL_MINUTES: 120,
+  NEWS_REQUIRE_LINK: true,
+  NEWS_REQUIRE_SOURCE_WHITELIST: true,
+  NEWS_SOURCES: "base_blog,base_dev_blog,cdp_launches",
+  NEWS_DAILY_HOUR_UTC: 15,
+  NEWS_MAX_ITEMS_CONTEXT: 8
 };
 
 describe("DexProvider adapter shape", () => {

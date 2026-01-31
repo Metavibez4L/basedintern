@@ -1,0 +1,261 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { canonicalizeUrl, fingerprintNewsItem } from "../src/news/fingerprint.js";
+import { fetchAndParseNewsSource } from "../src/news/sources.js";
+import { shouldPostNewsNow, filterUnseenNewsItems } from "../src/news/news.js";
+import { addSeenNewsFingerprint } from "../src/agent/state.js";
+import type { AgentState } from "../src/agent/state.js";
+import type { AppConfig } from "../src/config.js";
+
+function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
+  const base: AppConfig = {
+    WALLET_MODE: "private_key",
+    PRIVATE_KEY: "0x" + "1".repeat(64),
+    BASE_SEPOLIA_RPC_URL: "http://localhost:8545",
+    BASE_RPC_URL: "http://localhost:8545",
+    CHAIN: "base-sepolia",
+    RPC_URL: undefined,
+    TOKEN_ADDRESS: undefined,
+
+    LOOP_MINUTES: 30,
+    DRY_RUN: true,
+    TRADING_ENABLED: false,
+    KILL_SWITCH: true,
+
+    DAILY_TRADE_CAP: 2,
+    MIN_INTERVAL_MINUTES: 60,
+    MAX_SPEND_ETH_PER_TRADE: "0.0005",
+    SELL_FRACTION_BPS: 500,
+    SLIPPAGE_BPS: 300,
+
+    APPROVE_MAX: false,
+    APPROVE_CONFIRMATIONS: 1,
+
+    WETH_ADDRESS: undefined,
+    ROUTER_TYPE: "unknown",
+    ROUTER_ADDRESS: undefined,
+    POOL_ADDRESS: undefined,
+
+    AERODROME_STABLE: false,
+    AERODROME_GAUGE_ADDRESS: undefined,
+
+    SOCIAL_MODE: "none",
+    HEADLESS: true,
+    X_USERNAME: undefined,
+    X_PASSWORD: undefined,
+    X_COOKIES_PATH: undefined,
+    X_COOKIES_B64: undefined,
+    X_API_KEY: undefined,
+    X_API_SECRET: undefined,
+    X_ACCESS_TOKEN: undefined,
+    X_ACCESS_SECRET: undefined,
+
+    X_PHASE1_MENTIONS: false,
+    X_POLL_MINUTES: 2,
+
+    OPENAI_API_KEY: undefined,
+
+    NEWS_ENABLED: true,
+    NEWS_MODE: "event",
+    NEWS_MAX_POSTS_PER_DAY: 2,
+    NEWS_MIN_INTERVAL_MINUTES: 120,
+    NEWS_REQUIRE_LINK: true,
+    NEWS_REQUIRE_SOURCE_WHITELIST: true,
+    NEWS_SOURCES: "base_blog,base_dev_blog,cdp_launches",
+    NEWS_DAILY_HOUR_UTC: 15,
+    NEWS_MAX_ITEMS_CONTEXT: 8
+  };
+  return { ...base, ...overrides };
+}
+
+function mockState(overrides?: Partial<AgentState>): AgentState {
+  const base: AgentState = {
+    lastExecutedTradeAtMs: null,
+    dayKey: "2026-01-30",
+    tradesExecutedToday: 0,
+
+    newsLastPostMs: null,
+    newsDailyCount: 0,
+    newsLastPostDayUtc: null,
+    seenNewsFingerprints: [],
+    lastPostedNewsFingerprint: null,
+
+    xApiFailureCount: 0,
+    xApiCircuitBreakerDisabledUntilMs: null,
+    lastPostedReceiptFingerprint: null,
+
+    lastSeenNonce: null,
+    lastSeenEthWei: null,
+    lastSeenTokenRaw: null,
+    lastSeenBlockNumber: null,
+
+    lastPostDayUtc: null,
+    lastSeenMentionId: undefined,
+    repliedMentionFingerprints: undefined,
+    lastSuccessfulMentionPollMs: undefined
+  };
+  return { ...base, ...overrides };
+}
+
+function stubFetchOnce(html: string, status = 200) {
+  globalThis.fetch = vi.fn(async () => {
+    return {
+      ok: status >= 200 && status <= 299,
+      status,
+      text: async () => html,
+      headers: new Headers()
+    } as any;
+  }) as any;
+}
+
+describe("news sources parsing", () => {
+  const realFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  it("parses base_blog anchors into items", async () => {
+    stubFetchOnce(`
+      <html>
+        <body>
+          <a href="/posts/hello-world">Hello World on Base</a>
+          <a href="/tag/something">tag page</a>
+        </body>
+      </html>
+    `);
+
+    const res = await fetchAndParseNewsSource("base_blog");
+    expect(res.errors).toEqual([]);
+    expect(res.items.length).toBeGreaterThanOrEqual(1);
+    expect(res.items[0]?.url).toContain("https://blog.base.org/");
+    expect(res.items[0]?.title.toLowerCase()).toContain("hello");
+  });
+
+  it("parses base_dev_blog anchors into items", async () => {
+    stubFetchOnce(`
+      <html>
+        <body>
+          <a href="/posts/dev-update">Dev Update: Sequencer</a>
+        </body>
+      </html>
+    `);
+
+    const res = await fetchAndParseNewsSource("base_dev_blog");
+    expect(res.errors).toEqual([]);
+    expect(res.items.length).toBeGreaterThanOrEqual(1);
+    expect(res.items[0]?.url).toContain("https://blog.base.dev/");
+  });
+
+  it("parses cdp_launches anchors into items", async () => {
+    stubFetchOnce(`
+      <html>
+        <body>
+          <a href="/developer-platform/discover/launches/some-launch">CDP Launch: Something New</a>
+          <a href="/other">Other</a>
+        </body>
+      </html>
+    `);
+
+    const res = await fetchAndParseNewsSource("cdp_launches");
+    expect(res.errors).toEqual([]);
+    expect(res.items.length).toBeGreaterThanOrEqual(1);
+    expect(res.items[0]?.url).toContain("coinbase.com");
+    expect(res.items[0]?.url).toContain("/developer-platform/");
+  });
+});
+
+describe("fingerprinting + canonicalization", () => {
+  it("canonicalizeUrl strips utm params and hash", () => {
+    const u = canonicalizeUrl("https://blog.base.org/posts/x?utm_source=aa&utm_medium=bb#section");
+    expect(u).toBe("https://blog.base.org/posts/x");
+  });
+
+  it("fingerprintNewsItem is stable across tracking params", () => {
+    const fp1 = fingerprintNewsItem({ source: "base_blog", title: "Hello   World", url: "https://blog.base.org/posts/x?utm_source=aa" });
+    const fp2 = fingerprintNewsItem({ source: "base_blog", title: "hello world", url: "https://blog.base.org/posts/x" });
+    expect(fp1).toBe(fp2);
+  });
+});
+
+describe("dedupe + posting logic", () => {
+  it("maintains an LRU of last 50 seen fingerprints", () => {
+    let state = mockState({ seenNewsFingerprints: [] });
+    for (let i = 0; i < 60; i++) {
+      state = addSeenNewsFingerprint(state, `fp-${i}`, 50);
+    }
+    expect(state.seenNewsFingerprints.length).toBe(50);
+    expect(state.seenNewsFingerprints[0]).toBe("fp-10");
+    expect(state.seenNewsFingerprints[49]).toBe("fp-59");
+
+    // re-add existing should move it to the newest position
+    state = addSeenNewsFingerprint(state, "fp-20", 50);
+    expect(state.seenNewsFingerprints.length).toBe(50);
+    expect(state.seenNewsFingerprints[49]).toBe("fp-20");
+  });
+
+  it("filters unseen items by fingerprint id", () => {
+    const itemA = { id: "a", source: "base_blog" as const, title: "A", url: "https://blog.base.org/a" };
+    const itemB = { id: "b", source: "base_blog" as const, title: "B", url: "https://blog.base.org/b" };
+
+    const state = mockState({ seenNewsFingerprints: ["a"] });
+    const unseen = filterUnseenNewsItems(state, [itemA, itemB]);
+    expect(unseen.map((x) => x.id)).toEqual(["b"]);
+  });
+
+  it("event mode posts only when there is an unseen item", () => {
+    const cfg = mockCfg({ NEWS_MODE: "event", NEWS_ENABLED: true });
+    const now = new Date("2026-01-30T12:00:00Z");
+
+    const state = mockState({ newsDailyCount: 0, newsLastPostMs: null });
+    const item = { id: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
+
+    const plan = shouldPostNewsNow({ cfg, state, now, unseenItems: [item] });
+    expect(plan.shouldPost).toBe(true);
+    expect(plan.item?.id).toBe("x");
+  });
+
+  it("daily mode posts only at configured UTC hour", () => {
+    const cfg = mockCfg({ NEWS_MODE: "daily", NEWS_DAILY_HOUR_UTC: 15, NEWS_ENABLED: true });
+    const item = { id: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
+
+    const state = mockState({ newsDailyCount: 0, newsLastPostDayUtc: null });
+
+    const no = shouldPostNewsNow({ cfg, state, now: new Date("2026-01-30T14:00:00Z"), unseenItems: [item] });
+    expect(no.shouldPost).toBe(false);
+
+    const yes = shouldPostNewsNow({ cfg, state, now: new Date("2026-01-30T15:00:00Z"), unseenItems: [item] });
+    expect(yes.shouldPost).toBe(true);
+  });
+
+  it("respects min interval and daily cap", () => {
+    const cfg = mockCfg({ NEWS_ENABLED: true, NEWS_MIN_INTERVAL_MINUTES: 120, NEWS_MAX_POSTS_PER_DAY: 2 });
+    const now = new Date("2026-01-30T12:00:00Z");
+    const item = { id: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
+
+    const tooSoon = shouldPostNewsNow({
+      cfg,
+      state: mockState({ newsLastPostMs: now.getTime() - 30 * 60 * 1000, newsDailyCount: 0, newsLastPostDayUtc: "2026-01-30" }),
+      now,
+      unseenItems: [item]
+    });
+    expect(tooSoon.shouldPost).toBe(false);
+
+    const capped = shouldPostNewsNow({
+      cfg,
+      state: mockState({ newsDailyCount: 2, newsLastPostDayUtc: "2026-01-30" }),
+      now,
+      unseenItems: [item]
+    });
+    expect(capped.shouldPost).toBe(false);
+  });
+
+  it("resets daily count at UTC midnight", () => {
+    const cfg = mockCfg({ NEWS_ENABLED: true, NEWS_MAX_POSTS_PER_DAY: 2 });
+    const now = new Date("2026-01-31T00:01:00Z");
+    const item = { id: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
+
+    const state = mockState({ newsDailyCount: 2, newsLastPostDayUtc: "2026-01-30" });
+    const plan = shouldPostNewsNow({ cfg, state, now, unseenItems: [item] });
+    expect(plan.shouldPost).toBe(true);
+  });
+});

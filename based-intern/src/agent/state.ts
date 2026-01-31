@@ -4,11 +4,12 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 2;
+const STATE_SCHEMA_VERSION = 3;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
  * v2: Added lastSeenBlockNumber for more precise activity detection (2026-01-30)
+ * v3: Added Base News Brain state (daily caps + dedupe) (2026-01-30)
  */
 
 export type AgentState = {
@@ -17,6 +18,16 @@ export type AgentState = {
   // UTC day key, e.g. "2026-01-29"
   dayKey: string;
   tradesExecutedToday: number;
+
+  // =========================
+  // Base News Brain
+  // =========================
+  newsLastPostMs: number | null;
+  newsDailyCount: number;
+  newsLastPostDayUtc: string | null;
+  seenNewsFingerprints: string[]; // LRU list (max 50)
+  lastPostedNewsFingerprint: string | null; // X idempotency (separate from receipts)
+
   // X API circuit breaker
   xApiFailureCount: number;
   xApiCircuitBreakerDisabledUntilMs: number | null;
@@ -40,6 +51,11 @@ export const DEFAULT_STATE: AgentState = {
   lastExecutedTradeAtMs: null,
   dayKey: utcDayKey(new Date()),
   tradesExecutedToday: 0,
+  newsLastPostMs: null,
+  newsDailyCount: 0,
+  newsLastPostDayUtc: null,
+  seenNewsFingerprints: [],
+  lastPostedNewsFingerprint: null,
   xApiFailureCount: 0,
   xApiCircuitBreakerDisabledUntilMs: null,
   lastPostedReceiptFingerprint: null,
@@ -70,7 +86,24 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     }
   }
 
+  // v2 → v3: Add Base News Brain fields
+  if (version === undefined || version < 3) {
+    logger.info("state migration", { from: version || 2, to: STATE_SCHEMA_VERSION });
+    if (!("newsLastPostMs" in raw)) raw.newsLastPostMs = null;
+    if (!("newsDailyCount" in raw)) raw.newsDailyCount = 0;
+    if (!("newsLastPostDayUtc" in raw)) raw.newsLastPostDayUtc = null;
+    if (!("seenNewsFingerprints" in raw) || !Array.isArray(raw.seenNewsFingerprints)) raw.seenNewsFingerprints = [];
+    if (!("lastPostedNewsFingerprint" in raw)) raw.lastPostedNewsFingerprint = null;
+  }
+
   return raw as AgentState;
+}
+
+// Test-only helper: allows validating migrations without touching the filesystem.
+export function migrateStateForTests(raw: any): AgentState {
+  const version = raw?.schemaVersion as number | undefined;
+  const copy = raw && typeof raw === "object" ? { ...raw } : raw;
+  return migrateState(copy, version);
 }
 
 export async function loadState(): Promise<AgentState> {
@@ -87,6 +120,11 @@ export async function loadState(): Promise<AgentState> {
       lastExecutedTradeAtMs: migrated.lastExecutedTradeAtMs ?? null,
       dayKey: migrated.dayKey ?? utcDayKey(new Date()),
       tradesExecutedToday: migrated.tradesExecutedToday ?? 0,
+      newsLastPostMs: migrated.newsLastPostMs ?? null,
+      newsDailyCount: migrated.newsDailyCount ?? 0,
+      newsLastPostDayUtc: migrated.newsLastPostDayUtc ?? null,
+      seenNewsFingerprints: Array.isArray(migrated.seenNewsFingerprints) ? migrated.seenNewsFingerprints : [],
+      lastPostedNewsFingerprint: migrated.lastPostedNewsFingerprint ?? null,
       xApiFailureCount: migrated.xApiFailureCount ?? 0,
       xApiCircuitBreakerDisabledUntilMs: migrated.xApiCircuitBreakerDisabledUntilMs ?? null,
       lastPostedReceiptFingerprint: migrated.lastPostedReceiptFingerprint ?? null,
@@ -105,6 +143,12 @@ export async function loadState(): Promise<AgentState> {
     if (merged.dayKey !== today) {
       merged.dayKey = today;
       merged.tradesExecutedToday = 0;
+    }
+
+    // Reset news daily counter if day rolled over.
+    const newsToday = today;
+    if (merged.newsLastPostDayUtc !== newsToday) {
+      merged.newsDailyCount = 0;
     }
 
     return merged;
@@ -137,6 +181,40 @@ export async function recordExecutedTrade(state: AgentState, at: Date): Promise<
   }
   next.tradesExecutedToday += 1;
   next.lastExecutedTradeAtMs = at.getTime();
+  await saveState(next);
+  return next;
+}
+
+export function resetNewsDailyCountIfNeeded(state: AgentState, at: Date): AgentState {
+  const today = utcDayKey(at);
+  if (state.newsLastPostDayUtc === today) return state;
+  return {
+    ...state,
+    newsDailyCount: 0
+  };
+}
+
+export function addSeenNewsFingerprint(state: AgentState, fingerprint: string, max = 50): AgentState {
+  const next = { ...state };
+  const existing = next.seenNewsFingerprints ?? [];
+  const filtered = existing.filter((f) => f !== fingerprint);
+  filtered.push(fingerprint);
+  while (filtered.length > max) filtered.shift();
+  next.seenNewsFingerprints = filtered;
+  return next;
+}
+
+export async function recordNewsPosted(state: AgentState, at: Date, fingerprintToRemember?: string): Promise<AgentState> {
+  let next: AgentState = { ...state };
+  next = resetNewsDailyCountIfNeeded(next, at);
+
+  const today = utcDayKey(at);
+  next.newsLastPostMs = at.getTime();
+  next.newsLastPostDayUtc = today;
+  next.newsDailyCount = (next.newsDailyCount ?? 0) + 1;
+  if (fingerprintToRemember) {
+    next = addSeenNewsFingerprint(next, fingerprintToRemember, 50);
+  }
   await saveState(next);
   return next;
 }
