@@ -213,6 +213,15 @@ SOCIAL_MODE=x_api TRADING_ENABLED=true KILL_SWITCH=false DRY_RUN=false npm run d
 - `WETH_ADDRESS=0x4200000000000000000000000000000000000006`
 - `AERODROME_STABLE=false`
 
+**Pluggable DEX providers**
+
+The agent now exposes a small DEX provider registry at `src/chain/dex`. A default Aerodrome adapter is included at `src/chain/dex/aerodromeAdapter.ts`.
+
+- To add a new provider, implement the `DexProvider` shape (see `src/chain/dex/index.ts`) and register the provider on import via `registerDexProvider()`.
+- Price lookups (`readBestEffortPrice`) and later trade routing will consult registered providers in order until a provider returns a usable quote. This makes the agent resilient to removed or unavailable test pools.
+
+If your `POOL_ADDRESS` was removed, either re-add a working pool address or add a fallback provider (TheGraph, on-chain factory query, or an HTTP price feed adapter).
+
 **For SELL trades** (optional, default safe):
 - `APPROVE_MAX=false` (default): Approve exact amount needed per trade
 - `APPROVE_MAX=true`: Approve MaxUint256 (unlimited, one approval per wallet)

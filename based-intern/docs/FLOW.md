@@ -242,6 +242,10 @@ SOCIAL_MODE=x_api DRY_RUN=true TRADING_ENABLED=false KILL_SWITCH=true \
 **Key Safety Features (Aerodrome Trading)**:
 - Pool read before every trade (real-time price discovery)
 - Constant product formula (x*y=k) with slippage protection
+ - Constant product formula (x*y=k) with slippage protection
+ - Pluggable DEX registry: the agent now supports multiple DEX adapters (Aerodrome adapter registered by default). Price lookup and routing are provider-driven so removing a single test pool will not break price discovery if alternate providers are configured.
+    - See `src/chain/dex` for the provider registry and adapters.
+    - To add providers, implement the `DexProvider` shape and register on import.
 - Swap calldata encoding with proper deadlines (10 minutes)
 - Detailed logging at each step (pool read, quote, calldata, submission)
 - Guardrails enforce caps BEFORE execution (not retriable)
@@ -260,6 +264,14 @@ SOCIAL_MODE=x_api DRY_RUN=true TRADING_ENABLED=false KILL_SWITCH=true \
 - Max spend per trade capped (default: 0.0005 ETH)
 - Sell fraction capped (default: 5% of holdings)
 - Operator can flip KILL_SWITCH=true at any time to stop trading immediately
+
+### Notes on removed/changed pools
+
+- If you removed a test pool (POOL_ADDRESS), the agent will no longer be able to quote from that specific pool. With the DEX registry, you can register alternate adapters (e.g., TheGraph, on-chain factory query) to provide fallback pricing. If no provider returns a quote, the agent reports `price: unknown` and proceeds with the deterministic/fallback path.
+
+**Quick remediation**:
+- Add an adapter under `src/chain/dex` that implements `getPrice(cfg, clients, token, weth)` and register it. The Aerodrome adapter is a reference implementation at `src/chain/dex/aerodromeAdapter.ts`.
+- Alternatively, set `POOL_ADDRESS` back to a working pool or configure an external HTTP price feed in a future provider.
 
 **Commands**:
 ```bash
