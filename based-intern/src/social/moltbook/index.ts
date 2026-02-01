@@ -66,10 +66,8 @@ export async function postMoltbookReceipt(
 ): Promise<{ posted: boolean; state: AgentState; reason?: string }> {
   const client = createMoltbookClient(cfg);
 
-  if (cfg.DRY_RUN) {
-    logger.info("moltbook.dry_run (would post)", { len: text.length });
-    return { posted: false, state, reason: "dry_run" };
-  }
+  // DRY_RUN is a trading safety flag; social posting is still safe/useful in DRY_RUN.
+  // The receipt text itself includes SIMULATED/LIVE mode.
 
   if (isDisabledByCircuitBreaker(state)) {
     logger.warn("moltbook posting disabled by circuit breaker", {
