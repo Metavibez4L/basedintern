@@ -36,6 +36,9 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
       const rawEnvEnabled = process.env.MOLTBOOK_ENABLED;
       const hasEnvVar = Object.hasOwn(process.env, "MOLTBOOK_ENABLED");
       const hasApiKeyEnvVar = Object.hasOwn(process.env, "MOLTBOOK_API_KEY") && Boolean(process.env.MOLTBOOK_API_KEY);
+      const moltbookEnvKeys = Object.keys(process.env)
+        .filter((k) => k.toUpperCase().startsWith("MOLTBOOK_"))
+        .sort();
       logger.warn("moltbook target disabled; skipping", {
         reason: "MOLTBOOK_ENABLED=false",
         configuredTargets: targetsRaw,
@@ -43,6 +46,7 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
           hasEnvVar,
           rawEnabled: rawEnvEnabled ?? null,
           hasApiKeyEnvVar,
+          presentKeys: moltbookEnvKeys,
           nodeEnv: process.env.NODE_ENV ?? null,
           cwd: process.cwd()
         }
