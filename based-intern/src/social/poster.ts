@@ -97,6 +97,13 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
             if (t === "moltbook") {
               const out = await postMoltbookReceipt(cfg, currentState, saveState, text);
               currentState = out.state;
+
+              if (!out.posted) {
+                logger.warn("social.multi moltbook did not post", {
+                  reason: out.reason ?? null,
+                  dryRun: cfg.DRY_RUN
+                });
+              }
               continue;
             }
             if (t === "playwright" && playwrightPoster) {
