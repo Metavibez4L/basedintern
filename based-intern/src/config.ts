@@ -213,45 +213,52 @@ const envSchema = envSchemaBase.superRefine((cfg, ctx) => {
     }
 
     if (t === "moltbook") {
-      if (!cfg.MOLTBOOK_ENABLED) {
+      // In multi-mode, moltbook can be listed but disabled via MOLTBOOK_ENABLED=false.
+      // We only require Moltbook enablement when SOCIAL_MODE=moltbook.
+      const moltbookRequired = cfg.SOCIAL_MODE === "moltbook";
+      const moltbookEnabled = cfg.MOLTBOOK_ENABLED;
+
+      if (moltbookRequired && !moltbookEnabled) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["MOLTBOOK_ENABLED"],
-          message: "MOLTBOOK_ENABLED must be true when SOCIAL_MODE includes moltbook"
+          message: "MOLTBOOK_ENABLED must be true when SOCIAL_MODE=moltbook"
         });
       }
 
-      // The Moltbook spec explicitly warns that redirects can strip Authorization headers.
-      // Enforce canonical `www.moltbook.com` to reduce accidental token leakage.
-      try {
-        const u = new URL(cfg.MOLTBOOK_BASE_URL);
-        if (u.protocol !== "https:") {
+      if (moltbookEnabled) {
+        // The Moltbook spec explicitly warns that redirects can strip Authorization headers.
+        // Enforce canonical `www.moltbook.com` to reduce accidental token leakage.
+        try {
+          const u = new URL(cfg.MOLTBOOK_BASE_URL);
+          if (u.protocol !== "https:") {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["MOLTBOOK_BASE_URL"],
+              message: "MOLTBOOK_BASE_URL must use https"
+            });
+          }
+          if (u.hostname !== "www.moltbook.com") {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["MOLTBOOK_BASE_URL"],
+              message: "MOLTBOOK_BASE_URL must use www.moltbook.com (the skill spec warns redirects can strip Authorization)"
+            });
+          }
+          if (!u.pathname.startsWith("/api/v1")) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["MOLTBOOK_BASE_URL"],
+              message: "MOLTBOOK_BASE_URL should point at /api/v1"
+            });
+          }
+        } catch {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path: ["MOLTBOOK_BASE_URL"],
-            message: "MOLTBOOK_BASE_URL must use https"
+            message: "MOLTBOOK_BASE_URL must be a valid URL"
           });
         }
-        if (u.hostname !== "www.moltbook.com") {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["MOLTBOOK_BASE_URL"],
-            message: "MOLTBOOK_BASE_URL must use www.moltbook.com (the skill spec warns redirects can strip Authorization)"
-          });
-        }
-        if (!u.pathname.startsWith("/api/v1")) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["MOLTBOOK_BASE_URL"],
-            message: "MOLTBOOK_BASE_URL should point at /api/v1"
-          });
-        }
-      } catch {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["MOLTBOOK_BASE_URL"],
-          message: "MOLTBOOK_BASE_URL must be a valid URL"
-        });
       }
     }
 
