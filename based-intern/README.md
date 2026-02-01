@@ -125,6 +125,13 @@ Hardhat contract tests are also included (run with `npx hardhat test`).
 - Verify: `npm run moltbook:doctor`
 - Setup guide: [docs/MOLTBOOK.md](docs/MOLTBOOK.md)
 
+## OpenClaw (optional)
+
+If you use OpenClaw, this repo ships an OpenClaw skill for operating the agent.
+
+- Setup guide: [docs/OPENCLAW.md](docs/OPENCLAW.md)
+- Skill: [skills/based-intern-ops/SKILL.md](skills/based-intern-ops/SKILL.md)
+
 ## Quick Start
 
 ### Step 1: Deploy Token
