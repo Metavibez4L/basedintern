@@ -39,8 +39,27 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
       const moltbookEnvKeys = Object.keys(process.env)
         .filter((k) => k.toUpperCase().startsWith("MOLTBOOK_"))
         .sort();
+
+      // Railway edge case: sometimes a single variable doesn't get injected even when others do.
+      // If the explicit enable flag is missing but an API key exists, treat Moltbook as enabled.
+      // This preserves the default-off behavior while preventing confusing partial-config failures.
+      if (!hasEnvVar && hasApiKeyEnvVar) {
+        logger.warn("MOLTBOOK_ENABLED missing; enabling moltbook implicitly because MOLTBOOK_API_KEY is present", {
+          configuredTargets: targetsRaw,
+          env: {
+            hasEnvVar,
+            rawEnabled: rawEnvEnabled ?? null,
+            hasApiKeyEnvVar,
+            presentKeys: moltbookEnvKeys,
+            nodeEnv: process.env.NODE_ENV ?? null,
+            cwd: process.cwd()
+          }
+        });
+        return true;
+      }
+
       logger.warn("moltbook target disabled; skipping", {
-        reason: "MOLTBOOK_ENABLED=false",
+        reason: hasEnvVar ? "MOLTBOOK_ENABLED=false" : "MOLTBOOK_ENABLED missing",
         configuredTargets: targetsRaw,
         env: {
           hasEnvVar,
