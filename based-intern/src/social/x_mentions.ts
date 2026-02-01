@@ -352,8 +352,13 @@ async function postReply(cfg: AppConfig, inReplyToTweetId: string, replyText: st
 
   const url = "https://api.twitter.com/2/tweets";
   const method = "POST";
+
+  // X forbids duplicate Tweet content even across different reply threads.
+  // Add a short deterministic suffix so replies to different mentions are not identical.
+  const uniqueSuffix = ` ref:${inReplyToTweetId.slice(-6)}`;
+  const uniqueText = truncateForTweet(replyText + uniqueSuffix);
   const payload = JSON.stringify({
-    text: replyText,
+    text: uniqueText,
     reply: {
       in_reply_to_tweet_id: inReplyToTweetId
     }
@@ -380,6 +385,13 @@ async function postReply(cfg: AppConfig, inReplyToTweetId: string, replyText: st
 
   if (!res.ok) {
     const body = await res.text();
+
+    // If we already posted an identical reply in the past, treat this as satisfied idempotency.
+    // This prevents spammy retry loops when multiple mentions arrive with the same command.
+    if (res.status === 403 && /duplicate content/i.test(body)) {
+      return `duplicate:${inReplyToTweetId}`;
+    }
+
     throw new Error(`Failed to post reply: ${res.status} ${body}`);
   }
 
