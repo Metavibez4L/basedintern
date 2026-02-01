@@ -35,6 +35,7 @@ function mockConfig(overrides?: Partial<AppConfig>): AppConfig {
     APPROVE_CONFIRMATIONS: 1,
     OPENAI_API_KEY: undefined,
     SOCIAL_MODE: "x_api",
+    SOCIAL_MULTI_TARGETS: "x_api,moltbook",
     HEADLESS: true,
     X_API_KEY: "test_key",
     X_API_SECRET: "test_secret",
@@ -42,6 +43,14 @@ function mockConfig(overrides?: Partial<AppConfig>): AppConfig {
     X_ACCESS_SECRET: "test_secret",
     X_PHASE1_MENTIONS: true,
     X_POLL_MINUTES: 2,
+
+    MOLTBOOK_ENABLED: false,
+    MOLTBOOK_BASE_URL: "https://www.moltbook.com/api/v1",
+    MOLTBOOK_AUTH_MODE: "bearer",
+    MOLTBOOK_API_KEY: undefined,
+    MOLTBOOK_COOKIE_PATH: "data/moltbook/cookies.json",
+    MOLTBOOK_SESSION_PATH: "data/moltbook/session.json",
+    MOLTBOOK_USER_AGENT: "BasedIntern/1.0",
 
     NEWS_ENABLED: false,
     NEWS_MODE: "event",
@@ -445,5 +454,10 @@ const defaultState: AgentState = {
   lastSeenEthWei: null,
   lastSeenTokenRaw: null,
   lastSeenBlockNumber: null,
-  lastPostDayUtc: null
+  lastPostDayUtc: null,
+
+  moltbookLastPostMs: null,
+  lastPostedMoltbookReceiptFingerprint: null,
+  moltbookFailureCount: 0,
+  moltbookCircuitBreakerDisabledUntilMs: null
 };

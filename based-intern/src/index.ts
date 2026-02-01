@@ -46,7 +46,10 @@ async function tick(): Promise<void> {
   // PHASE 1: X MENTIONS POLLER (Intent Recognition, No Execution)
   // ============================================================
   // Poll mentions at X_POLL_MINUTES interval if enabled
-  if (cfg.X_PHASE1_MENTIONS && cfg.SOCIAL_MODE === "x_api") {
+  const xApiEnabledForMentions =
+    cfg.SOCIAL_MODE === "x_api" || (cfg.SOCIAL_MODE === "multi" && cfg.SOCIAL_MULTI_TARGETS.split(",").map((s) => s.trim()).includes("x_api"));
+
+  if (cfg.X_PHASE1_MENTIONS && xApiEnabledForMentions) {
     const lastPollMs = state.lastSuccessfulMentionPollMs ?? 0;
     const pollIntervalMs = cfg.X_POLL_MINUTES * 60 * 1000;
     const timeSinceLastPoll = Date.now() - lastPollMs;

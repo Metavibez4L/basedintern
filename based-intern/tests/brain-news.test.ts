@@ -76,6 +76,7 @@ function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
     AERODROME_GAUGE_ADDRESS: undefined,
 
     SOCIAL_MODE: "none",
+  SOCIAL_MULTI_TARGETS: "x_api,moltbook",
     HEADLESS: true,
     X_USERNAME: undefined,
     X_PASSWORD: undefined,
@@ -88,6 +89,14 @@ function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
 
     X_PHASE1_MENTIONS: false,
     X_POLL_MINUTES: 2,
+
+    MOLTBOOK_ENABLED: false,
+    MOLTBOOK_BASE_URL: "https://www.moltbook.com/api/v1",
+    MOLTBOOK_AUTH_MODE: "bearer",
+    MOLTBOOK_API_KEY: undefined,
+    MOLTBOOK_COOKIE_PATH: "data/moltbook/cookies.json",
+    MOLTBOOK_SESSION_PATH: "data/moltbook/session.json",
+    MOLTBOOK_USER_AGENT: "BasedIntern/1.0",
 
     OPENAI_API_KEY: undefined,
 

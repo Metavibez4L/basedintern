@@ -18,3 +18,8 @@ Thumbs.db
 # Runtime state
 data/state.json
 
+# Moltbook (local, never commit)
+data/moltbook/skill.md
+data/moltbook/cookies.json
+data/moltbook/session.json
+

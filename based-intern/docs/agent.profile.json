@@ -22,8 +22,8 @@
   ],
   "registrations": [
     {
-      "agentRegistry": "eip155:8453:0x0000000000000000000000000000000000000000",
-      "agentId": 0
+      "agentRegistry": "eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482",
+      "agentId": 1
     }
   ],
   "capabilities": [
@@ -56,6 +56,10 @@
     "contact": {
       "name": "Based Intern Operator",
       "url": "https://x.com/basedintern"
+    },
+    "moltbook": {
+      "agentName": "BasedIntern_wi5rcx",
+      "status": "claimed"
     }
   }
 }

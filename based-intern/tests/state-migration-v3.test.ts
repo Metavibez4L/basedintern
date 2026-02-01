@@ -31,5 +31,11 @@ describe("state migration v2 -> v3", () => {
     expect(Array.isArray(migrated.seenNewsFingerprints)).toBe(true);
     expect(migrated.seenNewsFingerprints.length).toBe(0);
     expect(migrated.lastPostedNewsFingerprint).toBeNull();
+
+    // Moltbook fields (added in v4) should also be initialized
+    expect(migrated.moltbookLastPostMs).toBeNull();
+    expect(migrated.lastPostedMoltbookReceiptFingerprint).toBeNull();
+    expect(migrated.moltbookFailureCount).toBe(0);
+    expect(migrated.moltbookCircuitBreakerDisabledUntilMs).toBeNull();
   });
 });

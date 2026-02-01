@@ -55,6 +55,7 @@ const mockConfig: AppConfig = {
   KILL_SWITCH: true,
   DRY_RUN: true,
   SOCIAL_MODE: "none",
+  SOCIAL_MULTI_TARGETS: "x_api,moltbook",
   LOOP_MINUTES: 30,
   APPROVE_MAX: false,
   APPROVE_CONFIRMATIONS: 1,
@@ -67,6 +68,14 @@ const mockConfig: AppConfig = {
   X_POLL_MINUTES: 5,
   X_COOKIES_B64: "",
   X_COOKIES_PATH: "",
+
+  MOLTBOOK_ENABLED: false,
+  MOLTBOOK_BASE_URL: "https://www.moltbook.com/api/v1",
+  MOLTBOOK_AUTH_MODE: "bearer",
+  MOLTBOOK_API_KEY: undefined,
+  MOLTBOOK_COOKIE_PATH: "data/moltbook/cookies.json",
+  MOLTBOOK_SESSION_PATH: "data/moltbook/session.json",
+  MOLTBOOK_USER_AGENT: "BasedIntern/1.0",
   BASE_SEPOLIA_RPC_URL: "https://sepolia.base.org",
   BASE_RPC_URL: "https://mainnet.base.org",
 

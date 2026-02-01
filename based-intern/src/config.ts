@@ -18,9 +18,10 @@ const BoolFromString = z
 
 const Chain = z.enum(["base-sepolia", "base"]);
 const WalletMode = z.enum(["private_key", "cdp"]);
-const SocialMode = z.enum(["none", "playwright", "x_api"]);
+const SocialMode = z.enum(["none", "playwright", "x_api", "moltbook", "multi"]);
 const RouterType = z.enum(["unknown", "aerodrome", "uniswap-v3"]);
 const NewsMode = z.enum(["event", "daily"]);
+const MoltbookAuthMode = z.enum(["cookie", "apiKey", "bearer"]);
 
 function parseCsv(s: string): string[] {
   return s
@@ -90,6 +91,9 @@ const envSchemaBase = z.object({
 
   // Social posting
   SOCIAL_MODE: trimmedEnum(SocialMode).default("none"),
+  // Used only when SOCIAL_MODE=multi. Comma-separated list of targets.
+  // Example: "x_api,moltbook" or "playwright,moltbook"
+  SOCIAL_MULTI_TARGETS: z.string().trim().default("x_api,moltbook"),
   HEADLESS: BoolFromString.default("true"),
   X_USERNAME: z.string().optional(),
   X_PASSWORD: z.string().optional(),
@@ -101,6 +105,17 @@ const envSchemaBase = z.object({
   X_API_SECRET: z.string().optional(),
   X_ACCESS_TOKEN: z.string().optional(),
   X_ACCESS_SECRET: z.string().optional(),
+
+  // Moltbook (optional social mode)
+  MOLTBOOK_ENABLED: BoolFromString.default("false"),
+  // From Moltbook skill spec: https://www.moltbook.com/api/v1
+  MOLTBOOK_BASE_URL: z.string().trim().min(1).default("https://www.moltbook.com/api/v1"),
+  MOLTBOOK_AUTH_MODE: trimmedEnum(MoltbookAuthMode).default("bearer"),
+  // Optional env-based key. CLI can also persist this into session.json.
+  MOLTBOOK_API_KEY: z.string().optional(),
+  MOLTBOOK_COOKIE_PATH: z.string().trim().min(1).default("data/moltbook/cookies.json"),
+  MOLTBOOK_SESSION_PATH: z.string().trim().min(1).default("data/moltbook/session.json"),
+  MOLTBOOK_USER_AGENT: z.string().trim().min(1).default("BasedIntern/1.0"),
 
   // X Phase 1 mentions poller (intent recognition, no execution)
   X_PHASE1_MENTIONS: BoolFromString.default("false"), // Enable mention polling + intent replies
@@ -158,21 +173,95 @@ const envSchema = envSchemaBase.superRefine((cfg, ctx) => {
   }
 
   // Social mode requirements
-  if (cfg.SOCIAL_MODE === "x_api") {
-    const req = (key: "X_API_KEY" | "X_API_SECRET" | "X_ACCESS_TOKEN" | "X_ACCESS_SECRET") => {
-      const v = cfg[key];
-      if (!v || !v.trim()) {
+  const targets: string[] =
+    cfg.SOCIAL_MODE === "multi" ? parseCsv(cfg.SOCIAL_MULTI_TARGETS) : [cfg.SOCIAL_MODE];
+
+  if (cfg.SOCIAL_MODE === "multi" && targets.length === 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["SOCIAL_MULTI_TARGETS"],
+      message: "SOCIAL_MULTI_TARGETS must list at least one target when SOCIAL_MODE=multi"
+    });
+  }
+
+  for (const t of targets) {
+    if (t === "x_api") {
+      const req = (key: "X_API_KEY" | "X_API_SECRET" | "X_ACCESS_TOKEN" | "X_ACCESS_SECRET") => {
+        const v = cfg[key];
+        if (!v || !v.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [key],
+            message: `${key} is required when SOCIAL_MODE includes x_api`
+          });
+        }
+      };
+      req("X_API_KEY");
+      req("X_API_SECRET");
+      req("X_ACCESS_TOKEN");
+      req("X_ACCESS_SECRET");
+    }
+
+    if (t === "playwright") {
+      if (!cfg.X_COOKIES_PATH && !cfg.X_COOKIES_B64) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: [key],
-          message: `${key} is required when SOCIAL_MODE=x_api`
+          path: ["X_COOKIES_PATH"],
+          message: "X_COOKIES_PATH or X_COOKIES_B64 is required when SOCIAL_MODE includes playwright"
         });
       }
-    };
-    req("X_API_KEY");
-    req("X_API_SECRET");
-    req("X_ACCESS_TOKEN");
-    req("X_ACCESS_SECRET");
+    }
+
+    if (t === "moltbook") {
+      if (!cfg.MOLTBOOK_ENABLED) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["MOLTBOOK_ENABLED"],
+          message: "MOLTBOOK_ENABLED must be true when SOCIAL_MODE includes moltbook"
+        });
+      }
+
+      // The Moltbook spec explicitly warns that redirects can strip Authorization headers.
+      // Enforce canonical `www.moltbook.com` to reduce accidental token leakage.
+      try {
+        const u = new URL(cfg.MOLTBOOK_BASE_URL);
+        if (u.protocol !== "https:") {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["MOLTBOOK_BASE_URL"],
+            message: "MOLTBOOK_BASE_URL must use https"
+          });
+        }
+        if (u.hostname !== "www.moltbook.com") {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["MOLTBOOK_BASE_URL"],
+            message: "MOLTBOOK_BASE_URL must use www.moltbook.com (the skill spec warns redirects can strip Authorization)"
+          });
+        }
+        if (!u.pathname.startsWith("/api/v1")) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["MOLTBOOK_BASE_URL"],
+            message: "MOLTBOOK_BASE_URL should point at /api/v1"
+          });
+        }
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["MOLTBOOK_BASE_URL"],
+          message: "MOLTBOOK_BASE_URL must be a valid URL"
+        });
+      }
+    }
+
+    if (t !== "none" && t !== "x_api" && t !== "playwright" && t !== "moltbook" && t !== "multi") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["SOCIAL_MULTI_TARGETS"],
+        message: `unknown SOCIAL_MULTI_TARGETS entry: ${t}`
+      });
+    }
   }
 
   // ERC-8004 requirements
@@ -255,9 +344,30 @@ function validateGuardrails(cfg: AppConfig): string[] {
   }
 
   // Social mode consistency
-  if (cfg.SOCIAL_MODE === "playwright") {
+  const targets = cfg.SOCIAL_MODE === "multi" ? parseCsv(cfg.SOCIAL_MULTI_TARGETS) : [cfg.SOCIAL_MODE];
+  if (cfg.SOCIAL_MODE === "multi" && targets.length === 0) {
+    errors.push("SOCIAL_MULTI_TARGETS must list at least one target when SOCIAL_MODE=multi");
+  }
+
+  if (targets.includes("playwright")) {
     if (!cfg.X_COOKIES_PATH && !cfg.X_COOKIES_B64) {
-      errors.push("X_COOKIES_PATH or X_COOKIES_B64 is required when SOCIAL_MODE=playwright");
+      errors.push("X_COOKIES_PATH or X_COOKIES_B64 is required when SOCIAL_MODE includes playwright");
+    }
+  }
+
+  if (targets.includes("moltbook")) {
+    if (!cfg.MOLTBOOK_ENABLED) {
+      errors.push("MOLTBOOK_ENABLED must be true when SOCIAL_MODE includes moltbook");
+    }
+    try {
+      const u = new URL(cfg.MOLTBOOK_BASE_URL);
+      if (u.protocol !== "https:") errors.push("MOLTBOOK_BASE_URL must use https");
+      if (u.hostname !== "www.moltbook.com") {
+        errors.push("MOLTBOOK_BASE_URL must use www.moltbook.com (redirects can strip Authorization)");
+      }
+      if (!u.pathname.startsWith("/api/v1")) errors.push("MOLTBOOK_BASE_URL should point at /api/v1");
+    } catch {
+      errors.push("MOLTBOOK_BASE_URL must be a valid URL");
     }
   }
 
@@ -269,8 +379,13 @@ function validateGuardrails(cfg: AppConfig): string[] {
     const postsPerDay = cfg.NEWS_POSTS_PER_DAY ?? cfg.NEWS_MAX_POSTS_PER_DAY;
     const intervalMinutes = cfg.NEWS_INTERVAL_MINUTES ?? cfg.NEWS_MIN_INTERVAL_MINUTES;
 
-    if (cfg.SOCIAL_MODE !== "x_api" && cfg.SOCIAL_MODE !== "none") {
-      errors.push("When NEWS_ENABLED=true, SOCIAL_MODE must be x_api or none");
+    const canPostNewsToX =
+      cfg.SOCIAL_MODE === "x_api" ||
+      cfg.SOCIAL_MODE === "none" ||
+      (cfg.SOCIAL_MODE === "multi" && parseCsv(cfg.SOCIAL_MULTI_TARGETS).includes("x_api"));
+
+    if (!canPostNewsToX) {
+      errors.push("When NEWS_ENABLED=true, SOCIAL_MODE must be x_api, multi (including x_api), or none");
     }
     if (postsPerDay <= 0) {
       errors.push("NEWS_MAX_POSTS_PER_DAY must be > 0 when NEWS_ENABLED=true");

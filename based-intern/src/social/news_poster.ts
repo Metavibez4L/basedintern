@@ -20,7 +20,11 @@ export async function postNewsTweet(
     return { posted: true, state };
   }
 
-  if (cfg.SOCIAL_MODE !== "x_api") {
+  const xApiEnabled =
+    cfg.SOCIAL_MODE === "x_api" ||
+    (cfg.SOCIAL_MODE === "multi" && cfg.SOCIAL_MULTI_TARGETS.split(",").map((s) => s.trim()).includes("x_api"));
+
+  if (!xApiEnabled) {
     logger.warn("news.skip (unsupported SOCIAL_MODE)", { socialMode: cfg.SOCIAL_MODE });
     return { posted: false, state, reason: "unsupported social mode" };
   }

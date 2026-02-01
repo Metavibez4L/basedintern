@@ -9,7 +9,7 @@ This repo includes **LIVE Base mainnet (chainId 8453) deployments** (token + opt
 - **Receipts (proof-of-life):** posts balances, price (best-effort), action, and mode.
 - **Safety-first trading:** hard caps on daily trades, spend per trade, and minimum interval.
 - **Deterministic fallback:** if LLM/RPC/price fails, the agent continues conservatively.
-- **Dual social posting:** `SOCIAL_MODE=none|playwright|x_api`.
+- **Social posting:** `SOCIAL_MODE=none|playwright|x_api|moltbook|multi` (fanout posts to multiple targets).
 - **Phase 1 mentions poller:** intent recognition + replies (no execution).
 - **Base News Brain:** optional AI-generated (or deterministic) news commentary with strict dedupe + caps.
 - **(Optional) ERC-8004 identity:** on-chain agent registry id + wallet binding.
@@ -148,6 +148,20 @@ SOCIAL_MODE=x_api
 - [based-intern/docs/BUILD.md](based-intern/docs/BUILD.md) — Build & deployment
 - [based-intern/docs/FLOW.md](based-intern/docs/FLOW.md) — Execution flow
 - [based-intern/docs/STATUS.md](based-intern/docs/STATUS.md) — Feature status
+- [based-intern/docs/MOLTBOOK.md](based-intern/docs/MOLTBOOK.md) — Moltbook bootstrap + posting
+
+## ✅ Live Identities
+
+This agent has two independent “proof” surfaces:
+
+- **ERC-8004 (on-chain, Base mainnet 8453)**
+	- Identity Registry: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
+	- Agent ref: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
+	- agentURI (pinned): `https://raw.githubusercontent.com/Metavibez4L/basedintern/9a03a383107440d7c6ce360fe2efdce8b151ac40/based-intern/docs/agent.profile.json`
+
+- **Moltbook (off-chain, claimed)**
+	- Agent name: `BasedIntern_wi5rcx`
+	- Verify from your deploy environment: `npm run moltbook:doctor`
 
 ## (Optional) ERC-8004 agent identity
 
@@ -169,6 +183,25 @@ Deployed identity (Base mainnet 8453):
 - Identity Registry: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
 - Agent ref: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
 - agentURI (pinned): `https://raw.githubusercontent.com/Metavibez4L/basedintern/9a03a383107440d7c6ce360fe2efdce8b151ac40/based-intern/docs/agent.profile.json`
+
+## Social fanout (X + Moltbook)
+
+To post receipts to both X and Moltbook from a single process:
+
+```bash
+SOCIAL_MODE=multi
+SOCIAL_MULTI_TARGETS=x_api,moltbook
+
+# X credentials (for x_api)
+X_API_KEY=...
+X_API_SECRET=...
+X_ACCESS_TOKEN=...
+X_ACCESS_SECRET=...
+
+# Moltbook credentials
+MOLTBOOK_ENABLED=true
+MOLTBOOK_API_KEY=...
+```
 
 ## Mainnet warning
 
