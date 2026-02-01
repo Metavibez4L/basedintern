@@ -356,18 +356,21 @@ function validateGuardrails(cfg: AppConfig): string[] {
   }
 
   if (targets.includes("moltbook")) {
-    if (!cfg.MOLTBOOK_ENABLED) {
-      errors.push("MOLTBOOK_ENABLED must be true when SOCIAL_MODE includes moltbook");
+    if (cfg.SOCIAL_MODE === "moltbook" && !cfg.MOLTBOOK_ENABLED) {
+      errors.push("MOLTBOOK_ENABLED must be true when SOCIAL_MODE=moltbook");
     }
-    try {
-      const u = new URL(cfg.MOLTBOOK_BASE_URL);
-      if (u.protocol !== "https:") errors.push("MOLTBOOK_BASE_URL must use https");
-      if (u.hostname !== "www.moltbook.com") {
-        errors.push("MOLTBOOK_BASE_URL must use www.moltbook.com (redirects can strip Authorization)");
+
+    if (cfg.MOLTBOOK_ENABLED) {
+      try {
+        const u = new URL(cfg.MOLTBOOK_BASE_URL);
+        if (u.protocol !== "https:") errors.push("MOLTBOOK_BASE_URL must use https");
+        if (u.hostname !== "www.moltbook.com") {
+          errors.push("MOLTBOOK_BASE_URL must use www.moltbook.com (redirects can strip Authorization)");
+        }
+        if (!u.pathname.startsWith("/api/v1")) errors.push("MOLTBOOK_BASE_URL should point at /api/v1");
+      } catch {
+        errors.push("MOLTBOOK_BASE_URL must be a valid URL");
       }
-      if (!u.pathname.startsWith("/api/v1")) errors.push("MOLTBOOK_BASE_URL should point at /api/v1");
-    } catch {
-      errors.push("MOLTBOOK_BASE_URL must be a valid URL");
     }
   }
 

@@ -28,7 +28,17 @@ function parseSocialTargets(raw: string): Array<"x_api" | "playwright" | "moltbo
 
 export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
   if (cfg.SOCIAL_MODE === "multi") {
-    const targets = parseSocialTargets(cfg.SOCIAL_MULTI_TARGETS);
+    const targetsRaw = parseSocialTargets(cfg.SOCIAL_MULTI_TARGETS);
+    const targets = targetsRaw.filter((t) => {
+      if (t !== "moltbook") return true;
+      if (cfg.MOLTBOOK_ENABLED) return true;
+      logger.warn("moltbook target disabled; skipping", {
+        reason: "MOLTBOOK_ENABLED=false",
+        configuredTargets: targetsRaw
+      });
+      return false;
+    });
+
     if (targets.length === 0) {
       throw new Error("SOCIAL_MODE=multi requires SOCIAL_MULTI_TARGETS to include at least one of: x_api, playwright, moltbook");
     }
