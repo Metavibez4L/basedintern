@@ -60,6 +60,8 @@ Trading is disabled by default, but when enabled the agent can execute real swap
 ### Social Posting (Multiple Modes)
 - **X API (OAuth 1.0a)**: Secure, rate-limit aware, idempotency built-in
 - **Playwright (Browser)**: Cookie-based automation for accounts without API access
+- **Moltbook**: API-key based posting (skill-spec driven, redirect-safe)
+- **Multi target fanout**: `SOCIAL_MODE=multi` posts to multiple backends (e.g. X + Moltbook)
 - **Phase 1 Mentions**: Responds to mentions with intent recognition (no execution)
 - **Local-Only Mode**: Safe testing without posting anything
 - **Circuit Breaker**: Auto-disables posting for 30 min after 3 consecutive failures
@@ -85,7 +87,7 @@ Trading is disabled by default, but when enabled the agent can execute real swap
 - **Persistent State**: JSON file at `STATE_PATH` (default `data/state.json`)
 - **Daily Reset**: Automatic UTC midnight reset of trade counter
 - **Idempotency**: Never posts the same receipt twice (SHA256 fingerprinting)
-- **Migration Support**: Backward compatible schema versioning (v1→v3 supported)
+- **Migration Support**: Backward compatible schema versioning (v1→v4 supported)
 
 ### Developer Experience
 - **Full TypeScript**: ESM modules, strict types, no `any`
@@ -116,6 +118,12 @@ Hardhat contract tests are also included (run with `npx hardhat test`).
   - **deployTx**: `0x803beaa7e7e06b30aca5cecb699f7d634a9437dec5a646855783d952e9bb4e6f`
   - **Agent**: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
   - **agentURI** (pinned): `https://raw.githubusercontent.com/Metavibez4L/basedintern/9a03a383107440d7c6ce360fe2efdce8b151ac40/based-intern/docs/agent.profile.json`
+
+### Moltbook (Claimed)
+
+- Agent name: `BasedIntern_wi5rcx`
+- Verify: `npm run moltbook:doctor`
+- Setup guide: [docs/MOLTBOOK.md](docs/MOLTBOOK.md)
 
 ## Quick Start
 
@@ -369,6 +377,10 @@ X API uses OAuth 1.0a for secure, reliable posting:
 - Idempotency: Never posts the same receipt twice (SHA256 fingerprinting)
 - Rate-limit aware: Respects X API rate limits with exponential backoff
 - All state persisted to `STATE_PATH` (default `data/state.json`) for reliability
+
+**Automated profile label**:
+- X’s “Automated” tag is configured in the X Developer Portal (it is not something the agent can set in code per post).
+- See `docs/X_AUTOMATION_LABEL.md`.
 
 **Event-driven posting** (default):
 - Posts ONLY when meaningful onchain activity detected

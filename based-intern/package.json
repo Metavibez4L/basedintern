@@ -19,7 +19,15 @@
     "register:agent": "hardhat run scripts/register-agent.ts",
     "set:agent-wallet": "hardhat run scripts/set-agent-wallet.ts",
     "dev": "tsx src/index.ts",
-    "x:cookies": "tsx scripts/save-x-cookies.ts"
+    "x:cookies": "tsx scripts/save-x-cookies.ts",
+
+    "moltbook:fetch-skill": "tsx scripts/fetch-moltbook-skill.ts",
+    "moltbook:register": "tsx src/cli/moltbook.ts register",
+    "moltbook:status": "tsx src/cli/moltbook.ts status",
+    "moltbook:claim": "tsx src/cli/moltbook.ts claim",
+    "moltbook:doctor": "tsx src/cli/moltbook.ts doctor",
+    "moltbook:import-cookie": "tsx src/cli/moltbook.ts import-cookie",
+    "moltbook:set-key": "tsx src/cli/moltbook.ts set-key"
   },
   "dependencies": {
     "@langchain/core": "^0.3.0",

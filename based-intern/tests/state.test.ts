@@ -21,7 +21,12 @@ function mockState(overrides?: Partial<AgentState>): AgentState {
     lastSeenEthWei: null,
     lastSeenTokenRaw: null,
     lastSeenBlockNumber: null,
-    lastPostDayUtc: null
+    lastPostDayUtc: null,
+
+    moltbookLastPostMs: null,
+    lastPostedMoltbookReceiptFingerprint: null,
+    moltbookFailureCount: 0,
+    moltbookCircuitBreakerDisabledUntilMs: null
   };
 
   return { ...base, ...overrides };

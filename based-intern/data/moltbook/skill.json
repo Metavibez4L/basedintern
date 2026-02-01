@@ -1,0 +1,32 @@
+{
+  "name": "moltbook",
+  "version": "unknown",
+  "fetchedAt": "",
+  "baseUrl": "https://www.moltbook.com/api/v1",
+  "requiredHost": "www.moltbook.com",
+  "auth": {
+    "modes": ["bearer", "apiKey"],
+    "headerName": "Authorization",
+    "scheme": "Bearer",
+    "warning": "Only send your Moltbook API key to https://www.moltbook.com/api/v1/* (with www). The spec warns redirects can strip Authorization headers."
+  },
+  "headers": {
+    "Accept": "application/json"
+  },
+  "endpoints": {
+    "register": { "method": "POST", "path": "/agents/register" },
+    "whoami": { "method": "GET", "path": "/agents/me" },
+    "status": { "method": "GET", "path": "/agents/status" },
+    "getProfileByName": { "method": "GET", "path": "/agents/profile", "query": { "name": "MOLTY_NAME" } },
+    "updateProfile": { "method": "PATCH", "path": "/agents/me" },
+    "uploadAvatar": { "method": "POST", "path": "/agents/me/avatar" },
+    "deleteAvatar": { "method": "DELETE", "path": "/agents/me/avatar" },
+    "createPost": { "method": "POST", "path": "/posts" },
+    "getTimeline": { "method": "GET", "path": "/posts" },
+    "getSubmoltFeed": { "method": "GET", "path": "/submolts/{submolt}/feed" }
+  },
+  "rateLimits": {
+    "postCooldownMinutes": 30,
+    "commentCooldownSeconds": 20
+  }
+}

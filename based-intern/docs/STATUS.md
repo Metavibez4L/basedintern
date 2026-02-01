@@ -240,14 +240,33 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
 
 ### State Persistence with Schema Versioning (NEW)
 - [x] `src/agent/state.ts` - Migration infrastructure
-  - [x] STATE_SCHEMA_VERSION = 3
+  - [x] STATE_SCHEMA_VERSION = 4
   - [x] `migrateState()` function for safe evolution
   - [x] v1 → v2: Added lastSeenBlockNumber field
   - [x] v2 → v3: Added Base News Brain fields (caps + dedupe + idempotency)
+  - [x] v3 → v4: Added Moltbook posting fields (idempotency + circuit breaker)
   - [x] Backward compatible: old state files auto-upgraded
-  - [x] Ready for future migrations (v4, v5, etc.)
+  - [x] Ready for future migrations (v5, v6, etc.)
   - [x] Logs migration events for debugging
   - [x] 8 unit tests covering migration and field preservation
+
+### Moltbook Integration (Skill-spec Driven)
+- [x] Skill spec fetch + cached mapping (`scripts/fetch-moltbook-skill.ts`, `data/moltbook/skill.json`)
+- [x] Redirect-safe canonical host enforcement (`www.moltbook.com`) to avoid auth header stripping
+- [x] Auth persistence (session.json) with redaction
+- [x] CLI bootstrap commands (`register`, `status`, `doctor`, `claim`)
+- [x] Receipt posting adapter with DRY_RUN, idempotency, min-interval, circuit breaker
+
+### Social Posting (Fanout)
+- [x] `SOCIAL_MODE=multi` + `SOCIAL_MULTI_TARGETS` for posting to multiple backends (e.g. X API + Moltbook)
+
+## ✅ Live Identity Snapshot
+
+- ERC-8004 (Base mainnet 8453)
+  - Identity Registry: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
+  - Agent ref: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
+- Moltbook
+  - Agent name: `BasedIntern_wi5rcx`
 
 ### HTTP Price Fallback Adapter (NEW)
 - [x] `src/chain/dex/httpAdapter.ts` - CoinGecko free API fallback

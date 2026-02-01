@@ -4,12 +4,13 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 3;
+const STATE_SCHEMA_VERSION = 4;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
  * v2: Added lastSeenBlockNumber for more precise activity detection (2026-01-30)
  * v3: Added Base News Brain state (daily caps + dedupe) (2026-01-30)
+ * v4: Added Moltbook posting state (anti-spam + dedupe + circuit breaker) (2026-02-01)
  */
 
 export type AgentState = {
@@ -44,6 +45,14 @@ export type AgentState = {
   lastSeenMentionId?: string; // For pagination
   repliedMentionFingerprints?: string[]; // LRU list (max 20) of replied mention fingerprints for dedup
   lastSuccessfulMentionPollMs?: number; // When we last successfully polled mentions
+
+  // =========================
+  // Moltbook (optional)
+  // =========================
+  moltbookLastPostMs?: number | null;
+  lastPostedMoltbookReceiptFingerprint?: string | null;
+  moltbookFailureCount?: number;
+  moltbookCircuitBreakerDisabledUntilMs?: number | null;
 };
 
 export const DEFAULT_STATE: AgentState = {
@@ -66,7 +75,12 @@ export const DEFAULT_STATE: AgentState = {
   lastPostDayUtc: null,
   lastSeenMentionId: undefined,
   repliedMentionFingerprints: undefined,
-  lastSuccessfulMentionPollMs: undefined
+  lastSuccessfulMentionPollMs: undefined,
+
+  moltbookLastPostMs: null,
+  lastPostedMoltbookReceiptFingerprint: null,
+  moltbookFailureCount: 0,
+  moltbookCircuitBreakerDisabledUntilMs: null
 };
 
 export function statePath(): string {
@@ -96,6 +110,15 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     if (!("newsLastPostDayUtc" in raw)) raw.newsLastPostDayUtc = null;
     if (!("seenNewsFingerprints" in raw) || !Array.isArray(raw.seenNewsFingerprints)) raw.seenNewsFingerprints = [];
     if (!("lastPostedNewsFingerprint" in raw)) raw.lastPostedNewsFingerprint = null;
+  }
+
+  // v3 → v4: Add Moltbook fields
+  if (version === undefined || version < 4) {
+    logger.info("state migration", { from: version || 3, to: STATE_SCHEMA_VERSION });
+    if (!("moltbookLastPostMs" in raw)) raw.moltbookLastPostMs = null;
+    if (!("lastPostedMoltbookReceiptFingerprint" in raw)) raw.lastPostedMoltbookReceiptFingerprint = null;
+    if (!("moltbookFailureCount" in raw)) raw.moltbookFailureCount = 0;
+    if (!("moltbookCircuitBreakerDisabledUntilMs" in raw)) raw.moltbookCircuitBreakerDisabledUntilMs = null;
   }
 
   return raw as AgentState;
@@ -137,7 +160,12 @@ export async function loadState(): Promise<AgentState> {
       lastPostDayUtc: migrated.lastPostDayUtc ?? null,
       lastSeenMentionId: migrated.lastSeenMentionId,
       repliedMentionFingerprints: migrated.repliedMentionFingerprints,
-      lastSuccessfulMentionPollMs: migrated.lastSuccessfulMentionPollMs
+      lastSuccessfulMentionPollMs: migrated.lastSuccessfulMentionPollMs,
+
+      moltbookLastPostMs: migrated.moltbookLastPostMs ?? null,
+      lastPostedMoltbookReceiptFingerprint: migrated.lastPostedMoltbookReceiptFingerprint ?? null,
+      moltbookFailureCount: migrated.moltbookFailureCount ?? 0,
+      moltbookCircuitBreakerDisabledUntilMs: migrated.moltbookCircuitBreakerDisabledUntilMs ?? null
     };
 
     // Reset daily counter if the day rolled over.
