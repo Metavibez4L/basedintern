@@ -152,8 +152,9 @@ async function tick(): Promise<void> {
   };
 
   // Check if we should post: activity detected OR heartbeat
-  const shouldPost = activityResult.changed;
-  // TODO: Optional heartbeat logic: check if no posts today and post 1/day
+  const postDay = utcDayKey(now);
+  const heartbeatDue = nextState.lastPostDayUtc !== postDay;
+  const shouldPost = activityResult.changed || heartbeatDue;
 
   let workingState = nextState;
 
@@ -163,6 +164,28 @@ async function tick(): Promise<void> {
       minTokenDelta: minTokenDelta.toString()
     });
     // Still save updated watcher state
+    await saveState(workingState);
+  } else if (!activityResult.changed && heartbeatDue) {
+    logger.info("heartbeat due, posting receipt", {
+      postDay,
+      lastPostDayUtc: workingState.lastPostDayUtc
+    });
+
+    const receipt = buildReceiptMessage({
+      action: "HOLD",
+      agentRef: cfg.erc8004.enabled ? (cfg.erc8004.agentRef ?? null) : null,
+      wallet,
+      ethWei,
+      internAmount,
+      internDecimals,
+      priceText: price.text,
+      txHash: null,
+      dryRun: cfg.DRY_RUN
+    });
+
+    await poster.post(receipt);
+
+    workingState.lastPostDayUtc = postDay;
     await saveState(workingState);
   } else {
     logger.info("activity detected, posting receipt", {
@@ -224,7 +247,6 @@ async function tick(): Promise<void> {
     await poster.post(receipt);
 
     // Update state with new day marker
-    const postDay = utcDayKey(now);
     workingState.lastPostDayUtc = postDay;
     await saveState(workingState);
 
