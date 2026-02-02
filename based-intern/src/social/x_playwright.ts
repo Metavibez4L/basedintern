@@ -411,4 +411,3 @@ function isAutomationBlockToast(toastText: string): boolean {
   // "This request looks like it might be automated. To protect our users from spam..."
   return t.includes("looks like it might be automated") || t.includes("protect our users from spam");
 }
-
