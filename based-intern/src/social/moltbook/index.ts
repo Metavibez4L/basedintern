@@ -3,7 +3,7 @@ import type { AppConfig } from "../../config.js";
 import type { AgentState } from "../../agent/state.js";
 import { logger } from "../../logger.js";
 import type { SocialPoster } from "../poster.js";
-import { createMoltbookClient } from "./client.js";
+import { createMoltbookClient, MoltbookRateLimitedError } from "./client.js";
 
 function sha256Hex(s: string): string {
   return crypto.createHash("sha256").update(s).digest("hex");
@@ -11,6 +11,10 @@ function sha256Hex(s: string): string {
 
 function minutesToMs(m: number): number {
   return Math.floor(m * 60_000);
+}
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, n));
 }
 
 function isDisabledByCircuitBreaker(state: AgentState): boolean {
@@ -28,6 +32,26 @@ async function recordFailure(state: AgentState, saveStateFn: (s: AgentState) => 
   const next: AgentState = {
     ...(state as any),
     moltbookFailureCount: nextCount,
+    moltbookCircuitBreakerDisabledUntilMs: disabledUntilMs
+  };
+
+  await saveStateFn(next);
+  return next;
+}
+
+async function recordRateLimited(
+  state: AgentState,
+  saveStateFn: (s: AgentState) => Promise<void>,
+  retryAfterMs: number
+): Promise<AgentState> {
+  // Keep this bounded to avoid accidentally disabling forever.
+  const boundedRetryMs = clamp(Math.floor(retryAfterMs), minutesToMs(1), minutesToMs(180));
+  const disabledUntilMs = Date.now() + boundedRetryMs;
+
+  const next: AgentState = {
+    ...(state as any),
+    // Rate limits aren't "failures"; don't trip the 3-strikes breaker.
+    moltbookFailureCount: 0,
     moltbookCircuitBreakerDisabledUntilMs: disabledUntilMs
   };
 
@@ -112,6 +136,12 @@ export async function postMoltbookReceipt(
     logger.info("moltbook posted", { fingerprint: fingerprint.slice(0, 16) + "..." });
     return { posted: true, state: nextState };
   } catch (err) {
+    if (err instanceof MoltbookRateLimitedError) {
+      logger.warn("moltbook post skipped (rate limited)", { retryAfterMs: err.retryAfterMs });
+      const nextState = await recordRateLimited(state, saveStateFn, err.retryAfterMs);
+      return { posted: false, state: nextState, reason: "rate_limited" };
+    }
+
     logger.warn("moltbook post failed", { error: err instanceof Error ? err.message : String(err) });
     const nextState = await recordFailure(state, saveStateFn);
     return { posted: false, state: nextState, reason: "error" };
