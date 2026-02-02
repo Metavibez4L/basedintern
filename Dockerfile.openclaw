@@ -29,13 +29,28 @@ WORKDIR /app
 # Pin OpenClaw version for reproducibility.
 RUN npm install -g openclaw@2026.1.30
 
+# Create minimal openclaw config for Railway gateway mode
+RUN mkdir -p /root/.openclaw && cat > /root/.openclaw/openclaw.json <<'EOF'
+{
+  "gateway": {
+    "mode": "remote",
+    "bind": "0.0.0.0",
+    "port": 8080
+  },
+  "skills": {
+    "load": {
+      "extraDirs": ["/app/skills"]
+    }
+  }
+}
+EOF
+
 ENV NODE_ENV=production
 
 # Railway sets PORT for web services.
 EXPOSE 8080
 
 # OPENCLAW_GATEWAY_TOKEN must be set in Railway Variables.
-# --dev creates a dev config if missing.
-# --allow-unconfigured avoids requiring a pre-baked openclaw.json.
-# --bind lan ensures it listens on 0.0.0.0 (required for Railway ingress).
-CMD ["bash", "-lc", "openclaw gateway run --dev --allow-unconfigured --bind lan --port ${PORT:-8080} --token \"${OPENCLAW_GATEWAY_TOKEN:?set OPENCLAW_GATEWAY_TOKEN}\" --compact"]
+# Config file now pre-created; no --allow-unconfigured needed.
+# --bind lan and --port override config if Railway changes PORT.
+CMD ["bash", "-lc", "openclaw gateway run --bind lan --port ${PORT:-8080} --token \"${OPENCLAW_GATEWAY_TOKEN:?set OPENCLAW_GATEWAY_TOKEN}\" --compact"]
