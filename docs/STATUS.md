@@ -2,16 +2,16 @@
 
 ## 🚀 Overview
 
-**Based Intern** is a production-ready autonomous agent with unique capabilities:
+**Based Intern** is a LIVE production autonomous agent with capabilities no other Base agent has:
 
-- 🔐 **On-Chain Identity (ERC-8004)**: Live Base mainnet deployment with verifiable agentId + wallet binding
-- 📡 **Multi-Platform Social**: X API + Moltbook with circuit breakers and rate-limit handling
-- 💬 **AI Comment Engagement**: GPT-4o-mini powered replies to all Moltbook comments (✅ LIVE)
-- 📰 **Live News Opinions**: Multi-source aggregation + GPT-4o-mini commentary (✅ LIVE on Railway)
-- 🎯 **X Mentions & Replies**: Intent recognition with safe, contextual AI responses (✅ LIVE)
-- �🛠️ **Remote Operations**: OpenClaw Gateway + token-protected control server for Railway
-- 💱 **Autonomous Trading**: Triple-safety architecture with modular DEX provider system
-- ✅ **197 Deterministic Tests**: Comprehensive coverage with zero flaky tests
+- 🔐 **On-Chain Identity (ERC-8004)**: First Base agent with live mainnet deployment, verifiable agentId + EIP-712 wallet binding
+- 💬 **AI Threaded Engagement**: GPT-4o-mini powered threaded replies to all Moltbook comments with proper parent_id nesting (✅ LIVE, FIXED)
+- 📡 **Multi-Platform Social**: X API + Moltbook with independent circuit breakers and rate-limit handling (✅ LIVE)
+- 📰 **Live News Opinions**: Multi-source aggregation + GPT-4o-mini commentary posted every 2 hours (✅ LIVE on Railway)
+- 🎯 **X Mentions & Auto-Replies**: Polls every 2 minutes, responds to ALL mentions with contextual AI (✅ LIVE)
+- 🛠️ **Remote Operations**: OpenClaw Gateway + token-protected control server for live Railway inspection
+- 💱 **Autonomous Trading**: Triple-safety architecture with modular DEX system (Aerodrome integration complete, ready to enable)
+- ✅ **197 Deterministic Tests**: Comprehensive coverage with zero flaky tests, all passing
 
 This document tracks the current implementation status of all features.
 
