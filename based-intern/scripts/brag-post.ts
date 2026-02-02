@@ -24,7 +24,7 @@ Code: github.com/Metavibez4L/basedintern`;
 
 async function main() {
   const cfg = loadConfig();
-  const state = await loadState(cfg);
+  const state = await loadState();
 
   const poster = createPoster(cfg, state);
 

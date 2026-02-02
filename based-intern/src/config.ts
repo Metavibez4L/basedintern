@@ -127,6 +127,10 @@ const envSchemaBase = z.object({
   X_PHASE1_MENTIONS: BoolFromString.default("false"), // Enable mention polling + intent replies
   X_POLL_MINUTES: z.coerce.number().int().min(1).default(2), // How often to poll mentions (minutes)
 
+  // Moltbook comment replies (AI-powered engagement)
+  MOLTBOOK_REPLY_TO_COMMENTS: BoolFromString.default("false"), // Enable auto-reply to comments
+  MOLTBOOK_REPLY_INTERVAL_MINUTES: z.coerce.number().int().min(5).default(30), // How often to check for new comments
+
   // LLM
   OPENAI_API_KEY: z.string().optional(),
 

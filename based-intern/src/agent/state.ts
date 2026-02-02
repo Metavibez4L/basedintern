@@ -54,6 +54,7 @@ export type AgentState = {
   lastPostedMoltbookReceiptFingerprint?: string | null;
   moltbookFailureCount?: number;
   moltbookCircuitBreakerDisabledUntilMs?: number | null;
+  repliedMoltbookCommentIds?: string[]; // SHA256 fingerprints of replied comments
 
   // =========================
   // News Opinion (v5)
@@ -90,6 +91,7 @@ export const DEFAULT_STATE: AgentState = {
   lastPostedMoltbookReceiptFingerprint: null,
   moltbookFailureCount: 0,
   moltbookCircuitBreakerDisabledUntilMs: null,
+  repliedMoltbookCommentIds: [],
 
   newsOpinionLastFetchMs: null,
   newsOpinionPostsToday: 0,
