@@ -4,13 +4,14 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 4;
+const STATE_SCHEMA_VERSION = 5;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
  * v2: Added lastSeenBlockNumber for more precise activity detection (2026-01-30)
  * v3: Added Base News Brain state (daily caps + dedupe) (2026-01-30)
  * v4: Added Moltbook posting state (anti-spam + dedupe + circuit breaker) (2026-02-01)
+ * v5: Added news opinion generation state (2026-02-02)
  */
 
 export type AgentState = {
@@ -53,6 +54,14 @@ export type AgentState = {
   lastPostedMoltbookReceiptFingerprint?: string | null;
   moltbookFailureCount?: number;
   moltbookCircuitBreakerDisabledUntilMs?: number | null;
+
+  // =========================
+  // News Opinion (v5)
+  // =========================
+  newsOpinionLastFetchMs?: number | null;
+  newsOpinionPostsToday?: number;
+  newsOpinionLastDayUtc?: string | null; // YYYY-MM-DD
+  postedNewsArticleIds?: string[]; // LRU list to prevent duplicates
 };
 
 export const DEFAULT_STATE: AgentState = {
@@ -80,7 +89,12 @@ export const DEFAULT_STATE: AgentState = {
   moltbookLastPostMs: null,
   lastPostedMoltbookReceiptFingerprint: null,
   moltbookFailureCount: 0,
-  moltbookCircuitBreakerDisabledUntilMs: null
+  moltbookCircuitBreakerDisabledUntilMs: null,
+
+  newsOpinionLastFetchMs: null,
+  newsOpinionPostsToday: 0,
+  newsOpinionLastDayUtc: null,
+  postedNewsArticleIds: []
 };
 
 export function statePath(): string {
@@ -116,6 +130,15 @@ function migrateState(raw: any, version: number | undefined): AgentState {
   if (version === undefined || version < 4) {
     logger.info("state migration", { from: version || 3, to: STATE_SCHEMA_VERSION });
     if (!("moltbookLastPostMs" in raw)) raw.moltbookLastPostMs = null;
+  // v4 → v5: Add news opinion fields
+  if (version === undefined || version < 5) {
+    logger.info("state migration", { from: version || 4, to: STATE_SCHEMA_VERSION });
+    if (!("newsOpinionLastFetchMs" in raw)) raw.newsOpinionLastFetchMs = null;
+    if (!("newsOpinionPostsToday" in raw)) raw.newsOpinionPostsToday = 0;
+    if (!("newsOpinionLastDayUtc" in raw)) raw.newsOpinionLastDayUtc = null;
+    if (!("postedNewsArticleIds" in raw) || !Array.isArray(raw.postedNewsArticleIds)) raw.postedNewsArticleIds = [];
+  }
+
     if (!("lastPostedMoltbookReceiptFingerprint" in raw)) raw.lastPostedMoltbookReceiptFingerprint = null;
     if (!("moltbookFailureCount" in raw)) raw.moltbookFailureCount = 0;
     if (!("moltbookCircuitBreakerDisabledUntilMs" in raw)) raw.moltbookCircuitBreakerDisabledUntilMs = null;
@@ -165,7 +188,12 @@ export async function loadState(): Promise<AgentState> {
       moltbookLastPostMs: migrated.moltbookLastPostMs ?? null,
       lastPostedMoltbookReceiptFingerprint: migrated.lastPostedMoltbookReceiptFingerprint ?? null,
       moltbookFailureCount: migrated.moltbookFailureCount ?? 0,
-      moltbookCircuitBreakerDisabledUntilMs: migrated.moltbookCircuitBreakerDisabledUntilMs ?? null
+      moltbookCircuitBreakerDisabledUntilMs: migrated.moltbookCircuitBreakerDisabledUntilMs ?? null,
+
+      newsOpinionLastFetchMs: migrated.newsOpinionLastFetchMs ?? null,
+      newsOpinionPostsToday: migrated.newsOpinionPostsToday ?? 0,
+      newsOpinionLastDayUtc: migrated.newsOpinionLastDayUtc ?? null,
+      postedNewsArticleIds: Array.isArray(migrated.postedNewsArticleIds) ? migrated.postedNewsArticleIds : []
     };
 
     // Reset daily counter if the day rolled over.
@@ -176,6 +204,12 @@ export async function loadState(): Promise<AgentState> {
     }
 
     // Reset news daily counter if day rolled over.
+    // Reset news opinion daily counter if day rolled over
+    if (merged.newsOpinionLastDayUtc !== today) {
+      merged.newsOpinionPostsToday = 0;
+      merged.newsOpinionLastDayUtc = today;
+    }
+
     const newsToday = today;
     if (merged.newsLastPostDayUtc !== newsToday) {
       merged.newsDailyCount = 0;

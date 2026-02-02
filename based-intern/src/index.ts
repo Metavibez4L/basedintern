@@ -19,6 +19,9 @@ import { pollMentionsAndRespond, type MentionPollerContext } from "./social/x_me
 import { buildNewsPlan } from "./news/news.js";
 import { postNewsTweet } from "./social/news_poster.js";
 import { startControlServer } from "./control/server.js";
+import { NewsAggregator } from "./news/fetcher.js";
+import { OpinionGenerator } from "./news/opinion.js";
+import { NewsOpinionPoster } from "./news/opinionPoster.js";
 
 async function resolveTokenAddress(cfg: ReturnType<typeof loadConfig>): Promise<Address | null> {
   if (cfg.TOKEN_ADDRESS) return cfg.TOKEN_ADDRESS as Address;
@@ -306,6 +309,91 @@ async function tick(): Promise<void> {
     workingState = await recordNewsPosted(workingState, now, plan.item.id);
   } catch (err) {
     logger.warn("news pipeline error", { error: err instanceof Error ? err.message : String(err) });
+  }
+
+  // ============================================================
+  // NEW: NEWS OPINION CYCLE (separate from Base News Brain)
+  // ============================================================
+  if (cfg.NEWS_ENABLED && cfg.OPENAI_API_KEY) {
+    const shouldFetchNews =
+      !workingState.newsOpinionLastFetchMs ||
+      Date.now() - workingState.newsOpinionLastFetchMs >= cfg.NEWS_FETCH_INTERVAL_MINUTES * 60 * 1000;
+
+    const dailyOpinionCount = workingState.newsOpinionPostsToday || 0;
+    const canPostMore = dailyOpinionCount < cfg.NEWS_MAX_POSTS_PER_DAY;
+
+    if (shouldFetchNews && canPostMore) {
+      try {
+        logger.info("news.opinion.cycle.start", {
+          lastFetchMs: workingState.newsOpinionLastFetchMs,
+          postsToday: dailyOpinionCount
+        });
+
+        const newsAggregator = new NewsAggregator(cfg);
+        const articles = await newsAggregator.fetchLatest(5);
+
+        if (articles.length > 0) {
+          logger.info("news.opinion.fetched", { count: articles.length });
+
+          const opinionGen = new OpinionGenerator(cfg);
+          const opinions = await opinionGen.generateBatch(articles);
+
+          logger.info("news.opinion.generated", { count: opinions.length });
+
+          // Post the most relevant opinion
+          const topOpinion = opinions
+            .filter((o) => o.relevanceScore >= cfg.NEWS_MIN_RELEVANCE_SCORE)
+            .sort((a, b) => b.relevanceScore - a.relevanceScore)[0];
+
+          if (topOpinion) {
+            const article = articles.find((a) => a.id === topOpinion.articleId);
+            if (article) {
+              // Check if already posted
+              const alreadyPosted = (workingState.postedNewsArticleIds || []).includes(article.id);
+              
+              if (!alreadyPosted) {
+                const newsPoster = new NewsOpinionPoster(cfg, poster);
+                const posted = await newsPoster.post(article, topOpinion);
+
+                if (posted) {
+                  // Update state
+                  workingState.newsOpinionLastFetchMs = Date.now();
+                  workingState.newsOpinionPostsToday = (workingState.newsOpinionPostsToday || 0) + 1;
+                  workingState.postedNewsArticleIds = [
+                    ...(workingState.postedNewsArticleIds || []),
+                    article.id
+                  ].slice(-50); // Keep last 50 IDs
+                  
+                  await saveState(workingState);
+                  
+                  logger.info("news.opinion.posted", {
+                    articleId: article.id,
+                    tone: topOpinion.tone,
+                    relevance: topOpinion.relevanceScore,
+                    confidence: topOpinion.confidence
+                  });
+                } else {
+                  logger.info("news.opinion.post.skipped", { articleId: article.id });
+                }
+              } else {
+                logger.info("news.opinion.skip.duplicate", { articleId: article.id });
+              }
+            }
+          } else {
+            logger.info("news.opinion.skip.no_relevant", {
+              minRelevance: cfg.NEWS_MIN_RELEVANCE_SCORE,
+              opinionsGenerated: opinions.length
+            });
+          }
+        } else {
+          logger.info("news.opinion.skip.no_articles");
+        }
+      } catch (err) {
+        logger.error("news.opinion.cycle.error", {
+          error: err instanceof Error ? err.message : String(err)
+        });
+      }
+    }
   }
 }
 

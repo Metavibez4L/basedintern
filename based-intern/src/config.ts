@@ -151,7 +151,13 @@ const envSchemaBase = z.object({
   // Default updated to include new providers; legacy sources still supported.
   NEWS_SOURCES: z.string().default("defillama,github,rss"),
   NEWS_DAILY_HOUR_UTC: z.coerce.number().int().min(0).max(23).default(15),
-  NEWS_MAX_ITEMS_CONTEXT: z.coerce.number().int().min(1).max(50).default(8)
+  NEWS_MAX_ITEMS_CONTEXT: z.coerce.number().int().min(1).max(50).default(8),
+
+  // Opinion generation
+  NEWS_FETCH_INTERVAL_MINUTES: z.coerce.number().int().positive().default(60),
+  NEWS_MIN_RELEVANCE_SCORE: z.coerce.number().min(0).max(1).default(0.5),
+  NEWS_CRYPTO_PANIC_KEY: z.string().optional(),
+  NEWS_RSS_FEEDS: z.string().optional().transform((s) => s?.split(",").map((u) => u.trim()).filter(Boolean) || [])
 });
 
 const envSchema = envSchemaBase.superRefine((cfg, ctx) => {
