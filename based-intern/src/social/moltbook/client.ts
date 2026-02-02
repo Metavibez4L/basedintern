@@ -117,6 +117,27 @@ function parseRetryAfterMs(body: any): number | null {
   return null;
 }
 
+function parseRetryAfterHeaderMs(res: Response): number | null {
+  const raw = res.headers.get("retry-after");
+  if (!raw) return null;
+  const n = Number(raw.trim());
+  if (!Number.isFinite(n) || n <= 0) return null;
+
+  // Most servers use seconds, but some use ms. Heuristic: if it's huge, assume ms.
+  if (n > 60_000) return Math.floor(n);
+  return Math.floor(n * 1000);
+}
+
+export class MoltbookRateLimitedError extends Error {
+  public readonly retryAfterMs: number;
+
+  constructor(retryAfterMs: number) {
+    super(`moltbook rate limited; retry after ${retryAfterMs}ms`);
+    this.name = "MoltbookRateLimitedError";
+    this.retryAfterMs = retryAfterMs;
+  }
+}
+
 async function ensureParentDir(p: string): Promise<void> {
   await mkdir(path.dirname(p), { recursive: true });
 }
@@ -300,20 +321,18 @@ export function createMoltbookClient(cfg: AppConfig): MoltbookClient {
       }
 
       if (res.status === 429) {
-        const retryMs = parseRetryAfterMs(parsed);
+        // IMPORTANT: do not sleep for long Retry-After windows here.
+        // This call runs inside the agent tick; long sleeps would stall the whole loop.
+        const retryMs = parseRetryAfterMs(parsed) ?? parseRetryAfterHeaderMs(res) ?? 10 * 60_000;
         logger.warn("moltbook rate limited", {
           method: args.method,
           path: args.path,
           status: res.status,
           attempt,
-          retryAfterMs: retryMs ?? undefined
+          retryAfterMs: retryMs
         });
 
-        if (attempt === maxAttempts) {
-          throw new Error("moltbook rate-limited (exhausted retries)");
-        }
-        await sleep(jitterMs(retryMs ?? backoffMs(attempt)));
-        continue;
+        throw new MoltbookRateLimitedError(retryMs);
       }
 
       if (res.status >= 500 && res.status <= 599) {
