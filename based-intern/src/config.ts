@@ -146,7 +146,7 @@ const envSchemaBase = z.object({
   NEWS_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.5),
   // Base official blog via Mirror RSS (no bot protection)
   NEWS_FEEDS: z.string().default("https://mirror.xyz/base.eth/feed/atom"),
-  NEWS_GITHUB_FEEDS: z.string().default(""),
+  NEWS_GITHUB_FEEDS: z.string().default("base-org/node,base-org/contracts"),
   NEWS_REQUIRE_LINK: BoolFromString.default("true"),
   NEWS_REQUIRE_SOURCE_WHITELIST: BoolFromString.default("true"),
   // Default updated: removed base_blog/cdp_launches (403 errors), using RSS instead
@@ -432,9 +432,7 @@ function validateGuardrails(cfg: AppConfig): string[] {
     if (sources.includes("rss") && parseCsv(cfg.NEWS_FEEDS).length === 0) {
       errors.push("NEWS_FEEDS is required when NEWS_SOURCES includes rss");
     }
-    if (sources.includes("github") && parseCsv(cfg.NEWS_GITHUB_FEEDS).length === 0) {
-      errors.push("NEWS_GITHUB_FEEDS is required when NEWS_SOURCES includes github");
-    }
+    // NEWS_GITHUB_FEEDS has safe default (base-org/node,base-org/contracts), no strict validation needed
 
     if (cfg.NEWS_MODE === "daily") {
       // Zod already constrains this, but keep a clear guardrail error for operators.
