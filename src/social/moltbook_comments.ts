@@ -153,16 +153,19 @@ async function postReply(cfg: AppConfig, comment: MoltbookComment, reply: string
   const client = createMoltbookClient(cfg);
 
   try {
-    // Moltbook comment API (example - adjust based on actual API)
-    await client.createPost({
-      content: reply,
-      // If Moltbook supports parent_id or reply_to, use it here
-      // parentId: comment.id,
-      // replyTo: comment.author
+    // Use /posts/{postId}/comments endpoint with parent_id for threaded replies
+    await client.request({
+      method: "POST",
+      path: `/posts/${comment.postId}/comments`,
+      body: {
+        content: reply,
+        parent_id: comment.id
+      }
     });
 
     logger.info("moltbook.reply.posted", {
       commentId: comment.id,
+      postId: comment.postId,
       author: comment.author,
       replyLength: reply.length
     });
@@ -172,6 +175,7 @@ async function postReply(cfg: AppConfig, comment: MoltbookComment, reply: string
   } catch (err) {
     logger.error("moltbook.reply.post.error", {
       commentId: comment.id,
+      postId: comment.postId,
       error: err instanceof Error ? err.message : String(err)
     });
     return false;
