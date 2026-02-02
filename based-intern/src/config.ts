@@ -144,11 +144,12 @@ const envSchemaBase = z.object({
   NEWS_INTERVAL_MINUTES: z.coerce.number().int().min(1).optional(),
 
   NEWS_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.5),
-  NEWS_FEEDS: z.string().default(""),
+  // Base official blog via Mirror RSS (no bot protection)
+  NEWS_FEEDS: z.string().default("https://mirror.xyz/base.eth/feed/atom"),
   NEWS_GITHUB_FEEDS: z.string().default(""),
   NEWS_REQUIRE_LINK: BoolFromString.default("true"),
   NEWS_REQUIRE_SOURCE_WHITELIST: BoolFromString.default("true"),
-  // Default updated to include new providers; legacy sources still supported.
+  // Default updated: removed base_blog/cdp_launches (403 errors), using RSS instead
   NEWS_SOURCES: z.string().default("defillama,github,rss"),
   NEWS_DAILY_HOUR_UTC: z.coerce.number().int().min(0).max(23).default(15),
   NEWS_MAX_ITEMS_CONTEXT: z.coerce.number().int().min(1).max(50).default(8),
