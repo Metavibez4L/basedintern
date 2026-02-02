@@ -12,6 +12,8 @@ export type SocialPoster = {
   post(text: string): Promise<void>;
 };
 
+let warnedMoltbookImplicitEnable = false;
+
 function parseSocialTargets(raw: string): Array<"x_api" | "playwright" | "moltbook"> {
   const out: Array<"x_api" | "playwright" | "moltbook"> = [];
   const seen = new Set<string>();
@@ -44,17 +46,20 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
       // If the explicit enable flag is missing but an API key exists, treat Moltbook as enabled.
       // This preserves the default-off behavior while preventing confusing partial-config failures.
       if (!hasEnvVar && hasApiKeyEnvVar) {
-        logger.warn("MOLTBOOK_ENABLED missing; enabling moltbook implicitly because MOLTBOOK_API_KEY is present", {
-          configuredTargets: targetsRaw,
-          env: {
-            hasEnvVar,
-            rawEnabled: rawEnvEnabled ?? null,
-            hasApiKeyEnvVar,
-            presentKeys: moltbookEnvKeys,
-            nodeEnv: process.env.NODE_ENV ?? null,
-            cwd: process.cwd()
-          }
-        });
+        if (!warnedMoltbookImplicitEnable) {
+          warnedMoltbookImplicitEnable = true;
+          logger.warn("MOLTBOOK_ENABLED missing; enabling moltbook implicitly because MOLTBOOK_API_KEY is present", {
+            configuredTargets: targetsRaw,
+            env: {
+              hasEnvVar,
+              rawEnabled: rawEnvEnabled ?? null,
+              hasApiKeyEnvVar,
+              presentKeys: moltbookEnvKeys,
+              nodeEnv: process.env.NODE_ENV ?? null,
+              cwd: process.cwd()
+            }
+          });
+        }
         return true;
       }
 
