@@ -1,0 +1,57 @@
+{
+  "name": "based-intern",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "prebuild": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/src/index.js",
+    "lint": "eslint .",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "build:contracts": "hardhat compile",
+    "deploy:token": "hardhat run scripts/deploy-token.ts",
+    "deploy:erc8004": "hardhat run scripts/deploy-erc8004.ts",
+    "register:agent": "hardhat run scripts/register-agent.ts",
+    "set:agent-wallet": "hardhat run scripts/set-agent-wallet.ts",
+    "dev": "tsx src/index.ts",
+    "x:cookies": "tsx scripts/save-x-cookies.ts",
+
+    "control:health": "tsx scripts/control-client.ts health",
+    "control:status": "tsx scripts/control-client.ts status",
+    "control:tick": "tsx scripts/control-client.ts tick",
+
+    "moltbook:fetch-skill": "tsx scripts/fetch-moltbook-skill.ts",
+    "moltbook:register": "tsx src/cli/moltbook.ts register",
+    "moltbook:status": "tsx src/cli/moltbook.ts status",
+    "moltbook:claim": "tsx src/cli/moltbook.ts claim",
+    "moltbook:doctor": "tsx src/cli/moltbook.ts doctor",
+    "moltbook:import-cookie": "tsx src/cli/moltbook.ts import-cookie",
+    "moltbook:set-key": "tsx src/cli/moltbook.ts set-key"
+  },
+  "dependencies": {
+    "@langchain/core": "^0.3.0",
+    "@langchain/openai": "^0.6.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "dotenv": "^16.4.0",
+    "langchain": "^0.3.0",
+    "playwright": "^1.49.0",
+    "viem": "^2.23.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "@types/node": "^22.10.0",
+    "eslint": "^9.17.0",
+    "hardhat": "^2.22.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.7.0",
+    "typescript-eslint": "^8.19.0",
+    "vitest": "^1.0.0"
+  }
+}

@@ -1,0 +1,36 @@
+node_modules/
+dist/
+artifacts/
+cache/
+typechain-types/
+.env
+x_cookies.json
+
+# Playwright
+playwright-report/
+test-results/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Runtime state
+data/state.json
+
+# Moltbook (local, never commit)
+data/moltbook/skill.md
+data/moltbook/cookies.json
+data/moltbook/session.json
+
+# OpenClaw workspace templates (local, never commit)
+AGENTS.md
+BOOTSTRAP.md
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md
+MEMORY.md
+memory/
+

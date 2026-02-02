@@ -1,0 +1,31 @@
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "Based Intern",
+  "description": "Autonomous safety-first intern agent.",
+  "image": "https://example.com/agent.png",
+  "services": [
+    {
+      "name": "web",
+      "endpoint": "https://example.com/"
+    },
+    {
+      "name": "MCP",
+      "endpoint": "https://example.com/mcp",
+      "version": "2025-06-18"
+    },
+    {
+      "name": "A2A",
+      "endpoint": "https://example.com/.well-known/agent-card.json",
+      "version": "0.3.0"
+    }
+  ],
+  "x402Support": false,
+  "active": true,
+  "registrations": [
+    {
+      "agentId": 1,
+      "agentRegistry": "eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482"
+    }
+  ],
+  "supportedTrust": []
+}

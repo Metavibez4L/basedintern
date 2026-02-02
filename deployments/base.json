@@ -1,0 +1,11 @@
+{
+  "token": "0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11",
+  "deployer": "0x4Ba6B07626E6dF28120b04f772C4a89CC984Cc80",
+  "chainId": 8453,
+  "timestamp": "2026-01-31T19:56:56.022Z",
+  "erc8004": {
+    "identityRegistry": "0xe280e13FB24A26c81e672dB5f7976F8364bd1482",
+    "agentId": "1",
+    "agentUri": "https://raw.githubusercontent.com/Metavibez4L/basedintern/9a03a383107440d7c6ce360fe2efdce8b151ac40/based-intern/docs/agent.profile.json"
+  }
+}
