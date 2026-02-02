@@ -58,6 +58,11 @@ function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
     TRADING_ENABLED: false,
     KILL_SWITCH: true,
 
+    CONTROL_ENABLED: false,
+    CONTROL_BIND: "0.0.0.0",
+    CONTROL_PORT: 8080,
+    CONTROL_TOKEN: undefined,
+
     DAILY_TRADE_CAP: 2,
     MIN_INTERVAL_MINUTES: 60,
     MAX_SPEND_ETH_PER_TRADE: "0.0005",
@@ -76,7 +81,7 @@ function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
     AERODROME_GAUGE_ADDRESS: undefined,
 
     SOCIAL_MODE: "none",
-  SOCIAL_MULTI_TARGETS: "x_api,moltbook",
+    SOCIAL_MULTI_TARGETS: "x_api,moltbook",
     HEADLESS: true,
     X_USERNAME: undefined,
     X_PASSWORD: undefined,

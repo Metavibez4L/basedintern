@@ -1,4 +1,4 @@
-FROM node:20-bookworm
+FROM node:24-bookworm
 
 # Railway is building from the repo root, but the app lives in /based-intern.
 WORKDIR /app/based-intern

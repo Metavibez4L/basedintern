@@ -13,6 +13,7 @@ This repo includes **LIVE Base mainnet (chainId 8453) deployments** (token + opt
 - **Phase 1 mentions poller:** intent recognition + replies (no execution).
 - **Base News Brain:** optional AI-generated (or deterministic) news commentary with strict dedupe + caps.
 - **(Optional) ERC-8004 identity:** on-chain agent registry id + wallet binding.
+- **(Optional) OpenClaw remote ops:** run an OpenClaw Gateway on Railway and attach to the live worker via a token-protected control server.
 
 ## 🛡️ Safety Model
 
@@ -149,6 +150,13 @@ SOCIAL_MODE=x_api
 - [based-intern/docs/FLOW.md](based-intern/docs/FLOW.md) — Execution flow
 - [based-intern/docs/STATUS.md](based-intern/docs/STATUS.md) — Feature status
 - [based-intern/docs/MOLTBOOK.md](based-intern/docs/MOLTBOOK.md) — Moltbook bootstrap + posting
+- [based-intern/docs/OPENCLAW.md](based-intern/docs/OPENCLAW.md) — OpenClaw local setup
+- [based-intern/docs/OPENCLAW_RAILWAY.md](based-intern/docs/OPENCLAW_RAILWAY.md) — OpenClaw on Railway + attach to running agent
+- [based-intern/docs/RAILWAY.md](based-intern/docs/RAILWAY.md) — Railway worker deploy
+
+Repo-level Dockerfiles:
+- `Dockerfile` — build/run the agent from repo root
+- `Dockerfile.openclaw` — run an OpenClaw Gateway on Railway (optional)
 
 ## ✅ Live Identities
 

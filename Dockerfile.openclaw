@@ -1,0 +1,41 @@
+FROM node:24-bookworm
+
+# OpenClaw Gateway on Railway.
+# SECURITY: This exposes a powerful control plane. Use a strong token and keep it private.
+
+WORKDIR /app
+
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends \
+		ca-certificates \
+		curl \
+		git \
+		jq \
+		ripgrep \
+	&& rm -rf /var/lib/apt/lists/*
+
+# Copy repo so workspace skills (e.g. based-intern-ops) are available.
+COPY . .
+
+# Install Based Intern deps so the gateway can run repo workflows (tests/build/typecheck)
+# from inside Railway.
+WORKDIR /app/based-intern
+RUN npm install
+RUN npx playwright install --with-deps chromium
+RUN npm run build
+
+WORKDIR /app
+
+# Pin OpenClaw version for reproducibility.
+RUN npm install -g openclaw@2026.1.30
+
+ENV NODE_ENV=production
+
+# Railway sets PORT for web services.
+EXPOSE 8080
+
+# OPENCLAW_GATEWAY_TOKEN must be set in Railway Variables.
+# --dev creates a dev config if missing.
+# --allow-unconfigured avoids requiring a pre-baked openclaw.json.
+# --bind lan ensures it listens on 0.0.0.0 (required for Railway ingress).
+CMD ["bash", "-lc", "openclaw gateway run --dev --allow-unconfigured --bind lan --port ${PORT:-8080} --token \"${OPENCLAW_GATEWAY_TOKEN:?set OPENCLAW_GATEWAY_TOKEN}\" --compact"]

@@ -54,6 +54,11 @@ const mockConfig: AppConfig = {
   TRADING_ENABLED: false,
   KILL_SWITCH: true,
   DRY_RUN: true,
+
+  CONTROL_ENABLED: false,
+  CONTROL_BIND: "0.0.0.0",
+  CONTROL_PORT: 8080,
+  CONTROL_TOKEN: undefined,
   SOCIAL_MODE: "none",
   SOCIAL_MULTI_TARGETS: "x_api,moltbook",
   LOOP_MINUTES: 30,

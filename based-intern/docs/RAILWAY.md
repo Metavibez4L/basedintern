@@ -2,6 +2,8 @@
 
 This repo runs well on Railway as an always-on worker that posts receipts on a schedule.
 
+If you also want a remote OpenClaw Gateway on Railway (optional), see `docs/OPENCLAW_RAILWAY.md`.
+
 ## Recommended approach
 
 - Deploy `based-intern/` as a **Dockerfile** service
@@ -53,6 +55,14 @@ If you want to enable trading with Aerodrome, set:
 - `KILL_SWITCH=true`
 - `LOOP_MINUTES=30`
 
+### Optional: enable the control server (for OpenClaw attach)
+
+If you also deploy an OpenClaw Gateway on Railway and want to inspect/trigger ticks on the running worker over private networking:
+
+- `CONTROL_ENABLED=true`
+- `CONTROL_PORT=8080`
+- `CONTROL_TOKEN=...` (>= 16 chars)
+
 ### Social posting with X API
 
 Use `SOCIAL_MODE=x_api` for reliable X posting on Railway:
@@ -90,6 +100,7 @@ The Dockerfile runs:
 - `npm run start` (which runs `node dist/src/index.js`)
 
 ## Notes
+- The Dockerfile uses a modern Node base image.
 - **Trading remains disabled** unless:
   - `DRY_RUN=false`
   - `TRADING_ENABLED=true`

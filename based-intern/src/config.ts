@@ -68,6 +68,12 @@ const envSchemaBase = z.object({
   TRADING_ENABLED: BoolFromString.default("false"),
   KILL_SWITCH: BoolFromString.default("true"),
 
+  // Optional control server (for remote ops via OpenClaw Gateway)
+  CONTROL_ENABLED: BoolFromString.default("false"),
+  CONTROL_BIND: z.string().trim().min(1).default("0.0.0.0"),
+  CONTROL_PORT: z.coerce.number().int().min(1).max(65535).default(8080),
+  CONTROL_TOKEN: z.string().optional(),
+
   // Guardrails
   DAILY_TRADE_CAP: z.coerce.number().int().min(0).default(2),
   MIN_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
@@ -149,6 +155,17 @@ const envSchemaBase = z.object({
 });
 
 const envSchema = envSchemaBase.superRefine((cfg, ctx) => {
+  // Control server requirements
+  if (cfg.CONTROL_ENABLED) {
+    if (!cfg.CONTROL_TOKEN || cfg.CONTROL_TOKEN.trim().length < 16) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["CONTROL_TOKEN"],
+        message: "CONTROL_TOKEN (>= 16 chars) is required when CONTROL_ENABLED=true"
+      });
+    }
+  }
+
   // RPC requirements:
   // - If RPC_URL is set, we accept it.
   // - Otherwise, require the chain-specific URL for the selected CHAIN.

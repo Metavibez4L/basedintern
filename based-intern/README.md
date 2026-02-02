@@ -132,6 +132,30 @@ If you use OpenClaw, this repo ships an OpenClaw skill for operating the agent.
 - Setup guide: [docs/OPENCLAW.md](docs/OPENCLAW.md)
 - Skill: [skills/based-intern-ops/SKILL.md](skills/based-intern-ops/SKILL.md)
 
+### OpenClaw on Railway (recommended for "attach" + remote dev)
+
+Run a separate OpenClaw Gateway service on Railway, then attach to the live agent worker over Railway private networking.
+
+- Guide: [docs/OPENCLAW_RAILWAY.md](docs/OPENCLAW_RAILWAY.md)
+- Skill (attach + status + manual tick): [skills/based-intern-railway-control/SKILL.md](skills/based-intern-railway-control/SKILL.md)
+
+On the Railway **agent/worker** service, enable the control server:
+
+```bash
+CONTROL_ENABLED=true
+CONTROL_PORT=8080
+CONTROL_TOKEN=...  # >= 16 chars, keep secret
+```
+
+Then from the Railway OpenClaw Gateway container:
+
+```bash
+cd /app/based-intern
+npm run control:health
+CONTROL_TOKEN=$CONTROL_TOKEN npm run control:status
+CONTROL_TOKEN=$CONTROL_TOKEN npm run control:tick -- --reason openclaw
+```
+
 ## Quick Start
 
 ### Step 1: Deploy Token
