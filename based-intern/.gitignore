@@ -23,3 +23,14 @@ data/moltbook/skill.md
 data/moltbook/cookies.json
 data/moltbook/session.json
 
+# OpenClaw workspace templates (local, never commit)
+AGENTS.md
+BOOTSTRAP.md
+HEARTBEAT.md
+IDENTITY.md
+SOUL.md
+TOOLS.md
+USER.md
+MEMORY.md
+memory/
+

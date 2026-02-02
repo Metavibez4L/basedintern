@@ -50,6 +50,13 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
 - [x] Loop timing (configurable via LOOP_MINUTES)
 - [x] Graceful error handling (continues on tick failures)
 
+### Control Server (Remote Ops)
+- [x] `src/control/server.ts` - Optional token-protected control plane for the running agent
+  - [x] `GET /healthz` (no auth)
+  - [x] `GET /status` (Bearer token) - returns sanitized config + state summary + tick timings
+  - [x] `POST /tick?reason=...` (Bearer token) - requests an immediate tick; blocks concurrent ticks
+- [x] Interruptible sleep so manual ticks can run immediately (no waiting for LOOP_MINUTES)
+
 ### State Management
 - [x] `src/agent/state.ts` - Persistent state at `STATE_PATH` (default `data/state.json`)
 - [x] Last trade timestamp tracking
@@ -207,6 +214,11 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
 - [x] Troubleshooting guide (X posting)
 - [x] `docs/FLOW.md` - Detailed execution flow
 - [x] `docs/STATUS.md` - This file
+- [x] `docs/OPENCLAW.md` - OpenClaw local setup
+- [x] `docs/OPENCLAW_RAILWAY.md` - OpenClaw on Railway + attach to running agent
+- [x] Railway OpenClaw skills
+  - [x] `skills/based-intern-ops` - run repo workflows (test/build/typecheck)
+  - [x] `skills/based-intern-railway-control` - attach to live worker via control server
 
 ### Git Setup
 - [x] `.gitignore` - Excludes node_modules, .env, generated files
@@ -400,6 +412,10 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 | `DRY_RUN` | ✅ | `true` | Safe default |
 | `TRADING_ENABLED` | ✅ | `false` | Safe default |
 | `KILL_SWITCH` | ✅ | `true` | Safe default |
+| `CONTROL_ENABLED` | ✅ | `false` | Enable control server (remote ops) |
+| `CONTROL_BIND` | ✅ | `0.0.0.0` | Bind address for control server |
+| `CONTROL_PORT` | ✅ | `8080` | Port for control server |
+| `CONTROL_TOKEN` | ✅ | (none) | Required when CONTROL_ENABLED=true (>= 16 chars) |
 | `DAILY_TRADE_CAP` | ✅ | `2` | Enforced by guardrails |
 | `MIN_INTERVAL_MINUTES` | ✅ | `60` | Enforced by guardrails |
 | `MAX_SPEND_ETH_PER_TRADE` | ✅ | `0.0005` | Enforced by guardrails |
@@ -614,6 +630,13 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
 ---
 
 ## 📝 Changelog
+
+### 2026-02-01
+- ✅ OpenClaw + Railway remote ops workflow
+  - ✅ Optional OpenClaw Gateway service (`Dockerfile.openclaw` at repo root)
+  - ✅ Token-protected control server to attach to the running Railway worker
+  - ✅ Scripts: `npm run control:health|control:status|control:tick`
+  - ✅ Skills: `based-intern-ops`, `based-intern-railway-control`
 
 ### 2026-01-31
 - ✅ ERC-8004 Identity Registry support (deploy/register/bind wallet) + optional receipt `Agent:` line

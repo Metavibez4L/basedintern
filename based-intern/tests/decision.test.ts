@@ -20,6 +20,11 @@ function mockConfig(overrides?: Partial<AppConfig>): AppConfig {
     TRADING_ENABLED: false,
     KILL_SWITCH: true,
     DRY_RUN: true,
+
+    CONTROL_ENABLED: false,
+    CONTROL_BIND: "0.0.0.0",
+    CONTROL_PORT: 8080,
+    CONTROL_TOKEN: undefined,
     ROUTER_TYPE: "unknown",
     ROUTER_ADDRESS: undefined,
     POOL_ADDRESS: undefined,

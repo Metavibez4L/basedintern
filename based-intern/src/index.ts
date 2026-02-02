@@ -18,6 +18,7 @@ import { createTradeExecutor } from "./chain/trade.js";
 import { pollMentionsAndRespond, type MentionPollerContext } from "./social/x_mentions.js";
 import { buildNewsPlan } from "./news/news.js";
 import { postNewsTweet } from "./social/news_poster.js";
+import { startControlServer } from "./control/server.js";
 
 async function resolveTokenAddress(cfg: ReturnType<typeof loadConfig>): Promise<Address | null> {
   if (cfg.TOKEN_ADDRESS) return cfg.TOKEN_ADDRESS as Address;
@@ -345,13 +346,103 @@ async function main() {
     loopMinutes: cfg.LOOP_MINUTES
   });
 
+  const startedAtMs = Date.now();
+  let lastTickStartedAtMs: number | null = null;
+  let lastTickFinishedAtMs: number | null = null;
+  let lastTickError: string | null = null;
+  let tickInFlight = false;
+  let manualTickRequested = false;
+  let manualTickReason: string | null = null;
+
+  let wakeSleep: (() => void) | null = null;
+  const interruptibleSleep = async (ms: number) => {
+    await new Promise<void>((resolve) => {
+      const t = setTimeout(() => {
+        wakeSleep = null;
+        resolve();
+      }, ms);
+      wakeSleep = () => {
+        clearTimeout(t);
+        wakeSleep = null;
+        resolve();
+      };
+    });
+  };
+
+  const control = startControlServer({
+    enabled: cfg.CONTROL_ENABLED,
+    bind: cfg.CONTROL_BIND,
+    port: cfg.CONTROL_PORT,
+    token: cfg.CONTROL_TOKEN?.trim() ?? null,
+    getStatus: async () => {
+      const state = await loadState();
+      return {
+        pid: process.pid,
+        uptimeSeconds: Math.floor((Date.now() - startedAtMs) / 1000),
+        tick: {
+          inFlight: tickInFlight,
+          lastStartedAtMs: lastTickStartedAtMs,
+          lastFinishedAtMs: lastTickFinishedAtMs,
+          lastError: lastTickError
+        },
+        config: {
+          chain: cfg.CHAIN,
+          socialMode: cfg.SOCIAL_MODE,
+          dryRun: cfg.DRY_RUN,
+          tradingEnabled: cfg.TRADING_ENABLED,
+          killSwitch: cfg.KILL_SWITCH,
+          loopMinutes: cfg.LOOP_MINUTES,
+          statePath: cfg.STATE_PATH
+        },
+        stateSummary: {
+          lastPostDayUtc: state.lastPostDayUtc ?? null,
+          lastSuccessfulMentionPollMs: state.lastSuccessfulMentionPollMs ?? null,
+          tradesExecutedToday: state.tradesExecutedToday ?? null,
+          lastExecutedTradeAtMs: state.lastExecutedTradeAtMs ?? null,
+          newsLastPostMs: state.newsLastPostMs ?? null
+        },
+        railway: {
+          serviceName: process.env.RAILWAY_SERVICE_NAME ?? null,
+          environmentName: process.env.RAILWAY_ENVIRONMENT_NAME ?? null,
+          projectId: process.env.RAILWAY_PROJECT_ID ?? null,
+          replicaId: process.env.RAILWAY_REPLICA_ID ?? null
+        }
+      };
+    },
+    requestTick: (reason: string) => {
+      if (tickInFlight) return { accepted: false, message: "tick already in flight" };
+      manualTickRequested = true;
+      manualTickReason = reason;
+      wakeSleep?.();
+      return { accepted: true, message: "tick requested" };
+    }
+  });
+
   while (true) {
+    const kind = manualTickRequested ? "manual" : "scheduled";
+    const reason = manualTickReason;
+    manualTickRequested = false;
+    manualTickReason = null;
+
+    tickInFlight = true;
+    lastTickStartedAtMs = Date.now();
+    lastTickFinishedAtMs = null;
+    lastTickError = null;
+
     try {
+      if (kind === "manual") {
+        logger.info("manual tick starting", { reason });
+      }
       await tick();
     } catch (err) {
-      logger.error("tick failed", { error: err instanceof Error ? err.message : String(err) });
+      lastTickError = err instanceof Error ? err.message : String(err);
+      logger.error("tick failed", { error: lastTickError });
+    } finally {
+      tickInFlight = false;
+      lastTickFinishedAtMs = Date.now();
     }
-    await sleep(cfg.LOOP_MINUTES * 60_000);
+
+    await interruptibleSleep(cfg.LOOP_MINUTES * 60_000);
   }
 }
 

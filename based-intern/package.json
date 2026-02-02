@@ -21,6 +21,10 @@
     "dev": "tsx src/index.ts",
     "x:cookies": "tsx scripts/save-x-cookies.ts",
 
+    "control:health": "tsx scripts/control-client.ts health",
+    "control:status": "tsx scripts/control-client.ts status",
+    "control:tick": "tsx scripts/control-client.ts tick",
+
     "moltbook:fetch-skill": "tsx scripts/fetch-moltbook-skill.ts",
     "moltbook:register": "tsx src/cli/moltbook.ts register",
     "moltbook:status": "tsx src/cli/moltbook.ts status",
