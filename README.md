@@ -1,13 +1,14 @@
 # 🤖 Based Intern
 
-> **An autonomous TypeScript + Solidity agent with on-chain identity (ERC-8004), multi-platform social presence (X + Moltbook), and remote operational control (OpenClaw)**
+> **The first autonomous agent on Base with ERC-8004 on-chain identity. AI-powered engagement. Live threaded conversations on X + Moltbook. Remote ops. Triple-safety trading. 197 tests. Actually working.**
 
-Based Intern is a production-ready autonomous agent that combines:
-- **On-chain identity** via ERC-8004 Identity Registry (portable, verifiable, wallet-bound)
-- **Social omnipresence** via multi-target posting (X API + Moltbook) with circuit breakers and rate-limit handling
-- **Remote operations** via OpenClaw Gateway (attach to live Railway workers, trigger actions, inspect state)
-- **Autonomous trading** with triple-safety architecture (config validation + LLM fallback + execution guardrails)
-- **Event-driven posting** that only speaks when there's something to say (no spam)
+Based Intern is a LIVE production autonomous agent that combines capabilities no other Base agent has:
+- **On-chain identity** via ERC-8004 Identity Registry (first Base agent with portable, verifiable, wallet-bound identity)
+- **AI-powered social engagement** with threaded replies to ALL mentions + comments using GPT-4o-mini (✅ LIVE)
+- **Multi-platform omnipresence** via dual posting (X API + Moltbook) with independent circuit breakers and rate-limit handling
+- **Remote operations** via OpenClaw Gateway (attach to live Railway workers, trigger actions, inspect state in real-time)
+- **Autonomous trading** with triple-safety architecture (config validation + LLM fallback + execution guardrails, ready to enable)
+- **Event-driven posting** that only speaks when there's something to say (no timer spam)
 
 This repo includes **LIVE Base mainnet (chainId 8453) deployments** with verified contracts and registered identities. Treat all mainnet addresses and trading configuration as production.
 
@@ -20,15 +21,16 @@ This repo includes **LIVE Base mainnet (chainId 8453) deployments** with verifie
   - Portable, verifiable, wallet-bound identity that persists across platforms
   - Receipts include canonical `Agent:` reference for attribution
 
-### 📡 Social Omnipresence
+### 📡 Social Omnipresence & AI Engagement
 - **Multi-Platform Posting** (`SOCIAL_MODE=multi`)
   - **X API** (OAuth 1.0a): Circuit breaker, idempotency, rate-limit aware
   - **Moltbook** (API-key): Skill-spec driven, redirect-safe, rate-limit backoff
   - Fan-out to multiple targets from single process with independent failure isolation
-- **AI Engagement System** (✅ LIVE)
-  - **X Mentions**: Polls every 2 minutes, responds to all mentions with GPT-4o-mini generated replies
-  - **Moltbook Comment Replies**: Fetches comments on agent's posts, generates contextual AI replies, respects 20s cooldown
+- **AI Engagement System** (✅ LIVE, ✅ THREADED)
+  - **X Mentions**: Polls every 2 minutes, responds to ALL mentions with GPT-4o-mini contextual replies
+  - **Moltbook Threaded Replies**: Fetches comments via `/agents/profile` + `/posts/{id}`, generates GPT-4o-mini replies, posts to `/posts/{postId}/comments` with `parent_id` for proper conversation threading, respects 20s cooldown
   - **Deduplication**: SHA256 fingerprinting prevents duplicate replies (LRU 100 tracked per platform)
+  - **Personality**: Technical, confident, slightly cocky but friendly - references ERC-8004 identity, 197 tests, Railway deployment
 - **Event-Driven**: Only posts receipts when wallet activity detected (no timer spam)
 
 ### 🛠️ Remote Operations (OpenClaw)
