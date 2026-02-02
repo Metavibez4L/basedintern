@@ -1,19 +1,55 @@
-# Based Intern
+# 🤖 Based Intern
 
-Based Intern is a TypeScript + Solidity agent that posts proof-of-life receipts and can execute capped trades on Base (Sepolia/mainnet). It’s designed to be safety-first: deterministic fallbacks, multiple independent guardrails, and “keep running even when dependencies fail”.
+> **An autonomous TypeScript + Solidity agent with on-chain identity (ERC-8004), multi-platform social presence (X + Moltbook), and remote operational control (OpenClaw)**
 
-This repo includes **LIVE Base mainnet (chainId 8453) deployments** (token + optional ERC-8004 identity). Treat all mainnet addresses and trading configuration as production.
+Based Intern is a production-ready autonomous agent that combines:
+- **On-chain identity** via ERC-8004 Identity Registry (portable, verifiable, wallet-bound)
+- **Social omnipresence** via multi-target posting (X API + Moltbook) with circuit breakers and rate-limit handling
+- **Remote operations** via OpenClaw Gateway (attach to live Railway workers, trigger actions, inspect state)
+- **Autonomous trading** with triple-safety architecture (config validation + LLM fallback + execution guardrails)
+- **Event-driven posting** that only speaks when there's something to say (no spam)
 
-## ✨ Features
+This repo includes **LIVE Base mainnet (chainId 8453) deployments** with verified contracts and registered identities. Treat all mainnet addresses and trading configuration as production.
 
-- **Receipts (proof-of-life):** posts balances, price (best-effort), action, and mode.
-- **Safety-first trading:** hard caps on daily trades, spend per trade, and minimum interval.
-- **Deterministic fallback:** if LLM/RPC/price fails, the agent continues conservatively.
-- **Social posting:** `SOCIAL_MODE=none|playwright|x_api|moltbook|multi` (fanout posts to multiple targets).
-- **Phase 1 mentions poller:** intent recognition + replies (no execution).
-- **Base News Brain:** optional AI-generated (or deterministic) news commentary with strict dedupe + caps.
-- **(Optional) ERC-8004 identity:** on-chain agent registry id + wallet binding.
-- **(Optional) OpenClaw remote ops:** run an OpenClaw Gateway on Railway and attach to the live worker via a token-protected control server.
+## ✨ Core Capabilities
+
+### 🔐 Identity & Verification
+- **ERC-8004 On-Chain Identity** (Base mainnet 8453)
+  - Registry: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
+  - Agent ref: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
+  - Portable, verifiable, wallet-bound identity that persists across platforms
+  - Receipts include canonical `Agent:` reference for attribution
+
+### 📡 Social Omnipresence
+- **Multi-Platform Posting** (`SOCIAL_MODE=multi`)
+  - **X API** (OAuth 1.0a): Circuit breaker, idempotency, rate-limit aware
+  - **Moltbook** (API-key): Skill-spec driven, redirect-safe, rate-limit backoff
+  - Fan-out to multiple targets from single process with independent failure isolation
+- **Phase 1 Mentions**: Intent recognition + safe replies (no execution)
+- **Event-Driven**: Only posts when wallet activity detected (no timer spam)
+
+### 🛠️ Remote Operations (OpenClaw)
+- **Token-Protected Control Server** (attach to live Railway workers)
+  - `GET /healthz` - Health checks
+  - `GET /status` - Sanitized config + state + tick timings
+  - `POST /tick` - Trigger immediate action
+- **OpenClaw Gateway Service** (separate Railway Web service)
+  - Skills: `based-intern-ops`, `based-intern-railway-control`
+  - Private networking: `http://basedintern.railway.internal:8080`
+
+### 💱 Autonomous Trading (Full Power, Off by Default)
+- **Triple-Safety Architecture**:
+  1. Config validation (Zod schema, cross-field checks)
+  2. LLM fallback (4-tier deterministic policy when OpenAI unavailable)
+  3. Execution guardrails (daily cap, interval, spend limits)
+- **DEX Integration**: Modular provider system (Aerodrome + HTTP fallback)
+- **Smart Approvals**: Automatic ERC20 allowance orchestration for sells
+- **Slippage Protection**: Configurable BPS-based minimum output
+
+### 🧠 Intelligence
+- **LangChain Brain**: GPT-4o-mini tool-calling agent
+- **Deterministic Fallback**: 4-tier decision making (no balance → low ETH → price signals → probabilistic)
+- **Base News Brain**: Multi-source aggregation (DeFiLlama, RSS, GitHub, Base blogs) with scoring/ranking
 
 ## 🛡️ Safety Model
 
@@ -158,18 +194,32 @@ Repo-level Dockerfiles:
 - `Dockerfile` — build/run the agent from repo root
 - `Dockerfile.openclaw` — run an OpenClaw Gateway on Railway (optional)
 
-## ✅ Live Identities
+## 🎯 Live Production Identities
 
-This agent has two independent “proof” surfaces:
+This agent maintains **verifiable identities across multiple surfaces** for maximum trust and attribution:
 
-- **ERC-8004 (on-chain, Base mainnet 8453)**
-	- Identity Registry: `0xe280e13FB24A26c81e672dB5f7976F8364bd1482`
-	- Agent ref: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
-	- agentURI (pinned): `https://raw.githubusercontent.com/Metavibez4L/basedintern/9a03a383107440d7c6ce360fe2efdce8b151ac40/based-intern/docs/agent.profile.json`
+### 🔗 ERC-8004 On-Chain Identity (Base mainnet 8453)
+- **Registry Contract**: [`0xe280e13FB24A26c81e672dB5f7976F8364bd1482`](https://basescan.org/address/0xe280e13fb24a26c81e672db5f7976f8364bd1482)
+- **Canonical Ref**: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
+- **Profile URI** (pinned): [agent.profile.json](https://raw.githubusercontent.com/Metavibez4L/basedintern/9a03a383107440d7c6ce360fe2efdce8b151ac40/based-intern/docs/agent.profile.json)
+- **Wallet Binding**: EIP-712 signed attestation linking agentId to wallet
+- **Why it matters**: Portable identity that persists across platforms, independently verifiable on Base
 
-- **Moltbook (off-chain, claimed)**
-	- Agent name: `BasedIntern_wi5rcx`
-	- Verify from your deploy environment: `npm run moltbook:doctor`
+### 📱 Moltbook Claimed Identity
+- **Agent Name**: `BasedIntern_wi5rcx`
+- **Verification**: Run `npm run moltbook:doctor` from your deploy environment
+- **Features**: API-key based posting, skill-spec driven, redirect-safe
+- **Rate Limit Handling**: Automatic backoff with circuit breaker (respects retry-after)
+
+### 🐦 X (Twitter) Presence
+- **Posting Mode**: OAuth 1.0a API with circuit breaker + idempotency
+- **Mentions**: Phase 1 intent recognition (help, status, buy, sell, why commands)
+- **Safety**: All replies explain guardrails; never executes trades from mentions
+
+### 🚂 Railway Operational Control
+- **Control Endpoint**: `http://basedintern.railway.internal:8080` (private networking)
+- **Authentication**: Bearer token (>= 16 chars)
+- **Access Methods**: OpenClaw Gateway, direct HTTP, or `npm run control:*` scripts
 
 ## (Optional) ERC-8004 agent identity
 
