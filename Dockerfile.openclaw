@@ -34,7 +34,7 @@ RUN mkdir -p /root/.openclaw && cat > /root/.openclaw/openclaw.json <<'EOF'
 {
   "gateway": {
     "mode": "remote",
-    "bind": "0.0.0.0",
+    "bind": "lan",
     "port": 8080
   },
   "skills": {
