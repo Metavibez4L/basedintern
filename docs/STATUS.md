@@ -6,7 +6,8 @@
 
 - 🔐 **On-Chain Identity (ERC-8004)**: Live Base mainnet deployment with verifiable agentId + wallet binding
 - 📡 **Multi-Platform Social**: X API + Moltbook with circuit breakers and rate-limit handling
-- 🛠️ **Remote Operations**: OpenClaw Gateway + token-protected control server for Railway
+- � **Live News Opinions**: Multi-source aggregation + GPT-4o-mini commentary (✅ LIVE on Railway)
+- �🛠️ **Remote Operations**: OpenClaw Gateway + token-protected control server for Railway
 - 💱 **Autonomous Trading**: Triple-safety architecture with modular DEX provider system
 - ✅ **197 Deterministic Tests**: Comprehensive coverage with zero flaky tests
 
@@ -169,19 +170,45 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
     - Respects rate-limit-reset headers
   - [x] SOCIAL_MODE=none (logs receipt only)
 
-### Base News Brain (Optional)
-- [x] `src/news/news.ts` - News plan builder (event/daily modes), cap enforcement, dedupe
-- [x] `src/news/providers/` - Provider pipeline
-  - [x] `defillama` (Base snapshot)
-  - [x] `rss` (RSS/Atom)
-  - [x] `github` (GitHub Atom feeds)
-- [x] `src/news/score.ts` - Scoring + ranking with deterministic tie-breakers
-- [x] `src/news/render.ts` - Deterministic fallback renderer (<= 240 chars) with occasional "NFA."
-- [x] `src/social/news_poster.ts` - News posting via the same poster abstraction
-- [x] Safety guardrails
-  - [x] Requires a link when `NEWS_REQUIRE_LINK=true`
-  - [x] Daily caps (`NEWS_MAX_POSTS_PER_DAY`) + interval caps (`NEWS_MIN_INTERVAL_MINUTES`)
-  - [x] Feed validation: `NEWS_FEEDS` required for `rss`, `NEWS_GITHUB_FEEDS` required for `github`
+### 📰 Live News Opinion System (PRODUCTION — LIVE on Railway)
+- [x] **Multi-source news aggregation** (`src/news/fetcher.ts`)
+  - [x] CryptoPanic API fetcher (hot crypto news, optional with API key)
+  - [x] RSS/Atom fetcher (Base Mirror blog via `https://mirror.xyz/base.eth/feed/atom`)
+  - [x] Base ecosystem fetcher (GitHub releases API for base-org repos)
+  - [x] Automatic deduplication by URL
+  - [x] Date-based sorting (newest first)
+- [x] **GPT-4o-mini opinion generation** (`src/news/opinion.ts`)
+  - [x] LangChain integration with structured JSON output
+  - [x] Generates: tone, summary, commentary, confidence (0-1), relevanceScore (0-1)
+  - [x] System prompt emphasizes Base/INTERN/Layer2 relevance
+  - [x] Graceful fallback on LLM errors
+- [x] **Automated opinion posting** (`src/news/opinionPoster.ts`)
+  - [x] Emoji-coded sentiment (🚀 bullish, ⚠️ bearish, 📊 neutral, 🤔 mixed)
+  - [x] Formatted posts: emoji + commentary + URL + confidence
+  - [x] Relevance filtering (≥ NEWS_MIN_RELEVANCE_SCORE, default 0.5)
+  - [x] Duplicate prevention (LRU list of 50 posted article IDs)
+- [x] **State management v5** (`src/agent/state.ts`)
+  - [x] newsOpinionLastFetchMs (60min interval enforcement)
+  - [x] newsOpinionPostsToday (daily cap, resets at UTC midnight)
+  - [x] newsOpinionLastDayUtc (automatic daily reset logic)
+  - [x] postedNewsArticleIds (LRU list for duplicate detection)
+  - [x] Migration v4→v5 (adds opinion fields on upgrade)
+- [x] **Integration into main tick loop** (`src/index.ts`)
+  - [x] Independent cycle after existing Base News Brain
+  - [x] Runs every NEWS_FETCH_INTERVAL_MINUTES (default 60)
+  - [x] Daily cap enforcement (NEWS_MAX_POSTS_PER_DAY, default 2)
+  - [x] Non-blocking (failures logged, tick continues)
+- [x] **Configuration** (`src/config.ts`)
+  - [x] NEWS_FETCH_INTERVAL_MINUTES (default 60)
+  - [x] NEWS_MIN_RELEVANCE_SCORE (default 0.5)
+  - [x] NEWS_CRYPTO_PANIC_KEY (optional)
+  - [x] NEWS_RSS_FEEDS (default includes Base Mirror RSS)
+  - [x] NEWS_GITHUB_FEEDS (default base-org/node,base-org/contracts)
+  - [x] Safe defaults for all fields (no strict validation errors)
+- [x] **No 403 errors**: Removed HTML scraping sources (base_blog, cdp_launches)
+  - [x] Replaced with Mirror RSS (no bot protection)
+  - [x] All sources now API-based (GitHub API, DefiLlama API, RSS)
+- [x] **Test coverage**: All test mocks updated with new config fields
 
 ### X Mentions Poller (Phase 1: Intent Recognition)
 - [x] `src/social/x_mentions.ts` - **Comment → Intent recognition (NO TRADING)**

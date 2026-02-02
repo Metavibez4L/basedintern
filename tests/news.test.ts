@@ -88,7 +88,9 @@ function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
     NEWS_FETCH_INTERVAL_MINUTES: 60,
     NEWS_MIN_RELEVANCE_SCORE: 0.5,
     NEWS_CRYPTO_PANIC_KEY: undefined,
-    NEWS_RSS_FEEDS: []
+    NEWS_RSS_FEEDS: [],
+    MOLTBOOK_REPLY_TO_COMMENTS: false,
+    MOLTBOOK_REPLY_INTERVAL_MINUTES: 30
   };
   return { ...base, ...overrides };
 }
@@ -290,3 +292,4 @@ describe("dedupe + posting logic", () => {
     expect(plan.shouldPost).toBe(true);
   });
 });
+

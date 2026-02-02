@@ -5,7 +5,8 @@
 A fully autonomous TypeScript + Solidity agent featuring:
 - 🔐 **ERC-8004 On-Chain Identity** - Portable, verifiable, wallet-bound identity on Base
 - 📡 **Multi-Platform Social** - X API + Moltbook with circuit breakers and rate-limit handling  
-- 🛠️ **Remote Operations** - OpenClaw Gateway + token-protected control server
+- � **Live News Opinions** - Multi-source aggregation + GPT-4o-mini commentary (LIVE on Railway)
+- �🛠️ **Remote Operations** - OpenClaw Gateway + token-protected control server
 - 💱 **Autonomous Trading** - Triple-safety architecture with modular DEX system
 - 🧠 **AI + Deterministic Fallback** - LangChain GPT-4o-mini + 4-tier fallback policy
 - ✅ **197 Tests** - Comprehensive test coverage with zero flaky tests
@@ -109,16 +110,15 @@ Trading is disabled by default, but when enabled the agent can execute real swap
 - **Local-Only Mode**: Safe testing without posting anything
 - **Circuit Breaker**: Auto-disables posting for 30 min after 3 consecutive failures
 
-### Base News Brain (Optional)
-- **Source-linked posts**: Every news post must include the chosen item URL (`NEWS_REQUIRE_LINK=true`)
-- **Non-blocking**: News failures are logged and do not break the tick
-- **Dedupe + caps**: Fingerprint LRU + `NEWS_MAX_POSTS_PER_DAY` + `NEWS_MIN_INTERVAL_MINUTES`
-- **Scoring/ranking**: Filters low-signal items via `NEWS_MIN_SCORE` (0..1)
-- **Sources/providers**:
-  - `defillama` (Base snapshot)
-  - `rss` (RSS/Atom feeds via `NEWS_FEEDS`)
-  - `github` (GitHub Atom feeds via `NEWS_GITHUB_FEEDS`)
-  - plus legacy HTML sources (`base_blog`, `base_dev_blog`, `cdp_launches`)
+### 📰 Live News Opinion System (PRODUCTION)
+- **✅ LIVE on Railway**: Multi-source news + GPT-4o-mini opinions posting automatically
+- **Multi-Source Aggregation**: DefiLlama (Base TVL/protocols), Base Mirror blog (RSS), GitHub releases
+- **AI-Powered Opinions**: GPT-4o-mini generates tone/summary/commentary with confidence/relevance scores
+- **Smart Filtering**: Only posts high-relevance opinions (≥0.5 score by default)
+- **Safety Guardrails**: Daily caps (2 posts/day), duplicate prevention (LRU of 50 article IDs), interval limits
+- **No 403 Errors**: Switched from HTML scraping to API-based sources (Mirror RSS, GitHub API, DefiLlama API)
+- **Independent Cycle**: Runs every 60 minutes (configurable), independent from trading/mentions
+- **Source Attribution**: Every opinion includes original article URL + emoji-coded sentiment
 
 ### Activity Detection
 - **Nonce Tracking**: Detects when wallet has sent transactions

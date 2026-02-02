@@ -16,6 +16,7 @@ import { watchForActivity, parseMinEthDelta, parseMinTokenDelta, type ActivityWa
 import { createPoster } from "./social/poster.js";
 import { createTradeExecutor } from "./chain/trade.js";
 import { pollMentionsAndRespond, type MentionPollerContext } from "./social/x_mentions.js";
+import { replyToMoltbookComments } from "./social/moltbook_comments.js";
 import { buildNewsPlan } from "./news/news.js";
 import { postNewsTweet } from "./social/news_poster.js";
 import { startControlServer } from "./control/server.js";
@@ -71,6 +72,35 @@ async function tick(): Promise<void> {
           error: err instanceof Error ? err.message : String(err)
         });
         // Continue with normal loop even if mention polling fails
+      }
+    }
+  }
+
+  // ============================================================
+  // MOLTBOOK COMMENT REPLY SYSTEM
+  // ============================================================
+  // Reply to comments on agent's Moltbook posts (AI-powered engagement)
+  const moltbookEnabledForReplies =
+    cfg.MOLTBOOK_ENABLED &&
+    (cfg.SOCIAL_MODE === "moltbook" || (cfg.SOCIAL_MODE === "multi" && cfg.SOCIAL_MULTI_TARGETS.split(",").map((s) => s.trim()).includes("moltbook")));
+
+  if (cfg.MOLTBOOK_REPLY_TO_COMMENTS && moltbookEnabledForReplies) {
+    const lastReplyCheckMs = (state as any).moltbookLastReplyCheckMs ?? 0;
+    const replyIntervalMs = cfg.MOLTBOOK_REPLY_INTERVAL_MINUTES * 60 * 1000;
+    const timeSinceLastCheck = Date.now() - lastReplyCheckMs;
+
+    if (timeSinceLastCheck >= replyIntervalMs) {
+      try {
+        logger.info("moltbook.reply.check_start");
+        const result = await replyToMoltbookComments(cfg, state, saveState);
+        
+        // Update last check time in state (function will save it)
+        logger.info("moltbook.reply.check_complete", result);
+      } catch (err) {
+        logger.warn("moltbook.reply.check_error", {
+          error: err instanceof Error ? err.message : String(err)
+        });
+        // Continue with normal loop even if reply system fails
       }
     }
   }
