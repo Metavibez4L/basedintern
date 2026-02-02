@@ -1,14 +1,57 @@
-# based-intern
+# 🤖 Based Intern
 
-Senior TS + Solidity scaffold for a “Based Intern” agent that can post proof-of-life receipts and (optionally) trade with strict safety caps.
+> **Production-grade autonomous agent with on-chain identity (ERC-8004), multi-platform social posting (X + Moltbook), remote ops (OpenClaw), and autonomous trading**
 
-## Features
+A fully autonomous TypeScript + Solidity agent featuring:
+- 🔐 **ERC-8004 On-Chain Identity** - Portable, verifiable, wallet-bound identity on Base
+- 📡 **Multi-Platform Social** - X API + Moltbook with circuit breakers and rate-limit handling  
+- 🛠️ **Remote Operations** - OpenClaw Gateway + token-protected control server
+- 💱 **Autonomous Trading** - Triple-safety architecture with modular DEX system
+- 🧠 **AI + Deterministic Fallback** - LangChain GPT-4o-mini + 4-tier fallback policy
+- ✅ **197 Tests** - Comprehensive test coverage with zero flaky tests
 
-### Core Capabilities
-- **Autonomous Agent**: Runs continuously with 30-min ticks (configurable)
-- **Event-Driven Posting**: Posts ONLY when wallet activity detected (no spam)
-- **Proof-of-Life Receipts**: Standardized format showing action, balances, price, tx hash
-- **Trading (Optional)**: Execute BUY/SELL swaps with strict caps and guardrails
+## 🎯 Unique Capabilities
+
+### 🔐 On-Chain Identity (ERC-8004)
+- **Live Base mainnet deployment**: [`0xe280e13FB24A26c81e672dB5f7976F8364bd1482`](https://basescan.org/address/0xe280e13fb24a26c81e672db5f7976f8364bd1482)
+- **Registered Agent**: `eip155:8453:0xe280e13FB24A26c81e672dB5f7976F8364bd1482#1`
+- **Wallet Binding**: EIP-712 signed attestation linking identity to execution wallet
+- **Profile URI**: Immutable JSON hosted on GitHub (IPFS-ready)
+- **Receipts Include**: Canonical `Agent:` reference for attribution
+- **Why it matters**: First Base agent with portable, verifiable on-chain identity
+
+### 📡 Multi-Platform Social Omnipresence
+- **X API** (OAuth 1.0a recommended)
+  - Circuit breaker (3 failures → 30min cooldown)
+  - Idempotency (SHA256 fingerprinting)
+  - Rate-limit aware (exponential backoff)
+- **Moltbook** (skill-spec driven)
+  - Redirect-safe (enforces `www.moltbook.com`)
+  - Rate-limit backoff (respects retry-after)
+  - Circuit breaker (bounded retry windows)
+- **Multi-target fanout**: `SOCIAL_MODE=multi` posts to X + Moltbook in sequence with independent failure isolation
+- **Phase 1 Mentions**: Intent recognition with safe replies (never executes from mentions)
+
+### 🛠️ Remote Operations (OpenClaw Integration)
+- **Control Server** (optional, Railway-optimized)
+  - `GET /healthz` - Health check (no auth)
+  - `GET /status` - Config + state summary (Bearer token)
+  - `POST /tick?reason=...` - Trigger immediate tick (Bearer token)
+- **OpenClaw Gateway Service**
+  - Separate Railway Web service (`Dockerfile.openclaw`)
+  - Private networking: `http://basedintern.railway.internal:8080`
+  - Skills: `based-intern-ops`, `based-intern-railway-control`
+- **Developer Experience**: Attach to live Railway worker, inspect state, trigger ticks, run tests/builds remotely
+
+### 💱 Autonomous Trading (Full Power, Off by Default)
+- **Triple-Safety Architecture**:
+  1. **Config Validation**: Zod schema + cross-field checks at startup
+  2. **LLM Fallback**: 4-tier deterministic policy (no balance → low ETH → price signals → probabilistic)
+  3. **Execution Guardrails**: Daily cap, interval, spend limits, sell fraction caps
+- **Modular DEX System**: Provider registry with Aerodrome + HTTP (CoinGecko) fallback
+- **Smart ERC20 Approvals**: Automatic allowance orchestration for sells
+- **Event-Driven**: Only trades when wallet activity detected (nonce, ETH delta, token delta)
+- **Receipts**: Standardized proof-of-life format with tx hash when executed
 
 ### Trading (Full Power, Off by Default)
 
