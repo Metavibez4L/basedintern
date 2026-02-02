@@ -115,8 +115,14 @@ function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
     NEWS_REQUIRE_LINK: true,
     NEWS_REQUIRE_SOURCE_WHITELIST: true,
     NEWS_SOURCES: "base_blog,base_dev_blog,cdp_launches",
+    NEWS_POSTS_PER_DAY: undefined,
+    NEWS_INTERVAL_MINUTES: undefined,
     NEWS_DAILY_HOUR_UTC: 15,
-    NEWS_MAX_ITEMS_CONTEXT: 8
+    NEWS_MAX_ITEMS_CONTEXT: 8,
+    NEWS_FETCH_INTERVAL_MINUTES: 60,
+    NEWS_MIN_RELEVANCE_SCORE: 0.5,
+    NEWS_CRYPTO_PANIC_KEY: undefined,
+    NEWS_RSS_FEEDS: []
   };
   return { ...base, ...overrides };
 }
