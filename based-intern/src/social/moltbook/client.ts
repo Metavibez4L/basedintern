@@ -61,6 +61,7 @@ export type MoltbookClient = {
   updateProfile(args: { description?: string; metadata?: any }): Promise<any>;
   createPost(args: { submolt?: string; title?: string; content?: string; url?: string }): Promise<any>;
   getTimeline(args?: { sort?: "hot" | "new" | "top" | "rising"; limit?: number; submolt?: string }): Promise<any>;
+  request<T = any>(args: { method: string; path: string; query?: Record<string, any>; body?: any }): Promise<T>;
 };
 
 function resolveFromCwd(p: string): string {
@@ -462,7 +463,9 @@ export function createMoltbookClient(cfg: AppConfig): MoltbookClient {
         submolt: args?.submolt
       };
       return await request<any>({ method: "GET", path: "/posts", query });
-    }
+    },
+
+    request
   };
 }
 

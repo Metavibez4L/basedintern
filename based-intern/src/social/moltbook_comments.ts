@@ -39,29 +39,49 @@ async function fetchCommentsOnMyPosts(cfg: AppConfig): Promise<MoltbookComment[]
   try {
     // Get agent's profile to find their posts
     const profile = await client.getProfileMe();
-    const agentUsername = profile.username || profile.name;
+    const agentId = (profile as any).agent?.id || profile.id;
+    const agentName = (profile as any).agent?.name || profile.name || profile.username;
 
-    logger.info("moltbook.comments.fetch", { agentUsername });
+    logger.info("moltbook.comments.fetch", { agentId, agentName });
 
-    // Get agent's timeline (their posts)
-    const timeline = await client.getTimeline({ sort: "new", limit: 10 });
-    const posts = timeline.posts || timeline.items || [];
+    // Get agent's profile with recent posts
+    const profileDetail = await client.request({
+      method: "GET",
+      path: "/agents/profile",
+      query: { name: agentName }
+    });
+    
+    const recentPosts = (profileDetail as any).recentPosts || [];
+    logger.info("moltbook.comments.posts.found", { count: recentPosts.length });
 
     const allComments: MoltbookComment[] = [];
 
-    for (const post of posts) {
-      if (!post.comments || post.comments.length === 0) continue;
+    // Fetch posts that have comments
+    for (const post of recentPosts) {
+      const commentCount = post.comment_count || 0;
+      if (commentCount === 0) continue;
 
-      for (const comment of post.comments) {
+      logger.info("moltbook.comments.fetch_post", { postId: post.id, commentCount });
+
+      // Fetch individual post to get comments
+      const postDetail = await client.request({
+        method: "GET",
+        path: `/posts/${post.id}`
+      });
+
+      const comments = (postDetail as any).comments || [];
+      
+      for (const comment of comments) {
         // Skip our own comments
-        if (comment.author === agentUsername) continue;
+        const commentAuthorId = comment.author?.id || comment.author_id;
+        if (commentAuthorId === agentId) continue;
 
         allComments.push({
-          id: comment.id || comment.comment_id || `${post.id}-${comment.author}`,
-          postId: post.id || post.post_id,
-          author: comment.author || comment.username,
+          id: comment.id || `${post.id}-${comment.author?.name}`,
+          postId: post.id,
+          author: comment.author?.name || comment.author_id || "unknown",
           content: comment.content || comment.text || "",
-          createdAt: comment.created_at || comment.createdAt || Date.now()
+          createdAt: comment.created_at ? new Date(comment.created_at).getTime() : Date.now()
         });
       }
     }
