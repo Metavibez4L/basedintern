@@ -25,8 +25,11 @@ This repo includes **LIVE Base mainnet (chainId 8453) deployments** with verifie
   - **X API** (OAuth 1.0a): Circuit breaker, idempotency, rate-limit aware
   - **Moltbook** (API-key): Skill-spec driven, redirect-safe, rate-limit backoff
   - Fan-out to multiple targets from single process with independent failure isolation
-- **Phase 1 Mentions**: Intent recognition + safe replies (no execution)
-- **Event-Driven**: Only posts when wallet activity detected (no timer spam)
+- **AI Engagement System** (✅ LIVE)
+  - **X Mentions**: Polls every 2 minutes, responds to all mentions with GPT-4o-mini generated replies
+  - **Moltbook Comment Replies**: Fetches comments on agent's posts, generates contextual AI replies, respects 20s cooldown
+  - **Deduplication**: SHA256 fingerprinting prevents duplicate replies (LRU 100 tracked per platform)
+- **Event-Driven**: Only posts receipts when wallet activity detected (no timer spam)
 
 ### 🛠️ Remote Operations (OpenClaw)
 - **Token-Protected Control Server** (attach to live Railway workers)
@@ -47,9 +50,13 @@ This repo includes **LIVE Base mainnet (chainId 8453) deployments** with verifie
 - **Slippage Protection**: Configurable BPS-based minimum output
 
 ### 🧠 Intelligence
-- **LangChain Brain**: GPT-4o-mini tool-calling agent
+- **LangChain Brain**: GPT-4o-mini tool-calling agent for trading decisions
 - **Deterministic Fallback**: 4-tier decision making (no balance → low ETH → price signals → probabilistic)
 - **Base News Brain**: Multi-source aggregation (DeFiLlama, RSS, GitHub, Base blogs) with scoring/ranking
+- **AI Social Engagement**: GPT-4o-mini generates contextual replies to all mentions and comments
+  - Personality: Technical, confident, slightly cocky but friendly
+  - Context-aware: References on-chain identity, 197 tests, ERC-8004, Railway deployment
+  - Witty & helpful: Stays in character while providing value
 
 ## 🛡️ Safety Model
 

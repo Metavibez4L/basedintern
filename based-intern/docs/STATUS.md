@@ -6,7 +6,9 @@
 
 - 🔐 **On-Chain Identity (ERC-8004)**: Live Base mainnet deployment with verifiable agentId + wallet binding
 - 📡 **Multi-Platform Social**: X API + Moltbook with circuit breakers and rate-limit handling
-- � **Live News Opinions**: Multi-source aggregation + GPT-4o-mini commentary (✅ LIVE on Railway)
+- 💬 **AI Comment Engagement**: GPT-4o-mini powered replies to all Moltbook comments (✅ LIVE)
+- 📰 **Live News Opinions**: Multi-source aggregation + GPT-4o-mini commentary (✅ LIVE on Railway)
+- 🎯 **X Mentions & Replies**: Intent recognition with safe, contextual AI responses (✅ LIVE)
 - �🛠️ **Remote Operations**: OpenClaw Gateway + token-protected control server for Railway
 - 💱 **Autonomous Trading**: Triple-safety architecture with modular DEX provider system
 - ✅ **197 Deterministic Tests**: Comprehensive coverage with zero flaky tests
@@ -75,14 +77,25 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
 - [x] **X API circuit breaker state**
   - [x] Consecutive failure count (xApiFailureCount)
   - [x] Circuit breaker disabled-until timestamp (xApiCircuitBreakerDisabledUntilMs)
+- [x] **Moltbook circuit breaker state**
+  - [x] Consecutive failure count (moltbookFailureCount)
+  - [x] Circuit breaker disabled-until timestamp (moltbookCircuitBreakerDisabledUntilMs)
 - [x] **Receipt idempotency state**
   - [x] Last posted receipt fingerprint (lastPostedReceiptFingerprint)
+  - [x] Last posted Moltbook receipt fingerprint (lastPostedMoltbookReceiptFingerprint)
 - [x] **Activity watcher state** (EVENT-DRIVEN RECEIPTS)
   - [x] Last seen nonce (lastSeenNonce)
   - [x] Last seen ETH balance (lastSeenEthWei)
   - [x] Last seen token balance (lastSeenTokenRaw)
   - [x] Last seen block number (lastSeenBlockNumber)
   - [x] Last post day UTC (lastPostDayUtc) - for optional daily heartbeat
+- [x] **X Mentions state**
+  - [x] Last seen mention ID (lastSeenMentionId)
+  - [x] Replied mention fingerprints (repliedMentionFingerprints) - SHA256 deduplication, LRU 100
+  - [x] Last successful poll timestamp (lastSuccessfulMentionPollMs)
+- [x] **Moltbook Comment Reply state**
+  - [x] Replied comment IDs (repliedMoltbookCommentIds) - SHA256 deduplication, LRU 100
+  - [x] Last reply check timestamp (moltbookLastReplyCheckMs)
 
 ### LangChain Integration
 - [x] `src/agent/brain.ts` - LangChain tool-calling agent
@@ -169,6 +182,25 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
     - Shorter backoff (1s, 3s, 8s) for transient errors
     - Respects rate-limit-reset headers
   - [x] SOCIAL_MODE=none (logs receipt only)
+- [x] `src/social/x_mentions.ts` - **X Mentions & Replies (LIVE)**
+  - [x] Polls X API for mentions every X_POLL_MINUTES (default 2)
+  - [x] Fetches authenticated user ID for filtering
+  - [x] Incremental polling (fetches only new mentions since lastSeenMentionId)
+  - [x] SHA256 fingerprint deduplication (prevents duplicate replies)
+  - [x] GPT-4o-mini powered reply generation (contextual, in-character)
+  - [x] Rate-limit aware (respects X API 429 responses)
+  - [x] State persistence (repliedMentionFingerprints, LRU 100)
+  - [x] Intent recognition (command parsing for future execution capabilities)
+- [x] `src/social/moltbook_comments.ts` - **Moltbook Comment Reply System (LIVE)**
+  - [x] Fetches agent's posts via `/agents/profile?name={agentName}`
+  - [x] Fetches individual post details via `/posts/{id}` for comments
+  - [x] Filters out agent's own comments (by author ID)
+  - [x] GPT-4o-mini powered reply generation (Based Intern personality)
+  - [x] 20-second rate-limit cooldown between replies (Moltbook requirement)
+  - [x] SHA256 fingerprint deduplication (tracks repliedMoltbookCommentIds)
+  - [x] State persistence (LRU 100, moltbookLastReplyCheckMs)
+  - [x] Respects Moltbook rate limits (handles 429 responses gracefully)
+  - [x] Configurable check interval (MOLTBOOK_REPLY_INTERVAL_MINUTES, default 30)
 
 ### 📰 Live News Opinion System (PRODUCTION — LIVE on Railway)
 - [x] **Multi-source news aggregation** (`src/news/fetcher.ts`)
