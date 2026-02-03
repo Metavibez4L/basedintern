@@ -55,6 +55,7 @@ export type AgentState = {
   moltbookFailureCount?: number;
   moltbookCircuitBreakerDisabledUntilMs?: number | null;
   repliedMoltbookCommentIds?: string[]; // SHA256 fingerprints of replied comments
+  moltbookLastReplyCheckMs?: number | null;
 
   // =========================
   // News Opinion (v5)
@@ -92,6 +93,7 @@ export const DEFAULT_STATE: AgentState = {
   moltbookFailureCount: 0,
   moltbookCircuitBreakerDisabledUntilMs: null,
   repliedMoltbookCommentIds: [],
+  moltbookLastReplyCheckMs: null,
 
   newsOpinionLastFetchMs: null,
   newsOpinionPostsToday: 0,
@@ -132,6 +134,13 @@ function migrateState(raw: any, version: number | undefined): AgentState {
   if (version === undefined || version < 4) {
     logger.info("state migration", { from: version || 3, to: STATE_SCHEMA_VERSION });
     if (!("moltbookLastPostMs" in raw)) raw.moltbookLastPostMs = null;
+    if (!("lastPostedMoltbookReceiptFingerprint" in raw)) raw.lastPostedMoltbookReceiptFingerprint = null;
+    if (!("moltbookFailureCount" in raw)) raw.moltbookFailureCount = 0;
+    if (!("moltbookCircuitBreakerDisabledUntilMs" in raw)) raw.moltbookCircuitBreakerDisabledUntilMs = null;
+    if (!("repliedMoltbookCommentIds" in raw) || !Array.isArray(raw.repliedMoltbookCommentIds)) raw.repliedMoltbookCommentIds = [];
+    if (!("moltbookLastReplyCheckMs" in raw)) raw.moltbookLastReplyCheckMs = null;
+  }
+
   // v4 → v5: Add news opinion fields
   if (version === undefined || version < 5) {
     logger.info("state migration", { from: version || 4, to: STATE_SCHEMA_VERSION });
@@ -139,11 +148,6 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     if (!("newsOpinionPostsToday" in raw)) raw.newsOpinionPostsToday = 0;
     if (!("newsOpinionLastDayUtc" in raw)) raw.newsOpinionLastDayUtc = null;
     if (!("postedNewsArticleIds" in raw) || !Array.isArray(raw.postedNewsArticleIds)) raw.postedNewsArticleIds = [];
-  }
-
-    if (!("lastPostedMoltbookReceiptFingerprint" in raw)) raw.lastPostedMoltbookReceiptFingerprint = null;
-    if (!("moltbookFailureCount" in raw)) raw.moltbookFailureCount = 0;
-    if (!("moltbookCircuitBreakerDisabledUntilMs" in raw)) raw.moltbookCircuitBreakerDisabledUntilMs = null;
   }
 
   return raw as AgentState;
@@ -191,6 +195,8 @@ export async function loadState(): Promise<AgentState> {
       lastPostedMoltbookReceiptFingerprint: migrated.lastPostedMoltbookReceiptFingerprint ?? null,
       moltbookFailureCount: migrated.moltbookFailureCount ?? 0,
       moltbookCircuitBreakerDisabledUntilMs: migrated.moltbookCircuitBreakerDisabledUntilMs ?? null,
+      repliedMoltbookCommentIds: Array.isArray(migrated.repliedMoltbookCommentIds) ? migrated.repliedMoltbookCommentIds : [],
+      moltbookLastReplyCheckMs: migrated.moltbookLastReplyCheckMs ?? null,
 
       newsOpinionLastFetchMs: migrated.newsOpinionLastFetchMs ?? null,
       newsOpinionPostsToday: migrated.newsOpinionPostsToday ?? 0,

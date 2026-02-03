@@ -205,7 +205,7 @@ export async function replyToMoltbookComments(
   }
 
   // Get already-replied comment IDs from state
-  const repliedIds = new Set((state as any).repliedMoltbookCommentIds || []);
+  const repliedIds = new Set(state.repliedMoltbookCommentIds ?? []);
 
   for (const comment of comments) {
     const fingerprint = sha256Hex(`${comment.id}:${comment.author}:${comment.content}`);
@@ -245,7 +245,7 @@ export async function replyToMoltbookComments(
   // Save updated state
   const repliedArray = Array.from(repliedIds).slice(-100); // Keep last 100
   const newState: AgentState = {
-    ...(state as any),
+    ...state,
     repliedMoltbookCommentIds: repliedArray,
     moltbookLastReplyCheckMs: Date.now()
   };

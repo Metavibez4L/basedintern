@@ -85,7 +85,7 @@ async function tick(): Promise<void> {
     (cfg.SOCIAL_MODE === "moltbook" || (cfg.SOCIAL_MODE === "multi" && cfg.SOCIAL_MULTI_TARGETS.split(",").map((s) => s.trim()).includes("moltbook")));
 
   if (cfg.MOLTBOOK_REPLY_TO_COMMENTS && moltbookEnabledForReplies) {
-    const lastReplyCheckMs = (state as any).moltbookLastReplyCheckMs ?? 0;
+    const lastReplyCheckMs = state.moltbookLastReplyCheckMs ?? 0;
     const replyIntervalMs = cfg.MOLTBOOK_REPLY_INTERVAL_MINUTES * 60 * 1000;
     const timeSinceLastCheck = Date.now() - lastReplyCheckMs;
 
