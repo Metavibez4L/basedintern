@@ -645,3 +645,4 @@ Located at `src/chain/dex/aerodromeAdapter.ts`:
 - [`docs/STATUS.md`](docs/STATUS.md) - Implementation status and next steps
 - [`docs/BUILD.md`](docs/BUILD.md) - Build system, deployment guide, and troubleshooting
 - [`docs/RAILWAY.md`](docs/RAILWAY.md) - Deploy as a 24/7 Railway worker
+- [`docs/LAST_VERIFIED.md`](docs/LAST_VERIFIED.md) - Last verification date and OpenClaw integration
