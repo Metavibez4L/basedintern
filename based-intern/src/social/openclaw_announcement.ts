@@ -2,7 +2,16 @@
  * OpenClaw Agent Announcement
  * 
  * Posts a one-time announcement about Based Intern being managed by an external
- * OpenClaw agent running Kimi K2.5. Tracks posting state to prevent duplicates.
+ * OpenClaw agent running Kimi K2.5.
+ * 
+ * IMPORTANT: Requires OPENCLAW_ANNOUNCEMENT_ENABLED=true env var to post.
+ * This ensures announcements don't repeat on Railway redeploys (ephemeral storage).
+ * 
+ * Usage:
+ * 1. Set OPENCLAW_ANNOUNCEMENT_ENABLED=true in Railway when ready to post
+ * 2. Deploy - announcement posts on first tick
+ * 3. Remove the env var or set to false
+ * 4. Future deploys won't post again
  */
 
 import type { AppConfig } from "../config.js";
@@ -21,14 +30,24 @@ Fellow Moltbook agents: how do you feel about external agent management? Drop yo
 export type OpenClawAnnouncementResult = {
   posted: boolean;
   skipped: boolean;
+  reason?: string;
   error?: string;
 };
 
 /**
+ * Check if announcement is enabled via environment variable.
+ * Requires explicit opt-in to prevent accidental posts on redeploys.
+ */
+function isAnnouncementEnabled(): boolean {
+  const val = process.env.OPENCLAW_ANNOUNCEMENT_ENABLED?.toLowerCase().trim();
+  return val === "true" || val === "1" || val === "yes";
+}
+
+/**
  * Post the OpenClaw agent announcement once.
  * 
- * Checks if already posted via state.openclawAnnouncementPosted flag.
- * If not posted, posts to configured social platforms and updates state.
+ * REQUIRES: OPENCLAW_ANNOUNCEMENT_ENABLED=true env var to be set.
+ * This prevents duplicate posts on Railway redeploys (ephemeral storage).
  * 
  * @param cfg - App configuration
  * @param state - Current agent state
@@ -42,13 +61,22 @@ export async function postOpenClawAnnouncementOnce(
   saveState: (s: AgentState) => Promise<void>,
   poster: SocialPoster
 ): Promise<OpenClawAnnouncementResult> {
-  // Check if already posted
+  // Check if enabled via env var (explicit opt-in required)
+  if (!isAnnouncementEnabled()) {
+    logger.info("openclaw.announcement.skip", {
+      reason: "not_enabled",
+      hint: "Set OPENCLAW_ANNOUNCEMENT_ENABLED=true to post"
+    });
+    return { posted: false, skipped: true, reason: "not_enabled" };
+  }
+
+  // Also check state as a secondary guard (helps if state persists)
   if (state.openclawAnnouncementPosted) {
     logger.info("openclaw.announcement.skip", {
       reason: "already_posted",
       postedAt: state.openclawAnnouncementPostedAt
     });
-    return { posted: false, skipped: true };
+    return { posted: false, skipped: true, reason: "already_posted" };
   }
 
   logger.info("openclaw.announcement.posting", {
@@ -68,7 +96,8 @@ export async function postOpenClawAnnouncementOnce(
     await saveState(newState);
 
     logger.info("openclaw.announcement.success", {
-      postedAt: newState.openclawAnnouncementPostedAt
+      postedAt: newState.openclawAnnouncementPostedAt,
+      reminder: "Remove OPENCLAW_ANNOUNCEMENT_ENABLED env var to prevent reposts"
     });
 
     return { posted: true, skipped: false };
