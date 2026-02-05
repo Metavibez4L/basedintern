@@ -1,8 +1,9 @@
 /**
  * Moltbook Comment Reply System
- * 
+ *
  * Fetches comments on agent's posts and generates AI-powered replies.
  * Tracks replied comments in state to avoid duplicates.
+ * Uses stable id-based dedupe with legacy fallback for backward compatibility.
  */
 
 import crypto from "node:crypto";
@@ -17,11 +18,16 @@ function sha256Hex(s: string): string {
 }
 
 export type MoltbookComment = {
+  // Raw Moltbook comment id if present. Required for threaded replies (parent_id).
+  rawId: string | null;
+  // Dedupe id: raw id if present, otherwise a synthetic fp:<sha256(...)>.
   id: string;
   postId: string;
   author: string;
+  authorId: string;
   content: string;
   createdAt: number;
+  parentId?: string | null;
 };
 
 export type MoltbookReplyResult = {
@@ -30,18 +36,70 @@ export type MoltbookReplyResult = {
   errorCount: number;
 };
 
+// Hardcoded constants
+const MAX_REPLIES_PER_RUN = 3;
+const REPLY_COOLDOWN_MS = 20_000;
+const MAX_COMMENT_AGE_DAYS = 14;
+const LRU_SIZE = 2000;
+
+/**
+ * Generate a deterministic synthetic id for comments missing an id.
+ * Uses sha256 of postId + authorId + created_at + content.
+ */
+function generateSyntheticId(postId: string, authorId: string, createdAt: number, content: string): string {
+  const hash = sha256Hex(`${postId}:${authorId}:${createdAt}:${content}`);
+  return `fp:${hash}`;
+}
+
+/**
+ * Build dedupe keys for a comment:
+ * - primaryKey: id-based key for stable dedupe (preferred)
+ *   - if comment.id exists (not synthetic): key = `id:<id>`
+ *   - else: key = `fp:<sha256(postId + authorId + created_at + content)>`
+ * - legacyKey: content-hash key for backward compatibility with old state
+ */
+function buildDedupeKeys(comment: MoltbookComment): { primaryKey: string; legacyKey: string } {
+  // Primary key: use id: prefix for real IDs, fp: for synthetic
+  const primaryKey = comment.id.startsWith("fp:")
+    ? comment.id
+    : `id:${comment.id}`;
+
+  // Legacy key for backward compatibility with old state entries
+  // Format: sha256(`${comment.id}:${comment.author}:${comment.content}`)
+  const legacyId = comment.rawId ?? comment.id;
+  const legacyKey = sha256Hex(`${legacyId}:${comment.author}:${comment.content}`);
+
+  return { primaryKey, legacyKey };
+}
+
+/**
+ * Check if we've already replied to this comment by checking both keys.
+ */
+function isAlreadyReplied(comment: MoltbookComment, repliedIds: Set<string>): boolean {
+  const { primaryKey, legacyKey } = buildDedupeKeys(comment);
+  return repliedIds.has(primaryKey) || repliedIds.has(legacyKey);
+}
+
+/**
+ * Record a successful reply using the primary (id-based) key.
+ */
+function recordReply(comment: MoltbookComment, repliedIds: Set<string>): void {
+  const { primaryKey } = buildDedupeKeys(comment);
+  repliedIds.add(primaryKey);
+}
+
 /**
  * Fetch all comments on the agent's recent posts
+ * Also builds a set of comment IDs that already have replies from this agent.
  */
-async function fetchCommentsOnMyPosts(cfg: AppConfig): Promise<MoltbookComment[]> {
+async function fetchCommentsOnMyPosts(
+  cfg: AppConfig,
+  agentId: string,
+  agentName: string
+): Promise<{ comments: MoltbookComment[]; alreadyHasMyReply: Set<string> }> {
   const client = createMoltbookClient(cfg);
-  
-  try {
-    // Get agent's profile to find their posts
-    const profile = await client.getProfileMe();
-    const agentId = (profile as any).agent?.id || profile.id;
-    const agentName = (profile as any).agent?.name || profile.name || profile.username;
 
+  try {
     logger.info("moltbook.comments.fetch", { agentId, agentName });
 
     // Get agent's profile with recent posts
@@ -50,11 +108,12 @@ async function fetchCommentsOnMyPosts(cfg: AppConfig): Promise<MoltbookComment[]
       path: "/agents/profile",
       query: { name: agentName }
     });
-    
+
     const recentPosts = (profileDetail as any).recentPosts || [];
     logger.info("moltbook.comments.posts.found", { count: recentPosts.length });
 
     const allComments: MoltbookComment[] = [];
+    const alreadyHasMyReply = new Set<string>();
 
     // Fetch posts that have comments
     for (const post of recentPosts) {
@@ -70,30 +129,62 @@ async function fetchCommentsOnMyPosts(cfg: AppConfig): Promise<MoltbookComment[]
       });
 
       const comments = (postDetail as any).comments || [];
-      
-      for (const comment of comments) {
-        // Skip our own comments
-        const commentAuthorId = comment.author?.id || comment.author_id;
-        if (commentAuthorId === agentId) continue;
 
-        allComments.push({
-          id: comment.id || `${post.id}-${comment.author?.name}`,
-          postId: post.id,
+      for (const comment of comments) {
+        const commentAuthorId = comment.author?.id || comment.author_id;
+        const rawId = comment.id ? String(comment.id) : null;
+        const commentId =
+          rawId ||
+          generateSyntheticId(
+            post.id,
+            String(commentAuthorId ?? ""),
+            comment.created_at ? new Date(comment.created_at).getTime() : Date.now(),
+            comment.content || ""
+          );
+        const parentId = comment.parent_id ? String(comment.parent_id) : null;
+
+        // Track if this agent has already replied to this comment (in-thread detection).
+        // A reply from us will have parent_id != null and author matching agentId.
+        if (parentId && String(commentAuthorId) === String(agentId)) {
+          alreadyHasMyReply.add(parentId);
+          logger.info("moltbook.comments.found_our_reply", {
+            parentId,
+            replyId: commentId
+          });
+          continue; // don't include our replies as candidates
+        }
+
+        // Skip our own comments
+        if (String(commentAuthorId) === String(agentId)) continue;
+
+        // Build the candidate comment object (only comments not authored by us)
+        const moltbookComment: MoltbookComment = {
+          rawId,
+          id: commentId,
+          postId: String(post.id),
           author: comment.author?.name || comment.author_id || "unknown",
+          authorId: String(commentAuthorId ?? ""),
           content: comment.content || comment.text || "",
-          createdAt: comment.created_at ? new Date(comment.created_at).getTime() : Date.now()
-        });
+          createdAt: comment.created_at ? new Date(comment.created_at).getTime() : Date.now(),
+          parentId
+        };
+
+        allComments.push(moltbookComment);
       }
     }
 
-    logger.info("moltbook.comments.fetched", { count: allComments.length });
-    return allComments;
+    logger.info("moltbook.comments.fetched", {
+      count: allComments.length,
+      alreadyHasMyReplyCount: alreadyHasMyReply.size
+    });
+
+    return { comments: allComments, alreadyHasMyReply };
 
   } catch (err) {
     logger.error("moltbook.comments.fetch.error", {
       error: err instanceof Error ? err.message : String(err)
     });
-    return [];
+    return { comments: [], alreadyHasMyReply: new Set() };
   }
 }
 
@@ -159,7 +250,7 @@ async function postReply(cfg: AppConfig, comment: MoltbookComment, reply: string
       path: `/posts/${comment.postId}/comments`,
       body: {
         content: reply,
-        parent_id: comment.id
+        parent_id: comment.rawId
       }
     });
 
@@ -196,8 +287,18 @@ export async function replyToMoltbookComments(
     errorCount: 0
   };
 
-  // Fetch all comments on agent's posts
-  const comments = await fetchCommentsOnMyPosts(cfg);
+  // Get agent identity from Moltbook
+  const client = createMoltbookClient(cfg);
+  const profile = await client.getProfileMe();
+  const agentId = String((profile as any).agent?.id || profile.id || "").trim();
+  const agentName = String((profile as any).agent?.name || profile.name || profile.username || "").trim();
+  if (!agentId || !agentName) {
+    logger.warn("moltbook.reply.no_agent_identity", { agentId: agentId || null, agentName: agentName || null });
+    return result;
+  }
+
+  // Fetch all comments on agent's posts + detect our existing replies in-thread
+  const { comments, alreadyHasMyReply } = await fetchCommentsOnMyPosts(cfg, agentId, agentName);
 
   if (comments.length === 0) {
     logger.info("moltbook.reply.no_comments");
@@ -207,13 +308,61 @@ export async function replyToMoltbookComments(
   // Get already-replied comment IDs from state
   const repliedIds = new Set(state.repliedMoltbookCommentIds ?? []);
 
-  for (const comment of comments) {
-    const fingerprint = sha256Hex(`${comment.id}:${comment.author}:${comment.content}`);
+  const now = Date.now();
+  const maxAgeMs = MAX_COMMENT_AGE_DAYS * 24 * 60 * 60 * 1000;
 
-    // Skip if already replied
-    if (repliedIds.has(fingerprint)) {
+  // Filter candidates: only comments not from us, not already replied, and not too old
+  let candidates = comments.filter(comment => {
+    // Skip if we can see we already replied in-thread (parent_id in alreadyHasMyReply set)
+    if (comment.rawId && alreadyHasMyReply.has(comment.rawId)) {
       result.skippedCount++;
-      logger.info("moltbook.reply.skip_duplicate", { commentId: comment.id });
+      logger.info("moltbook.reply.skip_already_replied_in_thread", { commentId: comment.rawId });
+      return false;
+    }
+
+    // Skip if already replied (by state dedupe keys: primary or legacy)
+    if (isAlreadyReplied(comment, repliedIds)) {
+      result.skippedCount++;
+      logger.info("moltbook.reply.skip_duplicate_state", { commentId: comment.id });
+      return false;
+    }
+
+    // Skip comments older than MAX_COMMENT_AGE_DAYS
+    if (now - comment.createdAt > maxAgeMs) {
+      result.skippedCount++;
+      logger.info("moltbook.reply.skip_too_old", { commentId: comment.id, ageDays: Math.floor((now - comment.createdAt) / (24 * 60 * 60 * 1000)) });
+      return false;
+    }
+
+    return true;
+  });
+
+  // Sort by createdAt ascending (oldest first) so we reply to newer items only after older ones
+  candidates.sort((a, b) => a.createdAt - b.createdAt);
+
+  logger.info("moltbook.reply.candidates", {
+    total: comments.length,
+    candidates: candidates.length,
+    skipped: result.skippedCount
+  });
+
+  // Cap replies per run
+  const repliesToSend = candidates.slice(0, MAX_REPLIES_PER_RUN);
+
+  for (const comment of repliesToSend) {
+    // Double-check dedupe (in case of race conditions)
+    if (isAlreadyReplied(comment, repliedIds) || (comment.rawId && alreadyHasMyReply.has(comment.rawId))) {
+      result.skippedCount++;
+      logger.info("moltbook.reply.skip_duplicate_race", { commentId: comment.id });
+      continue;
+    }
+
+    // Cannot post a threaded reply without a raw Moltbook comment id.
+    if (!comment.rawId) {
+      result.skippedCount++;
+      logger.info("moltbook.reply.skip_missing_raw_id", { key: comment.id, postId: comment.postId });
+      // Record to avoid retry thrash on unreplyable comments.
+      recordReply(comment, repliedIds);
       continue;
     }
 
@@ -231,19 +380,19 @@ export async function replyToMoltbookComments(
       continue;
     }
 
-    // Update state: mark as replied
-    repliedIds.add(fingerprint);
+    // Record successful reply
+    recordReply(comment, repliedIds);
     result.repliedCount++;
 
-    // Rate limit: wait 20 seconds between replies (Moltbook cooldown)
-    if (result.repliedCount < comments.length) {
-      logger.info("moltbook.reply.cooldown", { seconds: 20 });
-      await new Promise(r => setTimeout(r, 20_000));
+    // Rate limit: wait between replies (except after the last one)
+    if (result.repliedCount < repliesToSend.length) {
+      logger.info("moltbook.reply.cooldown", { seconds: REPLY_COOLDOWN_MS / 1000 });
+      await new Promise(r => setTimeout(r, REPLY_COOLDOWN_MS));
     }
   }
 
-  // Save updated state
-  const repliedArray = Array.from(repliedIds).slice(-100); // Keep last 100
+  // Save updated state with LRU cap
+  const repliedArray = Array.from(repliedIds).slice(-LRU_SIZE);
   const newState: AgentState = {
     ...state,
     repliedMoltbookCommentIds: repliedArray,
@@ -251,6 +400,9 @@ export async function replyToMoltbookComments(
   };
   await saveStateFn(newState);
 
-  logger.info("moltbook.reply.complete", result);
+  logger.info("moltbook.reply.complete", {
+    ...result,
+    stateSize: repliedArray.length
+  });
   return result;
 }

@@ -62,7 +62,10 @@ export type AgentState = {
   lastPostedMoltbookMiscFingerprint?: string | null; // For non-receipt posts (news, opinion, meta)
   moltbookFailureCount?: number;
   moltbookCircuitBreakerDisabledUntilMs?: number | null;
-  repliedMoltbookCommentIds?: string[]; // SHA256 fingerprints of replied comments
+  // LRU list of replied Moltbook comment dedupe keys.
+  // Current primary format is `id:<commentId>` (stable). Synthetic fallback is `fp:<sha256(...)>`.
+  // Legacy entries may also include sha256(`${commentId}:${author}:${content}`) from older versions.
+  repliedMoltbookCommentIds?: string[];
   moltbookLastReplyCheckMs?: number | null;
 
   // =========================

@@ -94,7 +94,7 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
   - [x] Replied mention fingerprints (repliedMentionFingerprints) - SHA256 deduplication, LRU 100
   - [x] Last successful poll timestamp (lastSuccessfulMentionPollMs)
 - [x] **Moltbook Comment Reply state**
-  - [x] Replied comment IDs (repliedMoltbookCommentIds) - SHA256 deduplication, LRU 100
+- [x] Replied comment keys (repliedMoltbookCommentIds) - stable id-based dedupe (`id:<commentId>`) with legacy SHA256 fallback, LRU 2000
   - [x] Last reply check timestamp (moltbookLastReplyCheckMs)
 
 ### LangChain Integration
@@ -197,8 +197,10 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
   - [x] Filters out agent's own comments (by author ID)
   - [x] GPT-4o-mini powered reply generation (Based Intern personality)
   - [x] 20-second rate-limit cooldown between replies (Moltbook requirement)
-  - [x] SHA256 fingerprint deduplication (tracks repliedMoltbookCommentIds)
-  - [x] State persistence (LRU 100, moltbookLastReplyCheckMs)
+  - [x] **In-thread idempotency**: skips if the post already shows a reply from this agent (`parent_id` already replied)
+  - [x] **Stable id-based dedupe**: primary key `id:<commentId>`; legacy SHA256 fallback for old state entries
+  - [x] State persistence (LRU 2000, moltbookLastReplyCheckMs)
+  - [x] Cap per poll: max 3 replies/run; ignores comments older than 14 days
   - [x] Respects Moltbook rate limits (handles 429 responses gracefully)
   - [x] Configurable check interval (MOLTBOOK_REPLY_INTERVAL_MINUTES, default 30)
 
