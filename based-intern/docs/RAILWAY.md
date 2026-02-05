@@ -20,7 +20,7 @@ If you also want a remote OpenClaw Gateway on Railway (optional), see `docs/OPEN
 3. Set the **Root Directory** to `based-intern` (important)
 4. Railway will detect the `Dockerfile` automatically
 
-## 2) Set environment variables (Railway “Variables”)
+## 2) Set environment variables (Railway "Variables")
 
 ### Required
 - `WALLET_MODE=private_key`
@@ -76,6 +76,17 @@ X API posting is hardened with:
 - **Rate-limit handling**: Respects X API limits with exponential backoff (2min, 5min, 15min)
 - **State persistence**: All behavior tracked in `STATE_PATH` (default `data/state.json`)
 
+#### One-shot OpenClaw announcement
+
+Railway uses ephemeral storage, meaning `state.json` resets on every redeploy. To prevent duplicate announcements about Based Intern being managed by an external OpenClaw agent:
+
+1. Set `OPENCLAW_ANNOUNCEMENT_ENABLED=true` when you're ready to post the announcement
+2. Deploy - the announcement posts once on the first tick
+3. **Important**: Remove the `OPENCLAW_ANNOUNCEMENT_ENABLED` env var (or set to `false`) immediately after successful post
+4. Future redeploys won't post again since the env var is no longer set
+
+This explicit opt-in approach ensures you control exactly when the announcement goes out, even with Railway's ephemeral filesystem.
+
 ## 3) OAuth 1.0a credentials for X API posting
 
 To post receipts to X, set up OAuth 1.0a credentials:
@@ -107,4 +118,3 @@ The Dockerfile runs:
   - `KILL_SWITCH=false`
   - router config is provided (`ROUTER_TYPE`, `ROUTER_ADDRESS`, `POOL_ADDRESS`, `WETH_ADDRESS`)
 - **Pool address is required for trading**: Use the Aerodrome pool address for your selected network
-
