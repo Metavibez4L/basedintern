@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 6;
+const STATE_SCHEMA_VERSION = 7;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
@@ -13,6 +13,7 @@ const STATE_SCHEMA_VERSION = 6;
  * v4: Added Moltbook posting state (anti-spam + dedupe + circuit breaker) (2026-02-01)
  * v5: Added news opinion generation state (2026-02-02)
  * v6: Added OpenClaw announcement state (one-time external agent announcement) (2026-02-03)
+ * v7: Harden news opinion cycle (attempt gating + circuit breaker) (2026-02-05)
  */
 
 export type AgentState = {
@@ -62,6 +63,11 @@ export type AgentState = {
   // News Opinion (v5)
   // =========================
   newsOpinionLastFetchMs?: number | null;
+  // Attempt gating: set when we *try* to run the cycle (prevents thrash on repeated failures)
+  newsOpinionLastAttemptMs?: number | null;
+  // Failure tracking / circuit breaker (prevents flakey loops from spamming OpenAI + posting)
+  newsOpinionFailureCount?: number;
+  newsOpinionCircuitBreakerDisabledUntilMs?: number | null;
   newsOpinionPostsToday?: number;
   newsOpinionLastDayUtc?: string | null; // YYYY-MM-DD
   postedNewsArticleIds?: string[]; // LRU list to prevent duplicates
@@ -103,6 +109,9 @@ export const DEFAULT_STATE: AgentState = {
   moltbookLastReplyCheckMs: null,
 
   newsOpinionLastFetchMs: null,
+  newsOpinionLastAttemptMs: null,
+  newsOpinionFailureCount: 0,
+  newsOpinionCircuitBreakerDisabledUntilMs: null,
   newsOpinionPostsToday: 0,
   newsOpinionLastDayUtc: null,
   postedNewsArticleIds: []
@@ -164,6 +173,14 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     if (!("openclawAnnouncementPostedAt" in raw)) raw.openclawAnnouncementPostedAt = undefined;
   }
 
+  // v6 → v7: Harden news opinion cycle (attempt gating + circuit breaker)
+  if (version === undefined || version < 7) {
+    logger.info("state migration", { from: version || 6, to: STATE_SCHEMA_VERSION });
+    if (!("newsOpinionLastAttemptMs" in raw)) raw.newsOpinionLastAttemptMs = null;
+    if (!("newsOpinionFailureCount" in raw)) raw.newsOpinionFailureCount = 0;
+    if (!("newsOpinionCircuitBreakerDisabledUntilMs" in raw)) raw.newsOpinionCircuitBreakerDisabledUntilMs = null;
+  }
+
   return raw as AgentState;
 }
 
@@ -213,9 +230,15 @@ export async function loadState(): Promise<AgentState> {
       moltbookLastReplyCheckMs: migrated.moltbookLastReplyCheckMs ?? null,
 
       newsOpinionLastFetchMs: migrated.newsOpinionLastFetchMs ?? null,
+      newsOpinionLastAttemptMs: migrated.newsOpinionLastAttemptMs ?? null,
+      newsOpinionFailureCount: migrated.newsOpinionFailureCount ?? 0,
+      newsOpinionCircuitBreakerDisabledUntilMs: migrated.newsOpinionCircuitBreakerDisabledUntilMs ?? null,
       newsOpinionPostsToday: migrated.newsOpinionPostsToday ?? 0,
       newsOpinionLastDayUtc: migrated.newsOpinionLastDayUtc ?? null,
-      postedNewsArticleIds: Array.isArray(migrated.postedNewsArticleIds) ? migrated.postedNewsArticleIds : []
+      postedNewsArticleIds: Array.isArray(migrated.postedNewsArticleIds) ? migrated.postedNewsArticleIds : [],
+
+      openclawAnnouncementPosted: migrated.openclawAnnouncementPosted ?? false,
+      openclawAnnouncementPostedAt: migrated.openclawAnnouncementPostedAt
     };
 
     // Reset daily counter if the day rolled over.

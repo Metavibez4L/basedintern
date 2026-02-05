@@ -318,41 +318,42 @@ async function tick(): Promise<void> {
         items: items.length,
         unseen: unseenItems.length
       });
-      return;
+      // non-blocking: allow other pipelines to run
     }
 
-    logger.info("news.post", {
-      reasons: plan.reasons,
-      source: plan.item.source,
-      url: plan.item.url
-    });
-
-    const tweet = await generateNewsTweet(cfg, {
-      items,
-      chosenItem: plan.item,
-      now
-    });
-
-    // Hard safety: enforce source URL
-    if (cfg.NEWS_REQUIRE_LINK && !tweet.includes(plan.item.url)) {
-      logger.warn("news.skip (tweet missing required url)", {
+    if (plan.shouldPost && plan.item) {
+      logger.info("news.post", {
+        reasons: plan.reasons,
+        source: plan.item.source,
         url: plan.item.url
       });
-      return;
-    }
 
-    const postRes = await postNewsTweet(cfg, workingState, saveState, tweet);
-    workingState = postRes.state;
-
-    if (!postRes.posted) {
-      logger.info("news.skip", {
-        reasons: [...plan.reasons, postRes.reason ?? "not posted"],
-        source: plan.item.source
+      const tweet = await generateNewsTweet(cfg, {
+        items,
+        chosenItem: plan.item,
+        now
       });
-      return;
+
+      // Hard safety: enforce source URL
+      if (cfg.NEWS_REQUIRE_LINK && !tweet.includes(plan.item.url)) {
+        logger.warn("news.skip (tweet missing required url)", {
+          url: plan.item.url
+        });
+      } else {
+        const postRes = await postNewsTweet(cfg, workingState, saveState, tweet);
+        workingState = postRes.state;
+
+        if (!postRes.posted) {
+          logger.info("news.skip", {
+            reasons: [...plan.reasons, postRes.reason ?? "not posted"],
+            source: plan.item.source
+          });
+        } else {
+          workingState = await recordNewsPosted(workingState, now, plan.item.id);
+        }
+      }
     }
 
-    workingState = await recordNewsPosted(workingState, now, plan.item.id);
   } catch (err) {
     logger.warn("news pipeline error", { error: err instanceof Error ? err.message : String(err) });
   }
@@ -361,83 +362,109 @@ async function tick(): Promise<void> {
   // NEW: NEWS OPINION CYCLE (separate from Base News Brain)
   // ============================================================
   if (cfg.NEWS_ENABLED && cfg.OPENAI_API_KEY) {
-    const shouldFetchNews =
-      !workingState.newsOpinionLastFetchMs ||
-      Date.now() - workingState.newsOpinionLastFetchMs >= cfg.NEWS_FETCH_INTERVAL_MINUTES * 60 * 1000;
+    const nowMs = Date.now();
 
-    const dailyOpinionCount = workingState.newsOpinionPostsToday || 0;
-    const canPostMore = dailyOpinionCount < cfg.NEWS_MAX_POSTS_PER_DAY;
+    // Circuit breaker: temporarily disable on repeated failures
+    const disabledUntil = workingState.newsOpinionCircuitBreakerDisabledUntilMs ?? null;
+    if (disabledUntil && nowMs < disabledUntil) {
+      logger.info("news.opinion.skip.circuit_open", { disabledUntil });
+    } else {
+      // Attempt gating: use lastAttempt (not lastSuccess) to prevent thrash on failures
+      const lastAttemptMs = workingState.newsOpinionLastAttemptMs ?? 0;
+      const intervalMs = cfg.NEWS_FETCH_INTERVAL_MINUTES * 60 * 1000;
+      const shouldAttempt = nowMs - lastAttemptMs >= intervalMs;
 
-    if (shouldFetchNews && canPostMore) {
-      try {
-        logger.info("news.opinion.cycle.start", {
-          lastFetchMs: workingState.newsOpinionLastFetchMs,
-          postsToday: dailyOpinionCount
-        });
+      const dailyOpinionCount = workingState.newsOpinionPostsToday || 0;
+      const canPostMore = dailyOpinionCount < cfg.NEWS_MAX_POSTS_PER_DAY;
 
-        const newsAggregator = new NewsAggregator(cfg);
-        const articles = await newsAggregator.fetchLatest(5);
+      if (shouldAttempt && canPostMore) {
+        // Persist attempt start early (prevents rapid re-tries if later steps fail)
+        workingState = { ...workingState, newsOpinionLastAttemptMs: nowMs };
+        await saveState(workingState);
 
-        if (articles.length > 0) {
-          logger.info("news.opinion.fetched", { count: articles.length });
+        try {
+          logger.info("news.opinion.cycle.start", {
+            lastAttemptMs,
+            lastFetchMs: workingState.newsOpinionLastFetchMs,
+            postsToday: dailyOpinionCount
+          });
 
-          const opinionGen = new OpinionGenerator(cfg);
-          const opinions = await opinionGen.generateBatch(articles);
+          const newsAggregator = new NewsAggregator(cfg);
+          const fetched = await newsAggregator.fetchLatest(5);
 
-          logger.info("news.opinion.generated", { count: opinions.length });
+          // Dedupe before any LLM usage
+          const postedIds = new Set(workingState.postedNewsArticleIds || []);
+          const articles = fetched.filter((a) => !postedIds.has(a.id));
 
-          // Post the most relevant opinion
-          const topOpinion = opinions
-            .filter((o) => o.relevanceScore >= cfg.NEWS_MIN_RELEVANCE_SCORE)
-            .sort((a, b) => b.relevanceScore - a.relevanceScore)[0];
-
-          if (topOpinion) {
-            const article = articles.find((a) => a.id === topOpinion.articleId);
-            if (article) {
-              // Check if already posted
-              const alreadyPosted = (workingState.postedNewsArticleIds || []).includes(article.id);
-              
-              if (!alreadyPosted) {
-                const newsPoster = new NewsOpinionPoster(cfg, poster);
-                const posted = await newsPoster.post(article, topOpinion);
-
-                if (posted) {
-                  // Update state
-                  workingState.newsOpinionLastFetchMs = Date.now();
-                  workingState.newsOpinionPostsToday = (workingState.newsOpinionPostsToday || 0) + 1;
-                  workingState.postedNewsArticleIds = [
-                    ...(workingState.postedNewsArticleIds || []),
-                    article.id
-                  ].slice(-50); // Keep last 50 IDs
-                  
-                  await saveState(workingState);
-                  
-                  logger.info("news.opinion.posted", {
-                    articleId: article.id,
-                    tone: topOpinion.tone,
-                    relevance: topOpinion.relevanceScore,
-                    confidence: topOpinion.confidence
-                  });
-                } else {
-                  logger.info("news.opinion.post.skipped", { articleId: article.id });
-                }
-              } else {
-                logger.info("news.opinion.skip.duplicate", { articleId: article.id });
-              }
-            }
-          } else {
-            logger.info("news.opinion.skip.no_relevant", {
-              minRelevance: cfg.NEWS_MIN_RELEVANCE_SCORE,
-              opinionsGenerated: opinions.length
-            });
+          if (articles.length === 0) {
+            logger.info("news.opinion.skip.all_seen_or_none", { fetched: fetched.length });
+            return;
           }
-        } else {
-          logger.info("news.opinion.skip.no_articles");
+
+          logger.info("news.opinion.fetched", { count: articles.length, fetched: fetched.length });
+
+          // Efficient: ONE LLM call to pick + generate
+          const opinionGen = new OpinionGenerator(cfg);
+          const topOpinion = await opinionGen.generateTopOpinion(articles);
+
+          if (!topOpinion) {
+            logger.info("news.opinion.skip.no_opinion");
+            return;
+          }
+
+          if (topOpinion.relevanceScore < (cfg.NEWS_MIN_RELEVANCE_SCORE || 0.5)) {
+            logger.info("news.opinion.skip.irrelevant", {
+              articleId: topOpinion.articleId,
+              relevance: topOpinion.relevanceScore,
+              minRelevance: cfg.NEWS_MIN_RELEVANCE_SCORE
+            });
+            return;
+          }
+
+          const article = articles.find((a) => a.id === topOpinion.articleId) ?? articles[0];
+          const newsPoster = new NewsOpinionPoster(cfg, poster);
+          const posted = await newsPoster.post(article, topOpinion);
+
+          if (!posted) {
+            logger.info("news.opinion.post.skipped", { articleId: article.id });
+            return;
+          }
+
+          // Success: update state atomically (single save)
+          const nextPostedIds = [...(workingState.postedNewsArticleIds || []), article.id].slice(-50);
+          workingState = {
+            ...workingState,
+            newsOpinionLastFetchMs: nowMs,
+            newsOpinionFailureCount: 0,
+            newsOpinionCircuitBreakerDisabledUntilMs: null,
+            newsOpinionPostsToday: (workingState.newsOpinionPostsToday || 0) + 1,
+            postedNewsArticleIds: nextPostedIds
+          };
+          await saveState(workingState);
+
+          logger.info("news.opinion.posted", {
+            articleId: article.id,
+            tone: topOpinion.tone,
+            relevance: topOpinion.relevanceScore,
+            confidence: topOpinion.confidence
+          });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          const failureCount = (workingState.newsOpinionFailureCount ?? 0) + 1;
+          const next = {
+            ...workingState,
+            newsOpinionFailureCount: failureCount,
+            newsOpinionCircuitBreakerDisabledUntilMs: failureCount >= 3 ? nowMs + 30 * 60_000 : null
+          };
+          workingState = next;
+          await saveState(workingState);
+
+          logger.error("news.opinion.cycle.error", {
+            error: msg,
+            failureCount,
+            circuitOpenUntil: next.newsOpinionCircuitBreakerDisabledUntilMs
+          });
         }
-      } catch (err) {
-        logger.error("news.opinion.cycle.error", {
-          error: err instanceof Error ? err.message : String(err)
-        });
       }
     }
   }

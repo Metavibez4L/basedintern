@@ -2,6 +2,46 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AppConfig } from "../config.js";
 
+const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
+const DEFAULT_FETCH_RETRIES = 2;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function fetchWithRetry(url: string, init?: RequestInit, opts?: { retries?: number; timeoutMs?: number }): Promise<Response> {
+  const retries = opts?.retries ?? DEFAULT_FETCH_RETRIES;
+  const timeoutMs = opts?.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
+
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url, init, timeoutMs);
+      // Retry common transient statuses.
+      if (res.status === 429 || (res.status >= 500 && res.status <= 599)) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      return res;
+    } catch (err) {
+      lastErr = err;
+      if (attempt >= retries) break;
+      // Exponential backoff: 0.5s, 1s, 2s...
+      await sleep(500 * Math.pow(2, attempt));
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
 export const NewsArticleSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -75,7 +115,7 @@ class CryptoPanicFetcher implements NewsFetcher {
     const url = `https://cryptopanic.com/api/v1/posts/?auth_token=${this.apiKey}&currencies=ETH,BASE&filter=hot`;
     
     try {
-      const res = await fetch(url);
+      const res = await fetchWithRetry(url, { headers: { "User-Agent": "BasedIntern/1.0" } });
       if (!res.ok) throw new Error(`CryptoPanic ${res.status}`);
       
       const data: any = await res.json();
@@ -105,7 +145,7 @@ class RSSFetcher implements NewsFetcher {
     
     for (const feedUrl of this.feeds) {
       try {
-        const res = await fetch(feedUrl);
+        const res = await fetchWithRetry(feedUrl, { headers: { "User-Agent": "BasedIntern/1.0" } });
         if (!res.ok) continue;
         
         const text = await res.text();
@@ -154,7 +194,12 @@ class BaseEcosystemFetcher implements NewsFetcher {
     
     // Monitor Base GitHub org for releases
     try {
-      const res = await fetch("https://api.github.com/repos/base-org/node/releases?per_page=3");
+      const res = await fetchWithRetry("https://api.github.com/repos/base-org/node/releases?per_page=3", {
+        headers: {
+          "User-Agent": "BasedIntern/1.0",
+          "Accept": "application/vnd.github+json"
+        }
+      });
       if (res.ok) {
         const releases: any = await res.json();
         for (const release of releases) {
