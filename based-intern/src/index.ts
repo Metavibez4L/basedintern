@@ -16,6 +16,7 @@ import { createPoster } from "./social/poster.js";
 import { createTradeExecutor } from "./chain/trade.js";
 import { pollMentionsAndRespond, type MentionPollerContext } from "./social/x_mentions.js";
 import { replyToMoltbookComments } from "./social/moltbook_comments.js";
+import { postMoltbookDiscussion } from "./social/moltbook_discussions.js";
 import { postOpenClawAnnouncementOnce } from "./social/openclaw_announcement.js";
 import { buildNewsPlan } from "./news/news.js";
 import { postNewsTweet } from "./social/news_poster.js";
@@ -101,6 +102,36 @@ async function tick(): Promise<void> {
         });
         // Continue with normal loop even if reply system fails
       }
+    }
+  }
+
+  // ============================================================
+  // MOLTBOOK PROACTIVE DISCUSSION POSTING (Viral Engagement)
+  // ============================================================
+  // Posts standalone discussion starters and community callouts to Moltbook
+  const moltbookEnabledForDiscussions =
+    cfg.MOLTBOOK_ENABLED &&
+    (cfg.SOCIAL_MODE === "moltbook" || (cfg.SOCIAL_MODE === "multi" && cfg.SOCIAL_MULTI_TARGETS.split(",").map((s) => s.trim()).includes("moltbook")));
+
+  if (moltbookEnabledForDiscussions) {
+    try {
+      const discussionResult = await postMoltbookDiscussion(cfg, state, saveState);
+
+      if (discussionResult.result.posted) {
+        logger.info("moltbook.discussion.posted_in_tick", {
+          topic: discussionResult.result.topic,
+          kind: discussionResult.result.kind
+        });
+      } else {
+        logger.info("moltbook.discussion.skipped", {
+          reason: discussionResult.result.reason
+        });
+      }
+    } catch (err) {
+      logger.warn("moltbook.discussion.error", {
+        error: err instanceof Error ? err.message : String(err)
+      });
+      // Continue with normal loop even if discussion posting fails
     }
   }
 

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 9;
+const STATE_SCHEMA_VERSION = 10;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
@@ -16,6 +16,7 @@ const STATE_SCHEMA_VERSION = 9;
  * v7: Harden news opinion cycle (attempt gating + circuit breaker) (2026-02-05)
  * v8: Added lastPostedMoltbookMiscFingerprint for kind-aware social posting (2026-02-05)
  * v9: Harden X mentions replies (circuit breaker + throttling state) (2026-02-05)
+ * v10: Moltbook viral engagement + proactive discussion posting (2026-02-05)
  */
 
 export type AgentState = {
@@ -86,6 +87,14 @@ export type AgentState = {
   // =========================
   openclawAnnouncementPosted?: boolean; // Flag to prevent duplicate posts
   openclawAnnouncementPostedAt?: number; // Timestamp (ms) when posted
+
+  // =========================
+  // Moltbook Viral Engagement (v10)
+  // =========================
+  moltbookDiscussionLastPostMs?: number | null; // Last discussion/community post timestamp
+  moltbookDiscussionPostsToday?: number; // Daily cap counter
+  moltbookDiscussionLastDayUtc?: string | null; // For daily reset
+  postedDiscussionTopics?: string[]; // LRU list of posted topics (max 50) for dedup
 };
 
 export const DEFAULT_STATE: AgentState = {
@@ -130,7 +139,12 @@ export const DEFAULT_STATE: AgentState = {
   postedNewsArticleIds: [],
 
   openclawAnnouncementPosted: false,
-  openclawAnnouncementPostedAt: undefined
+  openclawAnnouncementPostedAt: undefined,
+
+  moltbookDiscussionLastPostMs: null,
+  moltbookDiscussionPostsToday: 0,
+  moltbookDiscussionLastDayUtc: null,
+  postedDiscussionTopics: []
 };
 
 export function statePath(): string {
@@ -211,6 +225,15 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     if (!("xMentionsLastReplyMs" in raw)) raw.xMentionsLastReplyMs = null;
   }
 
+  // v9 → v10: Moltbook viral engagement + proactive discussion posting
+  if (version === undefined || version < 10) {
+    logger.info("state migration", { from: version || 9, to: STATE_SCHEMA_VERSION });
+    if (!("moltbookDiscussionLastPostMs" in raw)) raw.moltbookDiscussionLastPostMs = null;
+    if (!("moltbookDiscussionPostsToday" in raw)) raw.moltbookDiscussionPostsToday = 0;
+    if (!("moltbookDiscussionLastDayUtc" in raw)) raw.moltbookDiscussionLastDayUtc = null;
+    if (!("postedDiscussionTopics" in raw) || !Array.isArray(raw.postedDiscussionTopics)) raw.postedDiscussionTopics = [];
+  }
+
   return raw as AgentState;
 }
 
@@ -272,7 +295,12 @@ export async function loadState(): Promise<AgentState> {
       postedNewsArticleIds: Array.isArray(migrated.postedNewsArticleIds) ? migrated.postedNewsArticleIds : [],
 
       openclawAnnouncementPosted: migrated.openclawAnnouncementPosted ?? false,
-      openclawAnnouncementPostedAt: migrated.openclawAnnouncementPostedAt
+      openclawAnnouncementPostedAt: migrated.openclawAnnouncementPostedAt,
+
+      moltbookDiscussionLastPostMs: migrated.moltbookDiscussionLastPostMs ?? null,
+      moltbookDiscussionPostsToday: migrated.moltbookDiscussionPostsToday ?? 0,
+      moltbookDiscussionLastDayUtc: migrated.moltbookDiscussionLastDayUtc ?? null,
+      postedDiscussionTopics: Array.isArray(migrated.postedDiscussionTopics) ? migrated.postedDiscussionTopics : []
     };
 
     // Reset daily counter if the day rolled over.
@@ -292,6 +320,12 @@ export async function loadState(): Promise<AgentState> {
     const newsToday = today;
     if (merged.newsLastPostDayUtc !== newsToday) {
       merged.newsDailyCount = 0;
+    }
+
+    // Reset discussion daily counter if day rolled over
+    if (merged.moltbookDiscussionLastDayUtc !== today) {
+      merged.moltbookDiscussionPostsToday = 0;
+      merged.moltbookDiscussionLastDayUtc = today;
     }
 
     return merged;

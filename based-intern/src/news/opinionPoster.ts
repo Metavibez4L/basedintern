@@ -3,6 +3,7 @@ import type { AppConfig } from "../config.js";
 import type { NewsArticle } from "./fetcher.js";
 import type { Opinion } from "./opinion.js";
 import type { SocialPoster } from "../social/poster.js";
+import { formatViralPost } from "../social/moltbook_engagement.js";
 
 export interface NewsPost {
   article: NewsArticle;
@@ -35,8 +36,9 @@ export class NewsOpinionPoster {
       return null;
     }
 
-    // Format post text
-    const text = this.formatPost(article, opinion);
+    // Format post text with viral formatting for Moltbook engagement
+    const baseText = this.formatPost(article, opinion);
+    const text = formatViralPost(baseText, "opinion");
 
     try {
       if (this.cfg.DRY_RUN) {

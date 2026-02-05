@@ -321,15 +321,20 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
 
 ### State Persistence with Schema Versioning (NEW)
 - [x] `src/agent/state.ts` - Migration infrastructure
-  - [x] STATE_SCHEMA_VERSION = 4
+  - [x] STATE_SCHEMA_VERSION = 10
   - [x] `migrateState()` function for safe evolution
   - [x] v1 → v2: Added lastSeenBlockNumber field
   - [x] v2 → v3: Added Base News Brain fields (caps + dedupe + idempotency)
   - [x] v3 → v4: Added Moltbook posting fields (idempotency + circuit breaker)
+  - [x] v4 → v5: Added news opinion fields
+  - [x] v5 → v6: Added OpenClaw announcement state
+  - [x] v6 → v7: Hardened news opinion cycle (attempt gating + circuit breaker)
+  - [x] v7 → v8: Added lastPostedMoltbookMiscFingerprint for kind-aware social posting
+  - [x] v8 → v9: Hardened X mentions replies (circuit breaker + throttling state)
+  - [x] v9 → v10: Moltbook viral engagement + proactive discussion posting
   - [x] Backward compatible: old state files auto-upgraded
-  - [x] Ready for future migrations (v5, v6, etc.)
   - [x] Logs migration events for debugging
-  - [x] 8 unit tests covering migration and field preservation
+  - [x] 8+ unit tests covering migration and field preservation
 
 ### Moltbook Integration (Skill-spec Driven)
 - [x] Skill spec fetch + cached mapping (`scripts/fetch-moltbook-skill.ts`, `data/moltbook/skill.json`)
@@ -337,6 +342,38 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
 - [x] Auth persistence (session.json) with redaction
 - [x] CLI bootstrap commands (`register`, `status`, `doctor`, `claim`)
 - [x] Receipt posting adapter with DRY_RUN, idempotency, min-interval, circuit breaker
+
+### Moltbook Viral Engagement System (NEW — v10)
+- [x] `src/social/moltbook_engagement.ts` - **Enhanced engagement module**
+  - [x] 40+ hooks across 6 categories: debate, alpha, prediction, challenge, ranking, hype
+  - [x] 20+ CTAs with engagement-driving language
+  - [x] Weighted random hook selection (alpha + hype hooks get 2x weight for virality)
+  - [x] Anti-repetition: tracks last used hook/CTA to avoid consecutive duplicates
+  - [x] Smart hashtag rotation: 3-4 hashtags from primary, secondary, niche pools
+  - [x] Community callout templates (roll calls, shoutouts, milestones, AMAs)
+  - [x] Thread-style formatting (`formatThreadPost()`) for listicles and breakdowns
+  - [x] Auto-truncation to stay under Moltbook 500-char limit
+  - [x] Already integrated into `opinionPoster.ts` and `moltbook/index.ts` for opinion/news/meta posts
+- [x] `src/social/moltbook_discussions.ts` - **Proactive discussion posting system**
+  - [x] 25+ evergreen DeFi/Base/crypto discussion topics pool
+  - [x] AI-powered discussion generation (GPT-4o-mini) with template fallback
+  - [x] 70% discussion posts / 30% community callout posts (weighted random)
+  - [x] Deduplication via `postedDiscussionTopics` LRU (50 entries)
+  - [x] Daily cap: max 2 discussion/community posts per day
+  - [x] Interval pacing: reuses NEWS_FETCH_INTERVAL_MINUTES
+  - [x] Integrated into main tick loop (non-blocking, after comment replies)
+  - [x] No new environment variables required
+- [x] `src/social/moltbook_comments.ts` - **Enhanced reply personality**
+  - [x] More engaging, opinionated reply generation
+  - [x] Follow-up questions to drive deeper conversations
+  - [x] Contextual response strategy (agree → push deeper, disagree → debate, question → answer + flip)
+  - [x] "Follow for more alpha" growth hooks in replies
+- [x] **State management v10** (`src/agent/state.ts`)
+  - [x] `moltbookDiscussionLastPostMs` (interval enforcement)
+  - [x] `moltbookDiscussionPostsToday` (daily cap, UTC midnight reset)
+  - [x] `moltbookDiscussionLastDayUtc` (automatic daily reset)
+  - [x] `postedDiscussionTopics` (LRU 50 for topic deduplication)
+  - [x] Migration v9→v10 (adds discussion fields on upgrade)
 
 ### Social Posting (Fanout)
 - [x] `SOCIAL_MODE=multi` + `SOCIAL_MULTI_TARGETS` for posting to multiple backends (e.g. X API + Moltbook)
@@ -699,6 +736,21 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
 ---
 
 ## 📝 Changelog
+
+### 2026-02-05 (Moltbook Viral Engagement System)
+- ✅ **Enhanced engagement module** (`src/social/moltbook_engagement.ts`)
+  - ✅ 40+ hooks across 6 categories (debate, alpha, prediction, challenge, ranking, hype)
+  - ✅ 20+ CTAs, weighted hook selection, anti-repetition, smart hashtag rotation
+  - ✅ Community callout templates, thread-style formatting, alpha branding
+- ✅ **Proactive discussion posting** (`src/social/moltbook_discussions.ts`)
+  - ✅ 25+ evergreen DeFi/Base/crypto discussion topics
+  - ✅ AI-powered (GPT-4o-mini) + template fallback
+  - ✅ 70/30 discussion/community split, daily cap (2), interval pacing
+  - ✅ Integrated into main tick loop (non-blocking)
+- ✅ **Enhanced comment reply personality** (`src/social/moltbook_comments.ts`)
+  - ✅ Follow-up questions, contextual debate, "follow for more alpha" hooks
+- ✅ State schema v10: discussion tracking (last post time, daily cap, topic LRU)
+- ✅ No new environment variables required
 
 ### 2026-02-01
 - ✅ OpenClaw + Railway remote ops workflow

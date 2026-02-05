@@ -4,6 +4,7 @@ import type { AgentState } from "../../agent/state.js";
 import { logger } from "../../logger.js";
 import type { SocialPoster, SocialPostKind } from "../poster.js";
 import { createMoltbookClient, MoltbookRateLimitedError } from "./client.js";
+import { formatViralPost } from "../moltbook_engagement.js";
 
 function sha256Hex(s: string): string {
   return crypto.createHash("sha256").update(s).digest("hex");
@@ -174,6 +175,10 @@ export async function postMoltbookText(
   const client = createMoltbookClient(cfg);
   const { text, kind } = args;
 
+  // Apply viral formatting for opinion, news, and meta posts (NOT receipts)
+  const shouldFormatViral = kind === "opinion" || kind === "news" || kind === "meta";
+  const formattedText = shouldFormatViral ? formatViralPost(text, kind) : text;
+
   if (isDisabledByCircuitBreaker(state)) {
     logger.warn("moltbook posting disabled by circuit breaker", {
       disabledUntilMs: (state as any).moltbookCircuitBreakerDisabledUntilMs,
@@ -199,7 +204,7 @@ export async function postMoltbookText(
   }
 
   // Idempotency: use different fingerprint field for non-receipt posts.
-  const fingerprint = sha256Hex(text);
+  const fingerprint = sha256Hex(formattedText);
   const isReceipt = kind === 'receipt';
   const lastFpField = isReceipt ? 'lastPostedMoltbookReceiptFingerprint' : 'lastPostedMoltbookMiscFingerprint';
   const lastFp = (state as any)[lastFpField] as string | null | undefined;
@@ -220,7 +225,7 @@ export async function postMoltbookText(
     await client.createPost({
       submolt: "general",
       title,
-      content: text
+      content: formattedText
     });
 
     // Record success to the correct fingerprint field
@@ -231,7 +236,8 @@ export async function postMoltbookText(
     logger.info("moltbook posted", { 
       fingerprint: fingerprint.slice(0, 16) + "...",
       kind,
-      title
+      title,
+      viralFormatted: shouldFormatViral
     });
     return { posted: true, state: nextState };
   } catch (err) {
