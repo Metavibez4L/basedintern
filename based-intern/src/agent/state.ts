@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 5;
+const STATE_SCHEMA_VERSION = 6;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
@@ -12,6 +12,7 @@ const STATE_SCHEMA_VERSION = 5;
  * v3: Added Base News Brain state (daily caps + dedupe) (2026-01-30)
  * v4: Added Moltbook posting state (anti-spam + dedupe + circuit breaker) (2026-02-01)
  * v5: Added news opinion generation state (2026-02-02)
+ * v6: Added OpenClaw announcement state (one-time external agent announcement) (2026-02-03)
  */
 
 export type AgentState = {
@@ -64,6 +65,12 @@ export type AgentState = {
   newsOpinionPostsToday?: number;
   newsOpinionLastDayUtc?: string | null; // YYYY-MM-DD
   postedNewsArticleIds?: string[]; // LRU list to prevent duplicates
+
+  // =========================
+  // OpenClaw Announcement (v6)
+  // =========================
+  openclawAnnouncementPosted?: boolean; // Flag to prevent duplicate posts
+  openclawAnnouncementPostedAt?: number; // Timestamp (ms) when posted
 };
 
 export const DEFAULT_STATE: AgentState = {
@@ -148,6 +155,13 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     if (!("newsOpinionPostsToday" in raw)) raw.newsOpinionPostsToday = 0;
     if (!("newsOpinionLastDayUtc" in raw)) raw.newsOpinionLastDayUtc = null;
     if (!("postedNewsArticleIds" in raw) || !Array.isArray(raw.postedNewsArticleIds)) raw.postedNewsArticleIds = [];
+  }
+
+  // v5 → v6: Add OpenClaw announcement fields
+  if (version === undefined || version < 6) {
+    logger.info("state migration", { from: version || 5, to: STATE_SCHEMA_VERSION });
+    if (!("openclawAnnouncementPosted" in raw)) raw.openclawAnnouncementPosted = false;
+    if (!("openclawAnnouncementPostedAt" in raw)) raw.openclawAnnouncementPostedAt = undefined;
   }
 
   return raw as AgentState;

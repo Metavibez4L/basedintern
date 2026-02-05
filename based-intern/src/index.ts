@@ -17,6 +17,7 @@ import { createPoster } from "./social/poster.js";
 import { createTradeExecutor } from "./chain/trade.js";
 import { pollMentionsAndRespond, type MentionPollerContext } from "./social/x_mentions.js";
 import { replyToMoltbookComments } from "./social/moltbook_comments.js";
+import { postOpenClawAnnouncementOnce } from "./social/openclaw_announcement.js";
 import { buildNewsPlan } from "./news/news.js";
 import { postNewsTweet } from "./social/news_poster.js";
 import { startControlServer } from "./control/server.js";
@@ -106,6 +107,21 @@ async function tick(): Promise<void> {
   }
 
   const poster = createPoster(cfg, state);
+
+  // ============================================================
+  // OPENCLAW ANNOUNCEMENT (one-time, runs on first tick only)
+  // ============================================================
+  try {
+    const announcementResult = await postOpenClawAnnouncementOnce(cfg, state, saveState, poster);
+    if (announcementResult.posted) {
+      logger.info("openclaw.announcement.posted_successfully");
+    }
+  } catch (err) {
+    logger.warn("openclaw.announcement.error", {
+      error: err instanceof Error ? err.message : String(err)
+    });
+    // Continue with normal loop even if announcement fails
+  }
 
   let tokenAddress: Address | null = null;
   try {
