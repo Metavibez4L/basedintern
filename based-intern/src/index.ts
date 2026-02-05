@@ -451,10 +451,14 @@ async function tick(): Promise<void> {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           const failureCount = (workingState.newsOpinionFailureCount ?? 0) + 1;
+          
+          // Use configurable circuit breaker thresholds
+          const failsThreshold = cfg.NEWS_OPINION_CIRCUIT_BREAKER_FAILS ?? 3;
+          const minutesDuration = cfg.NEWS_OPINION_CIRCUIT_BREAKER_MINUTES ?? 30;
           const next = {
             ...workingState,
             newsOpinionFailureCount: failureCount,
-            newsOpinionCircuitBreakerDisabledUntilMs: failureCount >= 3 ? nowMs + 30 * 60_000 : null
+            newsOpinionCircuitBreakerDisabledUntilMs: failureCount >= failsThreshold ? nowMs + minutesDuration * 60_000 : null
           };
           workingState = next;
           await saveState(workingState);
@@ -615,4 +619,3 @@ main().catch((err) => {
   logger.error("fatal", { error: err instanceof Error ? err.message : String(err) });
   process.exitCode = 1;
 });
-

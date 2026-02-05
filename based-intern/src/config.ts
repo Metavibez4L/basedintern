@@ -162,7 +162,19 @@ const envSchemaBase = z.object({
   NEWS_FETCH_INTERVAL_MINUTES: z.coerce.number().int().positive().default(60),
   NEWS_MIN_RELEVANCE_SCORE: z.coerce.number().min(0).max(1).default(0.5),
   NEWS_CRYPTO_PANIC_KEY: z.string().optional(),
-  NEWS_RSS_FEEDS: z.string().optional().transform((s) => s?.split(",").map((u) => u.trim()).filter(Boolean) || [])
+  NEWS_RSS_FEEDS: z.string().optional().transform((s) => s?.split(",").map((u) => u.trim()).filter(Boolean) || []),
+
+  // HTTP fetch tuning (Railway-friendly)
+  // NOTE: kept optional in type so tests/mocks don't need updating.
+  // Runtime defaults are applied in loadConfig().
+  NEWS_HTTP_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).optional(),
+  NEWS_HTTP_RETRIES: z.coerce.number().int().min(0).max(10).optional(),
+
+  // Opinion circuit breaker tuning
+  // NOTE: kept optional in type so tests/mocks don't need updating.
+  // Runtime defaults are applied in loadConfig().
+  NEWS_OPINION_CIRCUIT_BREAKER_FAILS: z.coerce.number().int().min(1).max(10).optional(),
+  NEWS_OPINION_CIRCUIT_BREAKER_MINUTES: z.coerce.number().int().min(1).max(1440).optional()
 });
 
 const envSchema = envSchemaBase.superRefine((cfg, ctx) => {
@@ -452,6 +464,13 @@ function validateGuardrails(cfg: AppConfig): string[] {
 export function loadConfig(): ResolvedConfig {
   const baseCfg = envSchema.parse(process.env);
 
+  // Apply safe defaults for optional tuning knobs.
+  // These are optional in the AppConfig type so tests/mocks can omit them.
+  (baseCfg as any).NEWS_HTTP_TIMEOUT_MS = baseCfg.NEWS_HTTP_TIMEOUT_MS ?? 15000;
+  (baseCfg as any).NEWS_HTTP_RETRIES = baseCfg.NEWS_HTTP_RETRIES ?? 2;
+  (baseCfg as any).NEWS_OPINION_CIRCUIT_BREAKER_FAILS = baseCfg.NEWS_OPINION_CIRCUIT_BREAKER_FAILS ?? 3;
+  (baseCfg as any).NEWS_OPINION_CIRCUIT_BREAKER_MINUTES = baseCfg.NEWS_OPINION_CIRCUIT_BREAKER_MINUTES ?? 30;
+
   // Apply News Brain alias env vars (requested names) onto the existing names.
   // This keeps the rest of the codebase stable while supporting both.
   if (baseCfg.NEWS_POSTS_PER_DAY !== undefined && baseCfg.NEWS_POSTS_PER_DAY !== null) {
@@ -507,4 +526,3 @@ export function rpcUrlForChain(cfg: AppConfig): string {
 export function deploymentFileForChain(cfg: AppConfig): string {
   return cfg.CHAIN === "base-sepolia" ? "baseSepolia.json" : "base.json";
 }
-

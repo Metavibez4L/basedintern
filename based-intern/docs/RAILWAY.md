@@ -87,6 +87,23 @@ Railway uses ephemeral storage, meaning `state.json` resets on every redeploy. T
 
 This explicit opt-in approach ensures you control exactly when the announcement goes out, even with Railway's ephemeral filesystem.
 
+### News and Opinion tuning
+
+When `NEWS_ENABLED=true`, the agent fetches news sources and generates AI opinions. For Railway deployments with variable network conditions, you can tune:
+
+**HTTP fetch behavior:**
+- `NEWS_HTTP_TIMEOUT_MS=15000` - Timeout per request (default 15s)
+- `NEWS_HTTP_RETRIES=2` - Retry attempts per fetch (default 2)
+
+**Opinion circuit breaker (prevents runaway failures):**
+- `NEWS_OPINION_CIRCUIT_BREAKER_FAILS=3` - Open circuit after this many failures (default 3)
+- `NEWS_OPINION_CIRCUIT_BREAKER_MINUTES=30` - Circuit stays open for this duration (default 30min)
+
+These are useful on Railway when:
+- External news sources are slow/down (reduce timeout, increase retries)
+- OpenAI API is rate-limiting (lower circuit breaker threshold, increase cooldown)
+- You want faster/slower failure recovery (tweak minutes)
+
 ## 3) OAuth 1.0a credentials for X API posting
 
 To post receipts to X, set up OAuth 1.0a credentials:

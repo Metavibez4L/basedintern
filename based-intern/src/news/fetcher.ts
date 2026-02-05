@@ -2,14 +2,11 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AppConfig } from "../config.js";
 
-const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
-const DEFAULT_FETCH_RETRIES = 2;
-
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS): Promise<Response> {
+async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = 15000): Promise<Response> {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -20,8 +17,8 @@ async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = DEF
 }
 
 async function fetchWithRetry(url: string, init?: RequestInit, opts?: { retries?: number; timeoutMs?: number }): Promise<Response> {
-  const retries = opts?.retries ?? DEFAULT_FETCH_RETRIES;
-  const timeoutMs = opts?.timeoutMs ?? DEFAULT_FETCH_TIMEOUT_MS;
+  const retries = opts?.retries ?? 2;
+  const timeoutMs = opts?.timeoutMs ?? 15000;
 
   let lastErr: unknown = null;
   for (let attempt = 0; attempt <= retries; attempt++) {
@@ -68,13 +65,13 @@ export class NewsAggregator {
     
     // Add fetchers based on config
     if (cfg.NEWS_CRYPTO_PANIC_KEY) {
-      this.fetchers.push(new CryptoPanicFetcher(cfg.NEWS_CRYPTO_PANIC_KEY));
+      this.fetchers.push(new CryptoPanicFetcher(cfg.NEWS_CRYPTO_PANIC_KEY, cfg));
     }
     if (cfg.NEWS_RSS_FEEDS?.length) {
-      this.fetchers.push(new RSSFetcher(cfg.NEWS_RSS_FEEDS));
+      this.fetchers.push(new RSSFetcher(cfg.NEWS_RSS_FEEDS, cfg));
     }
     // Always include Base ecosystem monitor
-    this.fetchers.push(new BaseEcosystemFetcher());
+    this.fetchers.push(new BaseEcosystemFetcher(cfg));
   }
 
   async fetchLatest(limit = 10): Promise<NewsArticle[]> {
@@ -109,13 +106,21 @@ export class NewsAggregator {
 
 // CryptoPanic API integration
 class CryptoPanicFetcher implements NewsFetcher {
-  constructor(private apiKey: string) {}
+  constructor(
+    private apiKey: string,
+    private cfg: AppConfig
+  ) {}
 
   async fetch(): Promise<NewsArticle[]> {
     const url = `https://cryptopanic.com/api/v1/posts/?auth_token=${this.apiKey}&currencies=ETH,BASE&filter=hot`;
     
     try {
-      const res = await fetchWithRetry(url, { headers: { "User-Agent": "BasedIntern/1.0" } });
+      const res = await fetchWithRetry(url, { 
+        headers: { "User-Agent": "BasedIntern/1.0" } 
+      }, {
+        timeoutMs: this.cfg.NEWS_HTTP_TIMEOUT_MS,
+        retries: this.cfg.NEWS_HTTP_RETRIES
+      });
       if (!res.ok) throw new Error(`CryptoPanic ${res.status}`);
       
       const data: any = await res.json();
@@ -138,14 +143,22 @@ class CryptoPanicFetcher implements NewsFetcher {
 
 // RSS feed parser (for Base blog, DeFi newsletters, etc.)
 class RSSFetcher implements NewsFetcher {
-  constructor(private feeds: string[]) {}
+  constructor(
+    private feeds: string[],
+    private cfg: AppConfig
+  ) {}
 
   async fetch(): Promise<NewsArticle[]> {
     const articles: NewsArticle[] = [];
     
     for (const feedUrl of this.feeds) {
       try {
-        const res = await fetchWithRetry(feedUrl, { headers: { "User-Agent": "BasedIntern/1.0" } });
+        const res = await fetchWithRetry(feedUrl, { 
+          headers: { "User-Agent": "BasedIntern/1.0" } 
+        }, {
+          timeoutMs: this.cfg.NEWS_HTTP_TIMEOUT_MS,
+          retries: this.cfg.NEWS_HTTP_RETRIES
+        });
         if (!res.ok) continue;
         
         const text = await res.text();
@@ -189,6 +202,8 @@ class RSSFetcher implements NewsFetcher {
 
 // Base ecosystem monitor (GitHub activity, governance proposals)
 class BaseEcosystemFetcher implements NewsFetcher {
+  constructor(private cfg: AppConfig) {}
+
   async fetch(): Promise<NewsArticle[]> {
     const articles: NewsArticle[] = [];
     
@@ -199,6 +214,9 @@ class BaseEcosystemFetcher implements NewsFetcher {
           "User-Agent": "BasedIntern/1.0",
           "Accept": "application/vnd.github+json"
         }
+      }, {
+        timeoutMs: this.cfg.NEWS_HTTP_TIMEOUT_MS,
+        retries: this.cfg.NEWS_HTTP_RETRIES
       });
       if (res.ok) {
         const releases: any = await res.json();
