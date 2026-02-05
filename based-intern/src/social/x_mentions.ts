@@ -32,6 +32,8 @@ interface Mention {
   id: string;
   text: string;
   authorId: string;
+  authorUsername?: string;
+  createdAtMs?: number;
 }
 
 interface MentionFingerprint {
@@ -64,15 +66,31 @@ export async function pollMentionsAndRespond(ctx: MentionPollerContext): Promise
       }
     }
 
+    // Circuit breaker check for mentions replies (separate from receipt/news posting)
+    if (isMentionsCircuitBreakerOpen(ctx.state)) {
+      logger.warn("x_mentions skipped: circuit breaker open", {
+        disabledUntilMs: ctx.state.xMentionsCircuitBreakerDisabledUntilMs,
+        failureCount: ctx.state.xMentionsFailureCount
+      });
+      return;
+    }
+
     // Fetch mentions timeline
     let mentions: Mention[];
     try {
       mentions = await fetchMentions(ctx.cfg, ctx.userId, ctx.state.lastSeenMentionId ?? undefined);
       logger.info("x_mentions fetched mentions", { count: mentions.length });
     } catch (err) {
-      logger.warn("x_mentions failed to fetch mentions", {
-        error: err instanceof Error ? err.message : String(err)
-      });
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.warn("x_mentions failed to fetch mentions", { error: msg });
+      if (msg.startsWith("rate_limited:")) {
+        const parts = msg.split(":");
+        const resetRaw = parts[1] ?? "";
+        const resetAtMs = resetRaw === "unknown" ? null : Number(resetRaw);
+        await recordMentionsRateLimited(ctx, Number.isFinite(resetAtMs) ? resetAtMs : null);
+      } else {
+        await recordMentionsFailure(ctx);
+      }
       return;
     }
 
@@ -81,11 +99,32 @@ export async function pollMentionsAndRespond(ctx: MentionPollerContext): Promise
       return;
     }
 
-    // Process each mention (newest first, but we track oldest seen for pagination)
+    // Filter out self-mentions and stale mentions (avoid replying to very old mentions after redeploys)
+    const nowMs = Date.now();
+    const maxAgeMs = 24 * 60 * 60 * 1000; // 24h
+    mentions = mentions.filter((m) => {
+      if (m.authorId === ctx.userId) return false;
+      if (typeof m.createdAtMs === "number" && nowMs - m.createdAtMs > maxAgeMs) return false;
+      return true;
+    });
+
+    if (mentions.length === 0) {
+      logger.info("x_mentions no eligible mentions after filtering", {});
+      return;
+    }
+
+    // Process each mention (newest first)
     const respondedMentions: string[] = [];
     const repliedFingerprints = ctx.state.repliedMentionFingerprints ?? [];
+    const maxRepliesPerPoll = 3;
+    let repliesSent = 0;
 
     for (const mention of mentions) {
+      if (repliesSent >= maxRepliesPerPoll) {
+        logger.info("x_mentions reached per-poll reply cap", { maxRepliesPerPoll });
+        break;
+      }
+
       const cmd = parseCommand(mention.text);
       const fingerprint = computeMentionFingerprint(mention.id, cmd.type);
 
@@ -98,10 +137,10 @@ export async function pollMentionsAndRespond(ctx: MentionPollerContext): Promise
         continue;
       }
 
-      // Compose and post reply
-      const replyText = composeReply(cmd, ctx);
+      // Compose and post reply (include @username when available for clarity)
+      const replyText = composeReply(cmd, ctx, { username: mention.authorUsername });
       try {
-        const replyTweetId = await postReply(ctx.cfg, mention.id, replyText);
+        const replyTweetId = await postReplyWithRetry(ctx, mention.id, replyText);
         logger.info("x_mentions posted reply", {
           mentionId: mention.id,
           command: cmd.type,
@@ -110,12 +149,23 @@ export async function pollMentionsAndRespond(ctx: MentionPollerContext): Promise
 
         respondedMentions.push(mention.id);
         repliedFingerprints.push(fingerprint.hash);
+        repliesSent += 1;
+
+        // Light throttle to reduce bursty posting (Railway-friendly)
+        ctx.state.xMentionsLastReplyMs = Date.now();
+        await ctx.saveStateFn(ctx.state);
+        await sleep(1500);
       } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
         logger.warn("x_mentions failed to post reply", {
           mentionId: mention.id,
           command: cmd.type,
-          error: err instanceof Error ? err.message : String(err)
+          error: msg
         });
+        // If we got rate-limited, stop trying more replies this poll.
+        if (msg.includes("rate_limited")) {
+          break;
+        }
         // Continue processing other mentions even if one fails
       }
     }
@@ -126,8 +176,8 @@ export async function pollMentionsAndRespond(ctx: MentionPollerContext): Promise
       ctx.state.lastSeenMentionId = newestMentionId;
       ctx.state.lastSuccessfulMentionPollMs = Date.now();
 
-      // Keep last 20 fingerprints to avoid memory growth
-      const maxFingerprints = 20;
+      // Keep last 200 fingerprints to avoid duplicates across longer runtimes.
+      const maxFingerprints = 200;
       ctx.state.repliedMentionFingerprints = repliedFingerprints.slice(-maxFingerprints);
 
       await ctx.saveStateFn(ctx.state);
@@ -173,7 +223,17 @@ export function parseCommand(text: string): ParsedCommand {
 /**
  * Compose a safe reply acknowledging the command without executing trades.
  */
-export function composeReply(cmd: ParsedCommand, ctx: MentionPollerContext): string {
+export function composeReply(cmd: ParsedCommand, ctx: MentionPollerContext): string;
+export function composeReply(cmd: ParsedCommand, ctx: MentionPollerContext, opts?: { username?: string }): string;
+export function composeReply(cmd: ParsedCommand, ctx: MentionPollerContext, opts?: { username?: string }): string {
+  const base = composeReplyInner(cmd, ctx);
+  const u = opts?.username?.trim();
+  if (!u) return base;
+  // Ensure we always mention the user in the reply text (more obvious on the timeline)
+  return truncateForTweet(`@${u} ${base}`);
+}
+
+function composeReplyInner(cmd: ParsedCommand, ctx: MentionPollerContext): string {
   const cfg = ctx.cfg;
   const dryRunStatus = cfg.DRY_RUN ? "🔒 DRY_RUN" : "🚨 LIVE";
   const tradingStatus = cfg.TRADING_ENABLED && !cfg.KILL_SWITCH ? "enabled" : "disabled";
@@ -305,7 +365,7 @@ async function fetchMentions(cfg: AppConfig, userId: string, sinceId?: string): 
   const accessToken = cfg.X_ACCESS_TOKEN || "";
   const accessSecret = cfg.X_ACCESS_SECRET || "";
 
-  let url = `https://api.twitter.com/2/users/${userId}/mentions?tweet.fields=created_at&expansions=author_id&max_results=100`;
+  let url = `https://api.twitter.com/2/users/${userId}/mentions?tweet.fields=created_at,author_id&expansions=author_id&user.fields=username&max_results=100`;
   if (sinceId) {
     url += `&since_id=${sinceId}`;
   }
@@ -329,16 +389,31 @@ async function fetchMentions(cfg: AppConfig, userId: string, sinceId?: string): 
 
   if (!res.ok) {
     const body = await res.text();
+    const resetHeader = res.headers.get("x-rate-limit-reset");
+    const resetAtMs = resetHeader ? parseInt(resetHeader, 10) * 1000 : null;
+    if (res.status === 429) {
+      throw new Error(`rate_limited:${resetAtMs ?? "unknown"}:${body.slice(0, 200)}`);
+    }
     throw new Error(`Failed to fetch mentions: ${res.status} ${body}`);
   }
 
   const json = (await res.json()) as {
-    data?: Array<{ id: string; text: string }>;
+    data?: Array<{ id: string; text: string; author_id?: string; created_at?: string }>;
+    includes?: { users?: Array<{ id: string; username?: string }> };
   };
   const mentions = json.data ?? [];
+  const users = json.includes?.users ?? [];
+  const userMap = new Map(users.map((u) => [u.id, u.username ?? ""]));
 
   // Return in descending order (newest first) for processing
-  return mentions.reverse() as Mention[];
+  return mentions
+    .reverse()
+    .map((m) => {
+      const createdAtMs = m.created_at ? Date.parse(m.created_at) : undefined;
+      const authorId = m.author_id ?? "";
+      const authorUsername = userMap.get(authorId) || undefined;
+      return { id: m.id, text: m.text, authorId, authorUsername, createdAtMs } satisfies Mention;
+    });
 }
 
 /**
@@ -392,6 +467,11 @@ async function postReply(cfg: AppConfig, inReplyToTweetId: string, replyText: st
       return `duplicate:${inReplyToTweetId}`;
     }
 
+    const resetHeader = res.headers.get("x-rate-limit-reset");
+    const resetAtMs = resetHeader ? parseInt(resetHeader, 10) * 1000 : null;
+    if (res.status === 429) {
+      throw new Error(`rate_limited:${resetAtMs ?? "unknown"}:${body.slice(0, 200)}`);
+    }
     throw new Error(`Failed to post reply: ${res.status} ${body}`);
   }
 
@@ -401,6 +481,64 @@ async function postReply(cfg: AppConfig, inReplyToTweetId: string, replyText: st
   }
 
   return json.data.id;
+}
+
+function isMentionsCircuitBreakerOpen(state: AgentState): boolean {
+  const until = state.xMentionsCircuitBreakerDisabledUntilMs ?? null;
+  return typeof until === "number" && until > Date.now();
+}
+
+async function recordMentionsFailure(ctx: MentionPollerContext): Promise<void> {
+  const nextCount = (ctx.state.xMentionsFailureCount ?? 0) + 1;
+  ctx.state.xMentionsFailureCount = nextCount;
+  if (nextCount >= 3) {
+    ctx.state.xMentionsCircuitBreakerDisabledUntilMs = Date.now() + 30 * 60_000;
+  }
+  await ctx.saveStateFn(ctx.state);
+}
+
+async function recordMentionsRateLimited(ctx: MentionPollerContext, resetAtMs: number | null): Promise<void> {
+  ctx.state.xMentionsFailureCount = 0;
+  ctx.state.xMentionsCircuitBreakerDisabledUntilMs = resetAtMs && Number.isFinite(resetAtMs) ? resetAtMs : Date.now() + 15 * 60_000;
+  await ctx.saveStateFn(ctx.state);
+}
+
+async function recordMentionsSuccess(ctx: MentionPollerContext): Promise<void> {
+  ctx.state.xMentionsFailureCount = 0;
+  ctx.state.xMentionsCircuitBreakerDisabledUntilMs = null;
+  await ctx.saveStateFn(ctx.state);
+}
+
+async function postReplyWithRetry(ctx: MentionPollerContext, inReplyToTweetId: string, replyText: string): Promise<string> {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const id = await postReply(ctx.cfg, inReplyToTweetId, replyText);
+      await recordMentionsSuccess(ctx);
+      return id;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.startsWith("rate_limited:")) {
+        const parts = msg.split(":");
+        const resetRaw = parts[1] ?? "";
+        const resetAtMs = resetRaw === "unknown" ? null : Number(resetRaw);
+        await recordMentionsRateLimited(ctx, resetAtMs);
+        throw new Error("rate_limited");
+      }
+
+      logger.warn("x_mentions reply attempt failed", { attempt, error: msg });
+      if (attempt === maxAttempts) {
+        await recordMentionsFailure(ctx);
+        throw err;
+      }
+      await sleep(1000 * attempt);
+    }
+  }
+  throw new Error("unreachable");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 /**

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 8;
+const STATE_SCHEMA_VERSION = 9;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
@@ -15,6 +15,7 @@ const STATE_SCHEMA_VERSION = 8;
  * v6: Added OpenClaw announcement state (one-time external agent announcement) (2026-02-03)
  * v7: Harden news opinion cycle (attempt gating + circuit breaker) (2026-02-05)
  * v8: Added lastPostedMoltbookMiscFingerprint for kind-aware social posting (2026-02-05)
+ * v9: Harden X mentions replies (circuit breaker + throttling state) (2026-02-05)
  */
 
 export type AgentState = {
@@ -47,8 +48,11 @@ export type AgentState = {
   lastPostDayUtc: string | null;
   // X Mentions poller (Phase 1)
   lastSeenMentionId?: string; // For pagination
-  repliedMentionFingerprints?: string[]; // LRU list (max 20) of replied mention fingerprints for dedup
+  repliedMentionFingerprints?: string[]; // LRU list of replied mention fingerprints for dedup
   lastSuccessfulMentionPollMs?: number; // When we last successfully polled mentions
+  xMentionsFailureCount?: number;
+  xMentionsCircuitBreakerDisabledUntilMs?: number | null;
+  xMentionsLastReplyMs?: number | null;
 
   // =========================
   // Moltbook (optional)
@@ -102,6 +106,9 @@ export const DEFAULT_STATE: AgentState = {
   lastSeenMentionId: undefined,
   repliedMentionFingerprints: undefined,
   lastSuccessfulMentionPollMs: undefined,
+  xMentionsFailureCount: 0,
+  xMentionsCircuitBreakerDisabledUntilMs: null,
+  xMentionsLastReplyMs: null,
 
   moltbookLastPostMs: null,
   lastPostedMoltbookReceiptFingerprint: null,
@@ -193,6 +200,14 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     if (!("lastPostedMoltbookMiscFingerprint" in raw)) raw.lastPostedMoltbookMiscFingerprint = null;
   }
 
+  // v8 → v9: Harden X mentions replies (circuit breaker + throttling state)
+  if (version === undefined || version < 9) {
+    logger.info("state migration", { from: version || 8, to: STATE_SCHEMA_VERSION });
+    if (!("xMentionsFailureCount" in raw)) raw.xMentionsFailureCount = 0;
+    if (!("xMentionsCircuitBreakerDisabledUntilMs" in raw)) raw.xMentionsCircuitBreakerDisabledUntilMs = null;
+    if (!("xMentionsLastReplyMs" in raw)) raw.xMentionsLastReplyMs = null;
+  }
+
   return raw as AgentState;
 }
 
@@ -233,6 +248,9 @@ export async function loadState(): Promise<AgentState> {
       lastSeenMentionId: migrated.lastSeenMentionId,
       repliedMentionFingerprints: migrated.repliedMentionFingerprints,
       lastSuccessfulMentionPollMs: migrated.lastSuccessfulMentionPollMs,
+      xMentionsFailureCount: migrated.xMentionsFailureCount ?? 0,
+      xMentionsCircuitBreakerDisabledUntilMs: migrated.xMentionsCircuitBreakerDisabledUntilMs ?? null,
+      xMentionsLastReplyMs: migrated.xMentionsLastReplyMs ?? null,
 
       moltbookLastPostMs: migrated.moltbookLastPostMs ?? null,
       lastPostedMoltbookReceiptFingerprint: migrated.lastPostedMoltbookReceiptFingerprint ?? null,
