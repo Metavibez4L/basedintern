@@ -6,13 +6,16 @@ import { createXPosterPlaywright } from "./x_playwright.js";
 import { createXPosterApi } from "./x_api.js";
 import { createMoltbookPoster } from "./moltbook/index.js";
 import { postTweetXApi } from "./x_api.js";
-import { postMoltbookReceipt } from "./moltbook/index.js";
+import { postMoltbookReceipt, postMoltbookText } from "./moltbook/index.js";
+
+export type SocialPostKind = "receipt" | "news" | "opinion" | "meta";
 
 export type SocialPoster = {
-  post(text: string): Promise<void>;
+  post(text: string, kind?: SocialPostKind): Promise<void>;
 };
 
 let warnedMoltbookImplicitEnable = false;
+let warnedPlaywrightWithXApi = false;
 
 function parseSocialTargets(raw: string): Array<"x_api" | "playwright" | "moltbook"> {
   const out: Array<"x_api" | "playwright" | "moltbook"> = [];
@@ -31,7 +34,7 @@ function parseSocialTargets(raw: string): Array<"x_api" | "playwright" | "moltbo
 export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
   if (cfg.SOCIAL_MODE === "multi") {
     const targetsRaw = parseSocialTargets(cfg.SOCIAL_MULTI_TARGETS);
-    const targets = targetsRaw.filter((t) => {
+    let targets = targetsRaw.filter((t) => {
       if (t !== "moltbook") return true;
       if (cfg.MOLTBOOK_ENABLED) return true;
 
@@ -78,6 +81,17 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
       return false;
     });
 
+    // Avoid duplicate X posts: if x_api is configured, don't also post to X via playwright.
+    if (targets.includes("x_api") && targets.includes("playwright")) {
+      if (!warnedPlaywrightWithXApi) {
+        warnedPlaywrightWithXApi = true;
+        logger.warn("SOCIAL_MULTI_TARGETS includes both x_api and playwright; skipping playwright to avoid duplicate X posts", {
+          configuredTargets: targetsRaw
+        });
+      }
+      targets = targets.filter((t) => t !== "playwright");
+    }
+
     if (targets.length === 0) {
       throw new Error("SOCIAL_MODE=multi requires SOCIAL_MULTI_TARGETS to include at least one of: x_api, playwright, moltbook");
     }
@@ -90,17 +104,21 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
     const playwrightPoster = targets.includes("playwright") ? createXPosterPlaywright(cfg) : null;
 
     return {
-      async post(text: string) {
+      async post(text: string, kind: SocialPostKind = "receipt") {
         // Sequential posting to avoid state.json clobber between X API + Moltbook.
         for (const t of targets) {
           try {
             if (t === "x_api") {
-              const out = await postTweetXApi(cfg, currentState, saveState, { text, idempotencyKey: "receipt" });
+              const idempotencyKey = kind === "receipt" ? "receipt" : "news";
+              const out = await postTweetXApi(cfg, currentState, saveState, { text, idempotencyKey });
               currentState = out.state;
               continue;
             }
             if (t === "moltbook") {
-              const out = await postMoltbookReceipt(cfg, currentState, saveState, text);
+              const out =
+                kind === "receipt"
+                  ? await postMoltbookReceipt(cfg, currentState, saveState, text)
+                  : await postMoltbookText(cfg, currentState, saveState, { text, kind });
               currentState = out.state;
 
               if (!out.posted) {
@@ -112,7 +130,7 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
               continue;
             }
             if (t === "playwright" && playwrightPoster) {
-              await playwrightPoster.post(text);
+              await playwrightPoster.post(text, kind);
               continue;
             }
           } catch (err) {
@@ -128,8 +146,8 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
 
   if (cfg.SOCIAL_MODE === "none") {
     return {
-      async post(text: string) {
-        logger.info("SOCIAL_MODE=none (logging receipt only)", { receipt: text });
+      async post(text: string, kind?: SocialPostKind) {
+        logger.info("SOCIAL_MODE=none (logging receipt only)", { receipt: text, kind });
       }
     };
   }
@@ -151,4 +169,3 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
   // playwright
   return createXPosterPlaywright(cfg);
 }
-

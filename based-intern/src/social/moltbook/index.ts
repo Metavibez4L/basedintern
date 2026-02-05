@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import type { AppConfig } from "../../config.js";
 import type { AgentState } from "../../agent/state.js";
 import { logger } from "../../logger.js";
-import type { SocialPoster } from "../poster.js";
+import type { SocialPoster, SocialPostKind } from "../poster.js";
 import { createMoltbookClient, MoltbookRateLimitedError } from "./client.js";
 
 function sha256Hex(s: string): string {
@@ -14,7 +14,7 @@ function minutesToMs(m: number): number {
 }
 
 function clamp(n: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, n));
+  return Math.max(min, Math.min(n, max));
 }
 
 function isDisabledByCircuitBreaker(state: AgentState): boolean {
@@ -59,7 +59,7 @@ async function recordRateLimited(
   return next;
 }
 
-async function recordSuccess(state: AgentState, saveStateFn: (s: AgentState) => Promise<void>, fingerprint: string): Promise<AgentState> {
+async function recordReceiptSuccess(state: AgentState, saveStateFn: (s: AgentState) => Promise<void>, fingerprint: string): Promise<AgentState> {
   const next: AgentState = {
     ...(state as any),
     moltbookFailureCount: 0,
@@ -71,13 +71,30 @@ async function recordSuccess(state: AgentState, saveStateFn: (s: AgentState) => 
   return next;
 }
 
+async function recordMiscSuccess(state: AgentState, saveStateFn: (s: AgentState) => Promise<void>, fingerprint: string): Promise<AgentState> {
+  const next: AgentState = {
+    ...(state as any),
+    moltbookFailureCount: 0,
+    moltbookCircuitBreakerDisabledUntilMs: null,
+    moltbookLastPostMs: Date.now(),
+    lastPostedMoltbookMiscFingerprint: fingerprint
+  };
+  await saveStateFn(next);
+  return next;
+}
+
 export function createMoltbookPoster(cfg: AppConfig, state: AgentState, saveStateFn: (s: AgentState) => Promise<void>): SocialPoster {
   let currentState = state;
 
   return {
-    async post(text: string) {
-      const out = await postMoltbookReceipt(cfg, currentState, saveStateFn, text);
-      currentState = out.state;
+    async post(text: string, kind?: SocialPostKind) {
+      if (!kind || kind === "receipt") {
+        const out = await postMoltbookReceipt(cfg, currentState, saveStateFn, text);
+        currentState = out.state;
+      } else {
+        const out = await postMoltbookText(cfg, currentState, saveStateFn, { text, kind });
+        currentState = out.state;
+      }
     }
   };
 }
@@ -119,7 +136,7 @@ export async function postMoltbookReceipt(
   const fingerprint = sha256Hex(text);
   const lastFp = (state as any).lastPostedMoltbookReceiptFingerprint as string | null | undefined;
   if (lastFp && lastFp === fingerprint) {
-    logger.info("moltbook.skip (duplicate)", { fingerprint: fingerprint.slice(0, 16) + "..." });
+    logger.info("moltbook.skip (duplicate receipt)", { fingerprint: fingerprint.slice(0, 16) + "..." });
     return { posted: false, state, reason: "duplicate" };
   }
 
@@ -132,8 +149,8 @@ export async function postMoltbookReceipt(
       content: text
     });
 
-    const nextState = await recordSuccess(state, saveStateFn, fingerprint);
-    logger.info("moltbook posted", { fingerprint: fingerprint.slice(0, 16) + "..." });
+    const nextState = await recordReceiptSuccess(state, saveStateFn, fingerprint);
+    logger.info("moltbook posted receipt", { fingerprint: fingerprint.slice(0, 16) + "..." });
     return { posted: true, state: nextState };
   } catch (err) {
     if (err instanceof MoltbookRateLimitedError) {
@@ -143,6 +160,94 @@ export async function postMoltbookReceipt(
     }
 
     logger.warn("moltbook post failed", { error: err instanceof Error ? err.message : String(err) });
+    const nextState = await recordFailure(state, saveStateFn);
+    return { posted: false, state: nextState, reason: "error" };
+  }
+}
+
+export async function postMoltbookText(
+  cfg: AppConfig,
+  state: AgentState,
+  saveStateFn: (s: AgentState) => Promise<void>,
+  args: { text: string; kind: SocialPostKind }
+): Promise<{ posted: boolean; state: AgentState; reason?: string }> {
+  const client = createMoltbookClient(cfg);
+  const { text, kind } = args;
+
+  if (isDisabledByCircuitBreaker(state)) {
+    logger.warn("moltbook posting disabled by circuit breaker", {
+      disabledUntilMs: (state as any).moltbookCircuitBreakerDisabledUntilMs,
+      failureCount: (state as any).moltbookFailureCount,
+      kind
+    });
+    return { posted: false, state, reason: "circuit_breaker" };
+  }
+
+  // Local anti-spam guardrail: reuse MIN_INTERVAL_MINUTES.
+  const lastMs = (state as any).moltbookLastPostMs as number | null | undefined;
+  if (typeof lastMs === "number" && cfg.MIN_INTERVAL_MINUTES > 0) {
+    const since = Date.now() - lastMs;
+    const min = minutesToMs(cfg.MIN_INTERVAL_MINUTES);
+    if (since < min) {
+      logger.info("moltbook.skip (min interval)", {
+        sinceMinutes: Math.floor(since / 60_000),
+        minIntervalMinutes: cfg.MIN_INTERVAL_MINUTES,
+        kind
+      });
+      return { posted: false, state, reason: "min_interval" };
+    }
+  }
+
+  // Idempotency: use different fingerprint field for non-receipt posts.
+  const fingerprint = sha256Hex(text);
+  const isReceipt = kind === 'receipt';
+  const lastFpField = isReceipt ? 'lastPostedMoltbookReceiptFingerprint' : 'lastPostedMoltbookMiscFingerprint';
+  const lastFp = (state as any)[lastFpField] as string | null | undefined;
+  
+  if (lastFp && lastFp === fingerprint) {
+    logger.info("moltbook.skip (duplicate)", { 
+      fingerprint: fingerprint.slice(0, 16) + "...",
+      kind,
+      field: lastFpField
+    });
+    return { posted: false, state, reason: "duplicate" };
+  }
+
+  try {
+    // Title based on kind
+    const title = kind === 'receipt' ? 'Based Intern receipt' : 'Based Intern update';
+    
+    await client.createPost({
+      submolt: "general",
+      title,
+      content: text
+    });
+
+    // Record success to the correct fingerprint field
+    const nextState = isReceipt 
+      ? await recordReceiptSuccess(state, saveStateFn, fingerprint)
+      : await recordMiscSuccess(state, saveStateFn, fingerprint);
+    
+    logger.info("moltbook posted", { 
+      fingerprint: fingerprint.slice(0, 16) + "...",
+      kind,
+      title
+    });
+    return { posted: true, state: nextState };
+  } catch (err) {
+    if (err instanceof MoltbookRateLimitedError) {
+      logger.warn("moltbook post skipped (rate limited)", { 
+        retryAfterMs: err.retryAfterMs,
+        kind
+      });
+      const nextState = await recordRateLimited(state, saveStateFn, err.retryAfterMs);
+      return { posted: false, state: nextState, reason: "rate_limited" };
+    }
+
+    logger.warn("moltbook post failed", { 
+      error: err instanceof Error ? err.message : String(err),
+      kind
+    });
     const nextState = await recordFailure(state, saveStateFn);
     return { posted: false, state: nextState, reason: "error" };
   }

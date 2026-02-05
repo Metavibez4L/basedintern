@@ -45,7 +45,7 @@ export class NewsOpinionPoster {
           text: text.slice(0, 100) 
         });
       } else {
-        await this.socialPoster.post(text);
+        await this.socialPoster.post(text, 'opinion');
         logger.info("news.opinion.posted", { articleId: article.id });
       }
 
@@ -71,12 +71,14 @@ export class NewsOpinionPoster {
                           opinion.confidence >= 0.5 ? "Medium confidence" : 
                           "Low confidence";
 
-    // Format: Emoji + Commentary + Article link + Confidence
+    // Format: Emoji + Commentary + Article link + Confidence + Signature
     return `${emoji} ${opinion.commentary}
 
 ${article.url}
 
-${confidenceStr} • ${opinion.tone.toUpperCase()}`;
+${confidenceStr} • ${opinion.tone.toUpperCase()}
+
+— Based Intern`;
   }
 
   private getToneEmoji(tone: Opinion["tone"]): string {

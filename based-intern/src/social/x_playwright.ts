@@ -4,7 +4,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import type { AppConfig } from "../config.js";
 import { logger } from "../logger.js";
-import type { SocialPoster } from "./poster.js";
+import type { SocialPoster, SocialPostKind } from "./poster.js";
 
 type XPostResult = {
   tweetId: string;
@@ -83,7 +83,7 @@ export function createXPosterPlaywright(cfg: AppConfig): SocialPoster {
   }
 
   return {
-    async post(text: string) {
+    async post(text: string, _kind?: SocialPostKind) {
       const maxAttempts = 3;
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {

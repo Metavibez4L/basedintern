@@ -3,7 +3,7 @@ import type { AppConfig } from "../config.js";
 import { logger } from "../logger.js";
 import type { AgentState } from "../agent/state.js";
 import { saveState } from "../agent/state.js";
-import type { SocialPoster } from "./poster.js";
+import type { SocialPoster, SocialPostKind } from "./poster.js";
 
 type XCreateTweetResponse =
   | { data: { id: string; text?: string } }
@@ -24,10 +24,12 @@ export function createXPosterApi(cfg: AppConfig, state: AgentState, saveStateFn:
   let currentState = state;
 
   return {
-    async post(text: string) {
+    async post(text: string, kind?: SocialPostKind) {
+      // Map kind to idempotencyKey: receipt -> 'receipt', others -> 'news'
+      const idempotencyKey = !kind || kind === "receipt" ? "receipt" : "news";
       const out = await postTweetXApi(cfg, currentState, saveStateFn, {
         text,
-        idempotencyKey: "receipt"
+        idempotencyKey
       });
       currentState = out.state;
     }
@@ -37,7 +39,7 @@ export function createXPosterApi(cfg: AppConfig, state: AgentState, saveStateFn:
 export function createXNewsPosterApi(cfg: AppConfig, state: AgentState, saveStateFn: (s: AgentState) => Promise<void>): SocialPoster {
   let currentState = state;
   return {
-    async post(text: string) {
+    async post(text: string, _kind?: SocialPostKind) {
       const out = await postTweetXApi(cfg, currentState, saveStateFn, {
         text,
         idempotencyKey: "news"
@@ -432,4 +434,3 @@ function backoffMs(attempt: number): number {
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
-

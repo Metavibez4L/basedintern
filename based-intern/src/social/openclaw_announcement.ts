@@ -84,8 +84,8 @@ export async function postOpenClawAnnouncementOnce(
   });
 
   try {
-    // Post the announcement
-    await poster.post(ANNOUNCEMENT_TEXT);
+    // Post the announcement with 'meta' kind
+    await poster.post(ANNOUNCEMENT_TEXT, 'meta');
 
     // Update state to mark as posted
     const newState: AgentState = {

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 7;
+const STATE_SCHEMA_VERSION = 8;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
@@ -14,6 +14,7 @@ const STATE_SCHEMA_VERSION = 7;
  * v5: Added news opinion generation state (2026-02-02)
  * v6: Added OpenClaw announcement state (one-time external agent announcement) (2026-02-03)
  * v7: Harden news opinion cycle (attempt gating + circuit breaker) (2026-02-05)
+ * v8: Added lastPostedMoltbookMiscFingerprint for kind-aware social posting (2026-02-05)
  */
 
 export type AgentState = {
@@ -54,6 +55,7 @@ export type AgentState = {
   // =========================
   moltbookLastPostMs?: number | null;
   lastPostedMoltbookReceiptFingerprint?: string | null;
+  lastPostedMoltbookMiscFingerprint?: string | null; // For non-receipt posts (news, opinion, meta)
   moltbookFailureCount?: number;
   moltbookCircuitBreakerDisabledUntilMs?: number | null;
   repliedMoltbookCommentIds?: string[]; // SHA256 fingerprints of replied comments
@@ -103,6 +105,7 @@ export const DEFAULT_STATE: AgentState = {
 
   moltbookLastPostMs: null,
   lastPostedMoltbookReceiptFingerprint: null,
+  lastPostedMoltbookMiscFingerprint: null,
   moltbookFailureCount: 0,
   moltbookCircuitBreakerDisabledUntilMs: null,
   repliedMoltbookCommentIds: [],
@@ -114,7 +117,10 @@ export const DEFAULT_STATE: AgentState = {
   newsOpinionCircuitBreakerDisabledUntilMs: null,
   newsOpinionPostsToday: 0,
   newsOpinionLastDayUtc: null,
-  postedNewsArticleIds: []
+  postedNewsArticleIds: [],
+
+  openclawAnnouncementPosted: false,
+  openclawAnnouncementPostedAt: undefined
 };
 
 export function statePath(): string {
@@ -181,6 +187,12 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     if (!("newsOpinionCircuitBreakerDisabledUntilMs" in raw)) raw.newsOpinionCircuitBreakerDisabledUntilMs = null;
   }
 
+  // v7 → v8: Add lastPostedMoltbookMiscFingerprint for kind-aware social posting
+  if (version === undefined || version < 8) {
+    logger.info("state migration", { from: version || 7, to: STATE_SCHEMA_VERSION });
+    if (!("lastPostedMoltbookMiscFingerprint" in raw)) raw.lastPostedMoltbookMiscFingerprint = null;
+  }
+
   return raw as AgentState;
 }
 
@@ -224,6 +236,7 @@ export async function loadState(): Promise<AgentState> {
 
       moltbookLastPostMs: migrated.moltbookLastPostMs ?? null,
       lastPostedMoltbookReceiptFingerprint: migrated.lastPostedMoltbookReceiptFingerprint ?? null,
+      lastPostedMoltbookMiscFingerprint: migrated.lastPostedMoltbookMiscFingerprint ?? null,
       moltbookFailureCount: migrated.moltbookFailureCount ?? 0,
       moltbookCircuitBreakerDisabledUntilMs: migrated.moltbookCircuitBreakerDisabledUntilMs ?? null,
       repliedMoltbookCommentIds: Array.isArray(migrated.repliedMoltbookCommentIds) ? migrated.repliedMoltbookCommentIds : [],
@@ -339,4 +352,3 @@ async function ensureStateDir(): Promise<void> {
   const dir = path.dirname(statePath());
   await mkdir(dir, { recursive: true });
 }
-
