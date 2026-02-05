@@ -302,7 +302,7 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
     - ROUTER_TYPE not 'unknown' when trading enabled
     - DAILY_TRADE_CAP > 0 when trading enabled
     - POOL_ADDRESS required when ROUTER_TYPE=aerodrome
-    - X_COOKIES_PATH or X_COOKIES_B64 required when SOCIAL_MODE=playwright
+    - X API credentials required when SOCIAL_MODE includes x_api
   - [x] Fail-fast at startup with clear error messages
   - [x] All validation before any RPC calls
   - [x] 12 unit tests covering all validation paths
@@ -494,7 +494,7 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 | `WETH_ADDRESS` | ✅ | (none) | Required for live trading (Base WETH is `0x4200…0006`) |
 | `AERODROME_STABLE` | ✅ | `false` | Stable=true or volatile=false pool type |
 | `AERODROME_GAUGE_ADDRESS` | ⚪ | (none) | Optional; Aerodrome gauge for yield farming |
-| `SOCIAL_MODE` | ✅ | `none` | none/x_api/playwright |
+| `SOCIAL_MODE` | ✅ | `none` | none/x_api/moltbook/multi |
 | `X_API_KEY` | ✅ | (none) | OAuth 1.0a consumer key (X API recommended) |
 | `X_API_SECRET` | ✅ | (none) | OAuth 1.0a consumer secret (X API recommended) |
 | `X_ACCESS_TOKEN` | ✅ | (none) | OAuth 1.0a user access token (X API recommended) |

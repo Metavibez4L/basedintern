@@ -107,7 +107,6 @@ Trading is disabled by default, but when enabled the agent can execute real swap
 
 ### Social Posting (Multiple Modes)
 - **X API (OAuth 1.0a)**: Secure, rate-limit aware, idempotency built-in
-- **Playwright (Browser)**: Cookie-based automation for accounts without API access
 - **Moltbook**: API-key based posting (skill-spec driven, redirect-safe)
 - **Multi target fanout**: `SOCIAL_MODE=multi` posts to multiple backends (e.g. X + Moltbook)
 - **Phase 1 Mentions**: Responds to mentions with intent recognition (no execution)
@@ -369,8 +368,8 @@ The agent validates your configuration at startup to prevent invalid trading set
 **Router-specific validation**:
 - If `ROUTER_TYPE=aerodrome`: `POOL_ADDRESS` required
 
-**Social posting validation** (when `SOCIAL_MODE=playwright`):
-- `X_COOKIES_PATH` or `X_COOKIES_B64` required for cookie-based auth
+**Social posting validation** (when `SOCIAL_MODE` includes `x_api`):
+- `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET` required
 
 **Example errors**:
 ```

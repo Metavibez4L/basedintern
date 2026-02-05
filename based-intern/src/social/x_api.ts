@@ -17,7 +17,7 @@ type XCreateTweetResponse =
  * - Idempotency (never post the same receipt twice)
  * - Rate-limit awareness (429 detection + exponential backoff)
  *
- * This works on Railway because it doesn't rely on a browser / Playwright.
+ * This works on Railway because it doesn't rely on a browser.
  * Requires paid X API access + OAuth 1.0a user access token/secret.
  */
 export function createXPosterApi(cfg: AppConfig, state: AgentState, saveStateFn: (s: AgentState) => Promise<void>): SocialPoster {

@@ -10,9 +10,6 @@ RUN npm install
 # Copy the app
 COPY based-intern/ ./
 
-# Playwright: install browser + required OS deps
-RUN npx playwright install --with-deps chromium
-
 # Build TypeScript (runs `tsc -p tsconfig.json`)
 RUN npm run build
 

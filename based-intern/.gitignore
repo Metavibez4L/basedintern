@@ -4,11 +4,6 @@ artifacts/
 cache/
 typechain-types/
 .env
-x_cookies.json
-
-# Playwright
-playwright-report/
-test-results/
 
 # OS / Editor
 .DS_Store

@@ -9,9 +9,6 @@ RUN npm install
 # Copy source
 COPY . .
 
-# Playwright: install browser + required OS deps
-RUN npx playwright install --with-deps chromium
-
 # Build TypeScript
 RUN npm run build
 

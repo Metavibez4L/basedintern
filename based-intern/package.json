@@ -19,7 +19,6 @@
     "register:agent": "hardhat run scripts/register-agent.ts",
     "set:agent-wallet": "hardhat run scripts/set-agent-wallet.ts",
     "dev": "tsx src/index.ts",
-    "x:cookies": "tsx scripts/save-x-cookies.ts",
 
     "control:health": "tsx scripts/control-client.ts health",
     "control:status": "tsx scripts/control-client.ts status",
@@ -39,7 +38,6 @@
     "@openzeppelin/contracts": "^5.0.0",
     "dotenv": "^16.4.0",
     "langchain": "^0.3.0",
-    "playwright": "^1.49.0",
     "viem": "^2.23.0",
     "zod": "^3.24.0"
   },

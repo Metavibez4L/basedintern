@@ -73,12 +73,6 @@ function loadMoltbookCliConfig(): AppConfig {
     AERODROME_GAUGE_ADDRESS: undefined,
 
     SOCIAL_MODE: "none",
-    HEADLESS: true,
-
-    X_USERNAME: undefined,
-    X_PASSWORD: undefined,
-    X_COOKIES_PATH: undefined,
-    X_COOKIES_B64: undefined,
     X_API_KEY: undefined,
     X_API_SECRET: undefined,
     X_ACCESS_TOKEN: undefined,

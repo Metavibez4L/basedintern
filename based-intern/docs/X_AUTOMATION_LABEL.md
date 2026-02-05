@@ -7,7 +7,7 @@ Many bot/agent profiles on X show an **Automated** label. This is **not** someth
 - ✅ It’s a transparency label shown on the profile.
 - ✅ It’s intended for accounts that primarily post via automation.
 - ❌ It is **not** a request parameter when creating posts.
-- ❌ It does **not** prevent X from rate-limiting or blocking suspicious automation (e.g., Playwright from cloud IPs).
+- ❌ It does **not** prevent X from rate-limiting or blocking suspicious automation.
 
 ## How to enable it
 
@@ -28,9 +28,8 @@ If you don’t see the automation label controls:
 
 - Prefer `SOCIAL_MODE=x_api` for reliable posting.
 - Keep the label enabled for transparency.
-- If you use `SOCIAL_MODE=playwright`, the label won’t “fix” X’s anti-bot checks; it mainly helps with public disclosure.
 
 ## Troubleshooting
 
-- If Playwright posting is blocked with “looks like it might be automated”, switch to `SOCIAL_MODE=x_api` (requires API access) or post from a residential IP.
+- If posting is blocked with “looks like it might be automated”, switch to `SOCIAL_MODE=x_api` (requires API access) or post manually.
 - If API posting fails due to permissions, confirm your app has write access and that your OAuth 1.0a user tokens were generated with the correct permissions.

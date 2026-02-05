@@ -2,7 +2,6 @@ import type { AppConfig } from "../config.js";
 import type { AgentState } from "../agent/state.js";
 import { saveState } from "../agent/state.js";
 import { logger } from "../logger.js";
-import { createXPosterPlaywright } from "./x_playwright.js";
 import { createXPosterApi } from "./x_api.js";
 import { createMoltbookPoster } from "./moltbook/index.js";
 import { postTweetXApi } from "./x_api.js";
@@ -15,15 +14,14 @@ export type SocialPoster = {
 };
 
 let warnedMoltbookImplicitEnable = false;
-let warnedPlaywrightWithXApi = false;
 
-function parseSocialTargets(raw: string): Array<"x_api" | "playwright" | "moltbook"> {
-  const out: Array<"x_api" | "playwright" | "moltbook"> = [];
+function parseSocialTargets(raw: string): Array<"x_api" | "moltbook"> {
+  const out: Array<"x_api" | "moltbook"> = [];
   const seen = new Set<string>();
   for (const part of raw.split(",")) {
     const t = part.trim();
     if (!t) continue;
-    if (t !== "x_api" && t !== "playwright" && t !== "moltbook") continue;
+    if (t !== "x_api" && t !== "moltbook") continue;
     if (seen.has(t)) continue;
     seen.add(t);
     out.push(t);
@@ -81,19 +79,8 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
       return false;
     });
 
-    // Avoid duplicate X posts: if x_api is configured, don't also post to X via playwright.
-    if (targets.includes("x_api") && targets.includes("playwright")) {
-      if (!warnedPlaywrightWithXApi) {
-        warnedPlaywrightWithXApi = true;
-        logger.warn("SOCIAL_MULTI_TARGETS includes both x_api and playwright; skipping playwright to avoid duplicate X posts", {
-          configuredTargets: targetsRaw
-        });
-      }
-      targets = targets.filter((t) => t !== "playwright");
-    }
-
     if (targets.length === 0) {
-      throw new Error("SOCIAL_MODE=multi requires SOCIAL_MULTI_TARGETS to include at least one of: x_api, playwright, moltbook");
+      throw new Error("SOCIAL_MODE=multi requires SOCIAL_MULTI_TARGETS to include at least one of: x_api, moltbook");
     }
 
     if ((targets.includes("x_api") || targets.includes("moltbook")) && !state) {
@@ -101,7 +88,6 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
     }
 
     let currentState = state as AgentState;
-    const playwrightPoster = targets.includes("playwright") ? createXPosterPlaywright(cfg) : null;
 
     return {
       async post(text: string, kind: SocialPostKind = "receipt") {
@@ -127,10 +113,6 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
                   dryRun: cfg.DRY_RUN
                 });
               }
-              continue;
-            }
-            if (t === "playwright" && playwrightPoster) {
-              await playwrightPoster.post(text, kind);
               continue;
             }
           } catch (err) {
@@ -165,7 +147,5 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
     }
     return createMoltbookPoster(cfg, state, saveState);
   }
-
-  // playwright
-  return createXPosterPlaywright(cfg);
+  throw new Error(`Unsupported SOCIAL_MODE: ${cfg.SOCIAL_MODE}`);
 }

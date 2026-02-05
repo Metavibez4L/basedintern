@@ -45,11 +45,6 @@ function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
 
     SOCIAL_MODE: "moltbook",
     SOCIAL_MULTI_TARGETS: "moltbook",
-    HEADLESS: true,
-    X_USERNAME: undefined,
-    X_PASSWORD: undefined,
-    X_COOKIES_PATH: undefined,
-    X_COOKIES_B64: undefined,
     X_API_KEY: undefined,
     X_API_SECRET: undefined,
     X_ACCESS_TOKEN: undefined,
@@ -85,7 +80,8 @@ function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
     NEWS_FETCH_INTERVAL_MINUTES: 60,
     NEWS_MIN_RELEVANCE_SCORE: 0.5,
     NEWS_CRYPTO_PANIC_KEY: undefined,
-    NEWS_RSS_FEEDS: [],
+    NEWS_RSS_FEEDS: []
+,
     MOLTBOOK_REPLY_TO_COMMENTS: false,
     MOLTBOOK_REPLY_INTERVAL_MINUTES: 30
   };

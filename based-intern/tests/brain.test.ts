@@ -24,7 +24,6 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     AERODROME_STABLE: false,
     SOCIAL_MODE: "none",
     SOCIAL_MULTI_TARGETS: "x_api,moltbook",
-    HEADLESS: true,
     X_PHASE1_MENTIONS: false,
     X_POLL_MINUTES: 2,
     ...overrides

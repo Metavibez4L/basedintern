@@ -306,8 +306,9 @@ Used when `OPENAI_API_KEY` missing or LLM fails. Four-tier strategy:
    ┌─────────────────▼───────────────────────┐
    │ 8. Post Receipt                         │
    │    - SOCIAL_MODE=none: Log only        │
-   │    - SOCIAL_MODE=playwright: Post to X │
    │    - SOCIAL_MODE=x_api: Post via X API │
+   │    - SOCIAL_MODE=moltbook: Post to Moltbook │
+   │    - SOCIAL_MODE=multi: Fanout to targets   │
    └─────────────────────────────────────────┘
    ```
 

@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { type Address } from "viem";
 import { loadConfig, deploymentFileForChain } from "./config.js";
@@ -42,7 +41,6 @@ async function resolveTokenAddress(cfg: ReturnType<typeof loadConfig>): Promise<
 
 async function tick(): Promise<void> {
   const cfg = loadConfig();
-  await bootstrapCookiesIfConfigured(cfg);
   const clients = createChainClients(cfg);
 
   const now = new Date();
@@ -479,25 +477,6 @@ function utcDayKey(d: Date): string {
   const m = String(d.getUTCMonth() + 1).padStart(2, "0");
   const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
-}
-
-async function bootstrapCookiesIfConfigured(cfg: ReturnType<typeof loadConfig>): Promise<void> {
-  if (!cfg.X_COOKIES_B64 || !cfg.X_COOKIES_PATH) return;
-
-  const outPath = path.resolve(process.cwd(), cfg.X_COOKIES_PATH);
-  try {
-    // If file already exists, do nothing.
-    await readFile(outPath, "utf8");
-    return;
-  } catch {
-    // continue
-  }
-
-  const dir = path.dirname(outPath);
-  await mkdir(dir, { recursive: true });
-  const json = Buffer.from(cfg.X_COOKIES_B64, "base64").toString("utf8");
-  await writeFile(outPath, json, "utf8");
-  logger.info("wrote X cookies from env to file", { path: cfg.X_COOKIES_PATH });
 }
 
 async function main() {

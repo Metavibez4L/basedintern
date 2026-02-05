@@ -64,15 +64,12 @@ const mockConfig: AppConfig = {
   LOOP_MINUTES: 30,
   APPROVE_MAX: false,
   APPROVE_CONFIRMATIONS: 1,
-  HEADLESS: true,
   X_API_KEY: "",
   X_API_SECRET: "",
   X_ACCESS_TOKEN: "",
   X_ACCESS_SECRET: "",
   X_PHASE1_MENTIONS: false,
   X_POLL_MINUTES: 5,
-  X_COOKIES_B64: "",
-  X_COOKIES_PATH: "",
 
   MOLTBOOK_ENABLED: false,
   MOLTBOOK_BASE_URL: "https://www.moltbook.com/api/v1",
@@ -101,7 +98,8 @@ const mockConfig: AppConfig = {
   NEWS_FETCH_INTERVAL_MINUTES: 60,
   NEWS_MIN_RELEVANCE_SCORE: 0.5,
   NEWS_CRYPTO_PANIC_KEY: undefined,
-  NEWS_RSS_FEEDS: [],
+  NEWS_RSS_FEEDS: []
+,
     MOLTBOOK_REPLY_TO_COMMENTS: false,
     MOLTBOOK_REPLY_INTERVAL_MINUTES: 30
 };

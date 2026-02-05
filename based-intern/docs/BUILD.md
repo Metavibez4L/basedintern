@@ -13,7 +13,7 @@
 
 ### Optional
 - **OpenAI API key**: For LangChain agent (works without it via deterministic fallback)
-- **X account**: For social posting via Playwright
+- **X account + API credentials**: For X API posting (`SOCIAL_MODE=x_api`)
 
 ---
 
@@ -303,35 +303,6 @@ npm run dev
 
 Agent will loop every `LOOP_MINUTES` (default: 30).
 
-### Posting Mode with Playwright
-
-Enable X posting via Playwright:
-
-```bash
-SOCIAL_MODE=playwright npm run dev
-```
-
-**Prerequisites**:
-- Set `X_COOKIES_PATH` in `.env` (recommended), OR
-- Set `X_USERNAME` and `X_PASSWORD` in `.env`
-
-**Creating cookies file**:
-Recommended (most reliable): generate Playwright `storageState` using the helper script.
-
-```bash
-# opens a real browser window; log in manually; press ENTER in terminal
-npm run x:cookies
-```
-
-This writes the file at `X_COOKIES_PATH` (default `./x_cookies.json`).
-
-Alternative (manual export):
-1. Log into X.com in a browser
-2. Export cookies (use browser extension or dev tools)
-3. Convert to Playwright format (array of cookie objects) or a Playwright `storageState` object
-4. Save as `x_cookies.json`
-5. Set `X_COOKIES_PATH=./x_cookies.json` in `.env`
-
 ### X API Posting Mode (Recommended for Railway)
 
 Enable X posting via X API (OAuth 1.0a):
@@ -439,11 +410,7 @@ npm run dev
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SOCIAL_MODE` | Posting mode: `none`, `playwright`, or `x_api` | `none` |
-| `HEADLESS` | Run Playwright headless | `true` |
-| `X_USERNAME` | X username (Playwright fallback) | (none) |
-| `X_PASSWORD` | X password (Playwright fallback) | (none) |
-| `X_COOKIES_PATH` | Path to cookies JSON (Playwright preferred) | `./x_cookies.json` |
+| `SOCIAL_MODE` | Posting mode: `none`, `x_api`, `moltbook`, or `multi` | `none` |
 | `X_API_KEY` | OAuth 1.0a consumer key (X API v2) | (none) |
 | `X_API_SECRET` | OAuth 1.0a consumer secret (X API v2) | (none) |
 | `X_ACCESS_TOKEN` | OAuth 1.0a user access token (X API v2) | (none) |
@@ -476,10 +443,6 @@ npm install
 #### Error: "File is not under 'rootDir'"
 
 **Solution**: Already fixed in `tsconfig.json` (rootDir: ".")
-
-#### Playwright type errors
-
-**Solution**: Already fixed in `src/social/x_playwright.ts`
 
 ### Deployment Issues
 
@@ -514,10 +477,9 @@ npm install
 #### Posting to X fails
 
 **Check**:
-1. `X_COOKIES_PATH` file exists and is valid JSON
-2. Cookies haven't expired (re-export from browser)
-3. X login flow hasn't changed (selectors may need update)
-4. Try username/password fallback
+1. `SOCIAL_MODE=x_api`
+2. `X_API_KEY`, `X_API_SECRET`, `X_ACCESS_TOKEN`, `X_ACCESS_SECRET` are set
+3. Your X app has write permissions and the OAuth 1.0a user tokens were generated with write access
 
 #### Agent stops after one tick
 
@@ -552,7 +514,6 @@ based-intern/
 │   │   └── trade.ts        # Trading (stub)
 │   └── social/             # Social posting
 │       ├── poster.ts       # Mode router
-│       ├── x_playwright.ts # Playwright posting
 │       └── x_api.ts        # X API posting (OAuth 1.0a)
 ├── deployments/            # Deployment JSONs (created on deploy)
 │   ├── .gitkeep

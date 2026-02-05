@@ -40,7 +40,6 @@ function mockConfig(overrides?: Partial<AppConfig>): AppConfig {
     OPENAI_API_KEY: undefined,
     SOCIAL_MODE: "none",
     SOCIAL_MULTI_TARGETS: "x_api,moltbook",
-    HEADLESS: true,
     X_API_KEY: undefined,
     X_API_SECRET: undefined,
     X_ACCESS_TOKEN: undefined,
@@ -73,7 +72,8 @@ function mockConfig(overrides?: Partial<AppConfig>): AppConfig {
     NEWS_FETCH_INTERVAL_MINUTES: 60,
     NEWS_MIN_RELEVANCE_SCORE: 0.5,
     NEWS_CRYPTO_PANIC_KEY: undefined,
-    NEWS_RSS_FEEDS: [],
+    NEWS_RSS_FEEDS: []
+,
     MOLTBOOK_REPLY_TO_COMMENTS: false,
     MOLTBOOK_REPLY_INTERVAL_MINUTES: 30
   };

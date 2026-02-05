@@ -310,6 +310,5 @@ All logs are structured JSON with context:
 - [ ] Add configurable circuit breaker cooldown (env var)
 - [ ] Add configurable failure threshold (currently hardcoded at 3)
 - [ ] Integrate with observability platform (Datadog, Sentry)
-- [ ] Add Playwright fallback if X API is in circuit breaker
 - [ ] Cache recent receipt fingerprints in memory for faster dedup
 

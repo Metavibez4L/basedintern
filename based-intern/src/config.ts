@@ -18,7 +18,7 @@ const BoolFromString = z
 
 const Chain = z.enum(["base-sepolia", "base"]);
 const WalletMode = z.enum(["private_key", "cdp"]);
-const SocialMode = z.enum(["none", "playwright", "x_api", "moltbook", "multi"]);
+const SocialMode = z.enum(["none", "x_api", "moltbook", "multi"]);
 const RouterType = z.enum(["unknown", "aerodrome", "uniswap-v3"]);
 const NewsMode = z.enum(["event", "daily"]);
 const MoltbookAuthMode = z.enum(["cookie", "apiKey", "bearer"]);
@@ -98,15 +98,8 @@ const envSchemaBase = z.object({
   // Social posting
   SOCIAL_MODE: trimmedEnum(SocialMode).default("none"),
   // Used only when SOCIAL_MODE=multi. Comma-separated list of targets.
-  // Example: "x_api,moltbook" or "playwright,moltbook"
+  // Example: "x_api,moltbook"
   SOCIAL_MULTI_TARGETS: z.string().trim().default("x_api,moltbook"),
-  HEADLESS: BoolFromString.default("true"),
-  X_USERNAME: z.string().optional(),
-  X_PASSWORD: z.string().optional(),
-  X_COOKIES_PATH: z.string().optional(),
-  // Optional: allow providing cookies via env (Railway-friendly).
-  // If set, the app can write X_COOKIES_PATH at startup.
-  X_COOKIES_B64: z.string().optional(),
   X_API_KEY: z.string().optional(),
   X_API_SECRET: z.string().optional(),
   X_ACCESS_TOKEN: z.string().optional(),
@@ -242,16 +235,6 @@ const envSchema = envSchemaBase.superRefine((cfg, ctx) => {
       req("X_ACCESS_SECRET");
     }
 
-    if (t === "playwright") {
-      if (!cfg.X_COOKIES_PATH && !cfg.X_COOKIES_B64) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["X_COOKIES_PATH"],
-          message: "X_COOKIES_PATH or X_COOKIES_B64 is required when SOCIAL_MODE includes playwright"
-        });
-      }
-    }
-
     if (t === "moltbook") {
       // In multi-mode, moltbook can be listed but disabled via MOLTBOOK_ENABLED=false.
       // We only require Moltbook enablement when SOCIAL_MODE=moltbook.
@@ -302,7 +285,7 @@ const envSchema = envSchemaBase.superRefine((cfg, ctx) => {
       }
     }
 
-    if (t !== "none" && t !== "x_api" && t !== "playwright" && t !== "moltbook" && t !== "multi") {
+    if (t !== "none" && t !== "x_api" && t !== "moltbook" && t !== "multi") {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["SOCIAL_MULTI_TARGETS"],
@@ -394,12 +377,6 @@ function validateGuardrails(cfg: AppConfig): string[] {
   const targets = cfg.SOCIAL_MODE === "multi" ? parseCsv(cfg.SOCIAL_MULTI_TARGETS) : [cfg.SOCIAL_MODE];
   if (cfg.SOCIAL_MODE === "multi" && targets.length === 0) {
     errors.push("SOCIAL_MULTI_TARGETS must list at least one target when SOCIAL_MODE=multi");
-  }
-
-  if (targets.includes("playwright")) {
-    if (!cfg.X_COOKIES_PATH && !cfg.X_COOKIES_B64) {
-      errors.push("X_COOKIES_PATH or X_COOKIES_B64 is required when SOCIAL_MODE includes playwright");
-    }
   }
 
   if (targets.includes("moltbook")) {

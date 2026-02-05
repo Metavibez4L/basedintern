@@ -61,7 +61,6 @@ src/
 └── social/
     ├── poster.ts         # Factory for X poster (mode-agnostic)
     ├── x_api.ts          # Twitter API posting (v1.1 / v2)
-    └── x_playwright.ts   # Playwright-based posting (cookie-authenticated)
 
 contracts/
 └── BasedInternToken.sol  # Simple ERC20: fixed supply, no minting post-deploy
@@ -136,17 +135,18 @@ Every tick, regardless of action, builds a receipt with:
 
 **Why**: Receipt is the "moat"—proves agent is alive and under control.
 
-### 6. **Dual Social Mode (Playwright vs API)**
+### 6. **Social Modes (X API + Moltbook + Multi)**
 
-**File**: [social/poster.ts](src/social/poster.ts) → [x_playwright.ts](src/social/x_playwright.ts) or [x_api.ts](src/social/x_api.ts)
+**File**: [social/poster.ts](src/social/poster.ts) → [x_api.ts](src/social/x_api.ts) and Moltbook adapters
 
 ```typescript
-SOCIAL_MODE: "none" | "playwright" | "x_api"
+SOCIAL_MODE: "none" | "x_api" | "moltbook" | "multi"
 ```
 
 - `none`: Log receipts locally only (default, safe)
-- `playwright`: Browser automation with cookies (see [save-x-cookies.ts](scripts/save-x-cookies.ts))
-- `x_api`: Twitter API v1.1/v2 (requires API keys)
+- `x_api`: X API posting (requires OAuth 1.0a credentials)
+- `moltbook`: Post to Moltbook (skill-spec driven)
+- `multi`: Fanout to multiple targets (e.g. `x_api,moltbook`)
 
 **Convention**: Poster factory returns interface `{ post(text: string): Promise<void> }`. Implementations handle auth internally.
 
@@ -200,7 +200,7 @@ npm run build       # TypeScript compile (see tsconfig.json)
 | **RPC (viem)**  | [chain/client.ts](src/chain/client.ts) | Read fails             | Log warn, use last-known state |
 | **Price Oracle (Aerodrome)** | [chain/price.ts](src/chain/price.ts) | Pool unavailable | Return `null`, receipt shows unknown |
 | **Aerodrome DEX** | [chain/aerodrome.ts](src/chain/aerodrome.ts) | Swap fails | Transaction reverts; guardrails prevent retry |
-| **X (Playwright)** | [x_playwright.ts](src/social/x_playwright.ts) | Post fails     | Log error, continue loop |
+| **X (API)**     | [x_api.ts](src/social/x_api.ts) | Post fails     | Circuit breaker + log error, continue loop |
 | **Hardhat**     | scripts, contracts             | Deploy fails               | Manual redeploy + update JSON |
 
 ## Aerodrome Integration

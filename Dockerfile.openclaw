@@ -21,7 +21,6 @@ COPY . .
 # from inside Railway.
 WORKDIR /app/based-intern
 RUN npm install
-RUN npx playwright install --with-deps chromium
 RUN npm run build
 
 WORKDIR /app

@@ -4,7 +4,6 @@
 **/cache
 **/typechain-types
 **/.env
-**/x_cookies.json
 **/deployments/*.json
 **/data/state.json
 .git

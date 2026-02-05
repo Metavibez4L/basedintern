@@ -66,7 +66,7 @@ To run a minimal agent turn via the gateway, you must select a session or agent 
 
 ### What this enables (realistic workflow)
 
-- Run `npm test`, `npm run typecheck`, inspect logs/state, and reproduce Railway-only behavior (env vars, Linux + Playwright deps, etc.) through OpenClaw.
+- Run `npm test`, `npm run typecheck`, inspect logs/state, and reproduce Railway-only behavior (env vars, Linux, etc.) through OpenClaw.
 - Improve the deployed agent by iterating locally (or via PRs), then letting Railway redeploy automatically.
 
 For copy/paste-safe commands (including "list env names without leaking secrets"), use the `based-intern-ops` skill.

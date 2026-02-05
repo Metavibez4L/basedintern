@@ -42,7 +42,7 @@ Context:
 - If you're connected to an OpenClaw Gateway running in Railway using `Dockerfile.openclaw`, the repo is at `/app` and the TypeScript project is at `/app/based-intern`.
 
 Goals:
-- Reproduce Railway-only behavior (Linux env, Playwright deps, Railway-provided env vars)
+- Reproduce Railway-only behavior (Linux env, Railway-provided env vars)
 - Run safe repo workflows: test/typecheck/build
 - Inspect persisted state files if present
 
