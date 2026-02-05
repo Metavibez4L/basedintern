@@ -22,6 +22,7 @@ import { createMoltbookClient } from "./moltbook/client.js";
 import {
   generateDiscussionStarter,
   generateCommunityPost,
+  generateFundraisePost,
   pickTopics,
 } from "./moltbook_engagement.js";
 
@@ -32,7 +33,7 @@ const MAX_DISCUSSION_POSTS_PER_DAY = 2; // Cap: 2 discussion/community posts per
 export type DiscussionPostResult = {
   posted: boolean;
   topic: string | null;
-  kind: "discussion" | "community" | null;
+  kind: "discussion" | "community" | "fundraise" | null;
   reason?: string;
 };
 
@@ -134,19 +135,23 @@ export async function postMoltbookDiscussion(
     return nullResult("min_interval");
   }
 
-  // Decide post type: 70% discussion, 30% community callout
+  // Decide post type: 50% discussion, 25% community callout, 25% fundraise
   const postTypeDice = Math.random();
-  const isCommunityPost = postTypeDice < 0.3;
 
   let postContent: string;
   let topic: string;
-  let kind: "discussion" | "community";
+  let kind: "discussion" | "community" | "fundraise";
 
-  if (isCommunityPost) {
+  if (postTypeDice < 0.25) {
     // Community engagement post (follower growth)
     postContent = generateCommunityPost();
     topic = "community_callout";
     kind = "community";
+  } else if (postTypeDice < 0.50) {
+    // Fundraise post (agent swarm development funding)
+    postContent = generateFundraisePost();
+    topic = "agent_swarm_fundraise";
+    kind = "fundraise";
   } else {
     // Discussion post (topic-based engagement)
     const usedTopics = state.postedDiscussionTopics ?? [];
@@ -165,9 +170,11 @@ export async function postMoltbookDiscussion(
   try {
     const client = createMoltbookClient(cfg);
 
-    const title = kind === "community"
-      ? "Based Intern Community"
-      : "Based Intern Discussion";
+    const title = kind === "fundraise"
+      ? "Based Intern — Agent Swarm Fund"
+      : kind === "community"
+        ? "Based Intern Community"
+        : "Based Intern Discussion";
 
     await client.createPost({
       submolt: "general",

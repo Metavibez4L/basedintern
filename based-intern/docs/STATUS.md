@@ -355,11 +355,15 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
   - [x] Auto-truncation to stay under Moltbook 500-char limit
   - [x] Already integrated into `opinionPoster.ts` and `moltbook/index.ts` for opinion/news/meta posts
 - [x] `src/social/moltbook_discussions.ts` - **Proactive discussion posting system**
-  - [x] 25+ evergreen DeFi/Base/crypto discussion topics pool
+  - [x] 30+ evergreen DeFi/Base/crypto discussion topics pool
   - [x] AI-powered discussion generation (GPT-4o-mini) with template fallback
-  - [x] 70% discussion posts / 30% community callout posts (weighted random)
+  - [x] 50% discussion / 25% community callout / 25% fundraise posts (weighted random)
+  - [x] **Agent Swarm Fundraise campaign**: 10 viral templates encouraging ETH donations on Base
+    - Frames contributions as community-funded agent swarm R&D
+    - Wallet: `0x4Ba6B07626E6dF28120b04f772C4a89CC984Cc80`
+    - Templates cover: swarm roadmap, agent-to-agent donations, milestone recognition, collective building
   - [x] Deduplication via `postedDiscussionTopics` LRU (50 entries)
-  - [x] Daily cap: max 2 discussion/community posts per day
+  - [x] Daily cap: max 2 discussion/community/fundraise posts per day
   - [x] Interval pacing: reuses NEWS_FETCH_INTERVAL_MINUTES
   - [x] Integrated into main tick loop (non-blocking, after comment replies)
   - [x] No new environment variables required
@@ -743,9 +747,10 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
   - ✅ 20+ CTAs, weighted hook selection, anti-repetition, smart hashtag rotation
   - ✅ Community callout templates, thread-style formatting, alpha branding
 - ✅ **Proactive discussion posting** (`src/social/moltbook_discussions.ts`)
-  - ✅ 25+ evergreen DeFi/Base/crypto discussion topics
+  - ✅ 30+ evergreen DeFi/Base/crypto discussion topics
   - ✅ AI-powered (GPT-4o-mini) + template fallback
-  - ✅ 70/30 discussion/community split, daily cap (2), interval pacing
+  - ✅ 50/25/25 discussion/community/fundraise split, daily cap (2), interval pacing
+  - ✅ Agent Swarm Fundraise campaign: 10 viral templates, ETH on Base donations
   - ✅ Integrated into main tick loop (non-blocking)
 - ✅ **Enhanced comment reply personality** (`src/social/moltbook_comments.ts`)
   - ✅ Follow-up questions, contextual debate, "follow for more alpha" hooks
