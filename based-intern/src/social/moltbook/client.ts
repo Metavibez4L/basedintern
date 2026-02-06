@@ -88,10 +88,32 @@ async function readJsonIfExists(p: string): Promise<any | null> {
   }
 }
 
+/**
+ * Sanitize a cookie name or value to prevent header injection and malformed cookies.
+ * Per RFC 6265, cookie values should not contain control chars, semicolons, or commas.
+ * We also trim whitespace for safety.
+ */
+function sanitizeCookiePart(s: string): string {
+  // Remove control characters (0x00-0x1F and 0x7F)
+  // Remove semicolons (separates cookie pairs)
+  // Remove commas (can confuse some parsers)
+  // Trim whitespace
+  return s
+    .replace(/[\x00-\x1F\x7F;,"\\]/g, "")
+    .trim();
+}
+
 function cookiesArrayToHeader(cookies: Array<{ name: string; value: string }>): string {
   const pairs = cookies
     .filter((c) => c && typeof c.name === "string" && typeof c.value === "string" && c.name.length > 0)
-    .map((c) => `${c.name}=${c.value}`);
+    .map((c) => {
+      const sanitizedName = sanitizeCookiePart(c.name);
+      const sanitizedValue = sanitizeCookiePart(c.value);
+      // Skip if name became empty after sanitization
+      if (!sanitizedName) return null;
+      return `${sanitizedName}=${sanitizedValue}`;
+    })
+    .filter((pair): pair is string => pair !== null);
   return pairs.join("; ");
 }
 
