@@ -351,35 +351,44 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
 - [x] CLI bootstrap commands (`register`, `status`, `doctor`, `claim`)
 - [x] Receipt posting adapter with DRY_RUN, idempotency, min-interval, circuit breaker
 
-### Moltbook Viral Engagement System (NEW — v10)
+### Moltbook Viral Engagement System (v10 + v12 enhancements)
 - [x] `src/social/moltbook_engagement.ts` - **Enhanced engagement module**
-  - [x] 40+ hooks across 6 categories: debate, alpha, prediction, challenge, ranking, hype
-  - [x] 20+ CTAs with engagement-driving language
+  - [x] 50+ hooks across 6 categories: debate, alpha, prediction, challenge, ranking, hype
+  - [x] 27+ CTAs with engagement-driving language (polls, challenges, thread promises)
   - [x] Weighted random hook selection (alpha + hype hooks get 2x weight for virality)
   - [x] Anti-repetition: tracks last used hook/CTA to avoid consecutive duplicates
   - [x] Smart hashtag rotation: 3-4 hashtags from primary, secondary, niche pools
-  - [x] Community callout templates (roll calls, shoutouts, milestones, AMAs)
+  - [x] 12 community callout templates (competitive, swarm-building, poll-style, follow-back)
   - [x] Thread-style formatting (`formatThreadPost()`) for listicles and breakdowns
   - [x] Auto-truncation to stay under Moltbook 500-char limit
   - [x] Already integrated into `opinionPoster.ts` and `moltbook/index.ts` for opinion/news/meta posts
+  - [x] 40+ discussion topics including provocative hot takes, engagement bait, fundraise-adjacent
 - [x] `src/social/moltbook_discussions.ts` - **Proactive discussion posting system**
-  - [x] 30+ evergreen DeFi/Base/crypto discussion topics pool
   - [x] AI-powered discussion generation (GPT-4o-mini) with template fallback
-  - [x] 50% discussion / 25% community callout / 25% fundraise posts (weighted random)
-  - [x] **Agent Swarm Fundraise campaign**: 10 viral templates encouraging ETH donations on Base
-    - Frames contributions as community-funded agent swarm R&D
+  - [x] **35% discussion / 25% community / 40% fundraise** (weighted toward donations)
+  - [x] **Agent Swarm Fundraise campaign**: 12 viral templates with urgency, progress, social proof
+    - Urgency hooks ("48 hours", "first 10 donors", "window is NOW")
+    - Progress narratives (milestone checklists, build-in-public updates)
+    - Social proof ("the agents who get it, get it", leaderboard concepts)
+    - Micro-ask framing ("cost of a coffee", "0.0001 ETH experiment")
     - Wallet: `0x4Ba6B07626E6dF28120b04f772C4a89CC984Cc80`
-    - Templates cover: swarm roadmap, agent-to-agent donations, milestone recognition, collective building
   - [x] Deduplication via `postedDiscussionTopics` LRU (50 entries)
-  - [x] Daily cap: max 2 discussion/community/fundraise posts per day
+  - [x] Daily cap: max 3 discussion/community/fundraise posts per day
   - [x] Interval pacing: reuses NEWS_FETCH_INTERVAL_MINUTES
   - [x] Integrated into main tick loop (non-blocking, after comment replies)
   - [x] No new environment variables required
-- [x] `src/social/moltbook_comments.ts` - **Enhanced reply personality**
-  - [x] More engaging, opinionated reply generation
-  - [x] Follow-up questions to drive deeper conversations
-  - [x] Contextual response strategy (agree → push deeper, disagree → debate, question → answer + flip)
-  - [x] "Follow for more alpha" growth hooks in replies
+- [x] `src/social/moltbook_comments.ts` - **Enhanced reply personality (v12)**
+  - [x] Max replies per run increased from 3 to 5
+  - [x] Replies ALWAYS end with a question or challenge (engagement driver)
+  - [x] @mentions commenter by name in replies
+  - [x] Spicy, opinionated tone — never generic or sycophantic
+  - [x] Contextual strategy: agree → escalate, disagree → challenge, question → answer+flip
+  - [x] Soft CTAs woven into replies ("follow for the alpha", "thread incoming")
+  - [x] Example-driven prompt for consistent quality
+- [x] `src/news/opinionPoster.ts` - **Enhanced opinion formatting (v12)**
+  - [x] Engagement closer on every opinion post ("What's your read?", "Agree or nah?")
+  - [x] "Based Intern" signature branding on opinions
+  - [x] Conviction-based confidence labels
 - [x] **State management v10** (`src/agent/state.ts`)
   - [x] `moltbookDiscussionLastPostMs` (interval enforcement)
   - [x] `moltbookDiscussionPostsToday` (daily cap, UTC midnight reset)
@@ -748,6 +757,18 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
 ---
 
 ## 📝 Changelog
+
+### 2026-02-06 (Virality + Fundraise Optimization)
+- ✅ **Fundraise templates overhauled** — 12 templates with urgency, progress narratives, social proof, micro-asks
+- ✅ **Fundraise weight increased** from 25% to 40% of discussion posts
+- ✅ **Daily cap raised** from 2 to 3 discussion/community/fundraise posts per day
+- ✅ **Reply system upgraded** — 5 replies/run (was 3), always ends with question, @mentions commenter, example-driven prompt
+- ✅ **50+ discussion topics** — added provocative hot takes, engagement bait, fundraise-adjacent topics
+- ✅ **27+ CTAs** — added challenge CTAs, thread promises, poll-style hooks
+- ✅ **14 hype hooks** — added "saving receipts", "thread-worthy", "bet against me"
+- ✅ **12 community callouts** — competitive, follow-back, poll-style, swarm recruitment
+- ✅ **Opinion post closers** — every news opinion now ends with engagement question
+- ✅ No new environment variables
 
 ### 2026-02-05 (Moltbook Viral Engagement System)
 - ✅ **Enhanced engagement module** (`src/social/moltbook_engagement.ts`)

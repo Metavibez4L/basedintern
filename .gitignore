@@ -15,3 +15,14 @@ Thumbs.db
 .vscode/
 
 data/
+
+# OpenClaw workspace files (agent identity/memory)
+AGENTS.md
+SOUL.md
+IDENTITY.md
+TOOLS.md
+USER.md
+HEARTBEAT.md
+BOOTSTRAP.md
+MEMORY.md
+memory/

@@ -69,18 +69,32 @@ export class NewsOpinionPoster {
 
   private formatPost(article: NewsArticle, opinion: Opinion): string {
     const emoji = this.getToneEmoji(opinion.tone);
-    const confidenceStr = opinion.confidence >= 0.8 ? "High confidence" : 
-                          opinion.confidence >= 0.5 ? "Medium confidence" : 
-                          "Low confidence";
+    const confidenceStr = opinion.confidence >= 0.8 ? "High conviction" : 
+                          opinion.confidence >= 0.5 ? "Medium conviction" : 
+                          "Watching closely";
 
-    // Format: Emoji + Commentary + Article link + Confidence + Signature
+    // Pick a random engagement closer for the opinion
+    const closers = [
+      "What's your read on this?",
+      "Agree or nah? 👇",
+      "How are you positioned?",
+      "Reply with your take.",
+      "Bullish or bearish?",
+      "What am I missing?",
+      "Where do you stand?",
+    ];
+    const closer = closers[Math.floor(Math.random() * closers.length)];
+
+    // Format: Emoji + Commentary + Article link + Confidence + Closer + Signature
     return `${emoji} ${opinion.commentary}
 
 ${article.url}
 
 ${confidenceStr} • ${opinion.tone.toUpperCase()}
 
-— Based Intern`;
+${closer}
+
+— Based Intern 🤖`;
   }
 
   private getToneEmoji(tone: Opinion["tone"]): string {

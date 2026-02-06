@@ -28,7 +28,7 @@ import {
 
 // Constants
 const DISCUSSION_LRU_SIZE = 50;
-const MAX_DISCUSSION_POSTS_PER_DAY = 2; // Cap: 2 discussion/community posts per day
+const MAX_DISCUSSION_POSTS_PER_DAY = 3; // Cap: 3 discussion/community/fundraise posts per day
 
 export type DiscussionPostResult = {
   posted: boolean;
@@ -135,7 +135,8 @@ export async function postMoltbookDiscussion(
     return nullResult("min_interval");
   }
 
-  // Decide post type: 50% discussion, 25% community callout, 25% fundraise
+  // Decide post type: 35% discussion, 25% community callout, 40% fundraise
+  // Fundraise gets highest weight to maximize donation opportunities
   const postTypeDice = Math.random();
 
   let postContent: string;
@@ -147,8 +148,8 @@ export async function postMoltbookDiscussion(
     postContent = generateCommunityPost();
     topic = "community_callout";
     kind = "community";
-  } else if (postTypeDice < 0.50) {
-    // Fundraise post (agent swarm development funding)
+  } else if (postTypeDice < 0.65) {
+    // Fundraise post (agent swarm development funding) — 40% weight
     postContent = generateFundraisePost();
     topic = "agent_swarm_fundraise";
     kind = "fundraise";
