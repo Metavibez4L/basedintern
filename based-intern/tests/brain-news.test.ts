@@ -131,9 +131,9 @@ describe("generateNewsTweet", () => {
     const chosenItem = {
       id: "x",
       fingerprint: "x",
-      source: "base_blog" as const,
+      source: "x_timeline" as const,
       title: "Base posted something interesting",
-      url: "https://blog.base.org/posts/hello"
+      url: "https://x.com/base/status/123456"
     };
 
     const tweet = await generateNewsTweet(cfg, {
@@ -151,9 +151,9 @@ describe("generateNewsTweet", () => {
     const chosenItem = {
       id: "x",
       fingerprint: "x",
-      source: "base_blog" as const,
+      source: "x_timeline" as const,
       title: "Some Base news",
-      url: "https://blog.base.org/posts/hello"
+      url: "https://x.com/base/status/789012"
     };
 
     const tweet = await generateNewsTweet(cfg, {

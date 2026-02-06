@@ -81,7 +81,7 @@ function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
     NEWS_GITHUB_FEEDS: undefined,
     NEWS_REQUIRE_LINK: true,
     NEWS_REQUIRE_SOURCE_WHITELIST: false,
-    NEWS_SOURCES: "base_blog",
+    NEWS_SOURCES: "",
     NEWS_DAILY_HOUR_UTC: 15,
     NEWS_MAX_ITEMS_CONTEXT: 8,
     NEWS_FETCH_INTERVAL_MINUTES: 60,
@@ -130,44 +130,20 @@ function mockState(overrides?: Partial<AgentState>): AgentState {
 }
 
 describe("news pipeline selection", () => {
-  it("buildNewsPlan picks top unseen item and deterministic tweet includes URL", async () => {
+  it("buildNewsPlan returns no items (legacy HTML sources removed)", async () => {
     const cfg = mockCfg({ OPENAI_API_KEY: undefined });
     const now = new Date("2026-01-30T12:00:00Z");
 
-    globalThis.fetch = vi.fn(async () => {
-      return {
-        ok: true,
-        status: 200,
-        text: async () => `<html><body>
-          <a href="https://blog.base.org/base-shipped-something">Base shipped something</a>
-        </body></html>`,
-        headers: new Headers()
-      } as any;
-    }) as any;
-
     const { plan, items } = await buildNewsPlan({ cfg, state: mockState(), now });
-    expect(plan.shouldPost).toBe(true);
-    expect(plan.item).toBeTruthy();
-
-    const tweet = await generateNewsTweet(cfg, { items, chosenItem: plan.item!, now });
-    expect(tweet.length).toBeLessThanOrEqual(240);
-    expect(tweet).toContain(plan.item!.url);
+    // Legacy pipeline has no sources — X timeline is handled by opinion pipeline
+    expect(items.length).toBe(0);
+    expect(plan.shouldPost).toBe(false);
+    expect(plan.reasons).toContain("no unseen items");
   });
 
   it("respects min interval via shouldPostNewsNow", async () => {
     const cfg = mockCfg({ NEWS_MIN_INTERVAL_MINUTES: 120 });
     const now = new Date("2026-01-30T12:00:00Z");
-
-    globalThis.fetch = vi.fn(async () => {
-      return {
-        ok: true,
-        status: 200,
-        text: async () => `<html><body>
-          <a href="https://blog.base.org/base-shipped-something">Base shipped something</a>
-        </body></html>`,
-        headers: new Headers()
-      } as any;
-    }) as any;
 
     const state = mockState({ newsLastPostMs: now.getTime() - 30 * 60 * 1000, newsLastPostDayUtc: "2026-01-30" });
     const { plan } = await buildNewsPlan({ cfg, state, now });

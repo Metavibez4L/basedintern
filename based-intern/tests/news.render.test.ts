@@ -20,7 +20,7 @@ describe("news renderer", () => {
     const item: NewsItem = {
       id: "fp1",
       fingerprint: "fp1",
-      source: "rss",
+      source: "x_timeline",
       title: "Base ecosystem update",
       url: "https://example.com/x",
       publishedAtMs: now,

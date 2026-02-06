@@ -6,7 +6,7 @@ function mk(partial: Partial<NewsItem>): NewsItem {
   const base: NewsItem = {
     id: "fp",
     fingerprint: "fp",
-    source: "rss",
+    source: "x_timeline",
     title: "Base update",
     url: "https://example.com/a",
     publishedAtMs: Date.UTC(2026, 0, 1, 0, 0, 0),

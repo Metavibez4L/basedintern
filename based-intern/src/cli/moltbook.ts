@@ -94,7 +94,7 @@ function loadMoltbookCliConfig(): AppConfig {
     NEWS_GITHUB_FEEDS: "",
     NEWS_REQUIRE_LINK: true,
     NEWS_REQUIRE_SOURCE_WHITELIST: true,
-    NEWS_SOURCES: "defillama,github,rss",
+    NEWS_SOURCES: "",
     NEWS_DAILY_HOUR_UTC: 15,
     NEWS_MAX_ITEMS_CONTEXT: 8
   } as any;

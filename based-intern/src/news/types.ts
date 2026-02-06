@@ -1,16 +1,14 @@
+/** Active news source IDs (used by the opinion pipeline in fetcher.ts) */
 export type NewsSourceId =
-  | "base_blog"
-  | "base_dev_blog"
-  | "cdp_launches"
-  | "defillama"
-  | "github"
-  | "rss";
+  | "x_timeline"
+  | "cryptopanic";
 
 export type NewsItem = {
   // Stable identifier / dedupe key.
   // For all sources, this should be a sha256-based fingerprint.
   id: string;
-  source: NewsSourceId;
+  /** Source identifier — can be NewsSourceId or a legacy string for backward compat */
+  source: string;
   title: string;
   url: string;
   publishedAtMs?: number;
@@ -25,7 +23,7 @@ export type NewsItem = {
 };
 
 export type ParsedNewsResult = {
-  source: NewsSourceId;
+  source: string;
   items: NewsItem[];
   errors: string[];
 };

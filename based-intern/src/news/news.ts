@@ -3,9 +3,7 @@ import type { AgentState } from "../agent/state.js";
 import { addSeenNewsFingerprint, resetNewsDailyCountIfNeeded } from "../agent/state.js";
 import { logger } from "../logger.js";
 import { canonicalizeUrl, fingerprintNewsItem } from "./fingerprint.js";
-import { allKnownNewsSources, fetchAndParseNewsSource, parseNewsSourcesCsv } from "./sources.js";
-import { fetchDefiLlamaBaseSnapshot } from "./providers/defillama.js";
-import { fetchGitHubAtomFeed, fetchRssAtomFeed, safeUrlList } from "./providers/rssAtom.js";
+import { allKnownNewsSources, parseNewsSourcesCsv } from "./sources.js";
 import { rankNewsItems } from "./score.js";
 import type { NewsItem, NewsPlan, NewsSourceId } from "./types.js";
 
@@ -17,14 +15,7 @@ function utcDayKey(d: Date): string {
 }
 
 export function isKnownNewsSource(s: string): s is NewsSourceId {
-  return (
-    s === "base_blog" ||
-    s === "base_dev_blog" ||
-    s === "cdp_launches" ||
-    s === "defillama" ||
-    s === "github" ||
-    s === "rss"
-  );
+  return s === "x_timeline" || s === "cryptopanic";
 }
 
 export function selectedNewsSourcesFromConfig(cfg: AppConfig): { sources: NewsSourceId[]; rejected: string[] } {
@@ -46,85 +37,16 @@ export function selectedNewsSourcesFromConfig(cfg: AppConfig): { sources: NewsSo
   return { sources: sources.length ? sources : allKnownNewsSources(), rejected };
 }
 
-export async function getLatestNews(args: { sources: NewsSourceId[]; maxItems: number }): Promise<NewsItem[]> {
-  const results = await Promise.all(args.sources.map((s) => fetchAndParseNewsSource(s)));
-
-  const items: NewsItem[] = [];
-  for (const r of results) {
-    for (const it of r.items) {
-      // Ensure URL/title invariants
-      if (!it.url || !it.title) continue;
-      const canonicalUrl = canonicalizeUrl(it.url);
-      const id = it.id && it.id.trim()
-        ? it.id
-        : fingerprintNewsItem({ source: it.source, title: it.title, url: canonicalUrl });
-
-      items.push({
-        ...it,
-        id,
-        fingerprint: it.fingerprint && it.fingerprint.trim() ? it.fingerprint : id,
-        url: canonicalUrl
-      });
-    }
-  }
-
-  // Sort newest first when publishedAtMs available; otherwise keep stable-ish order.
-  items.sort((a, b) => {
-    const ap = a.publishedAtMs ?? 0;
-    const bp = b.publishedAtMs ?? 0;
-    return bp - ap;
-  });
-
-  // Deduplicate by canonical url
-  const seen = new Set<string>();
-  const uniq: NewsItem[] = [];
-  for (const it of items) {
-    const key = canonicalizeUrl(it.url);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    uniq.push(it);
-  }
-
-  return uniq.slice(0, args.maxItems);
-}
-
-async function getLatestNewsFromProviders(args: { cfg: AppConfig; sources: NewsSourceId[]; maxItems: number }): Promise<NewsItem[]> {
-  const items: NewsItem[] = [];
-
-  // HTML sources (Base blogs, CDP launches)
-  const htmlSources = args.sources.filter((s) => s === "base_blog" || s === "base_dev_blog" || s === "cdp_launches");
-  if (htmlSources.length) {
-    const htmlItems = await getLatestNews({ sources: htmlSources, maxItems: args.maxItems });
-    items.push(...htmlItems);
-  }
-
-  // DeFiLlama, RSS, and GitHub feeds removed — X timeline is now the primary source
-  // Legacy source IDs are still accepted but produce no items
-
-  // Normalize invariants and dedupe by canonical URL
-  const normalized: NewsItem[] = [];
-  for (const it of items) {
-    if (!it.url || !it.title) continue;
-    const canonicalUrl = canonicalizeUrl(it.url);
-    const id = it.id && it.id.trim() ? it.id : fingerprintNewsItem({ source: it.source, title: it.title, url: canonicalUrl });
-    normalized.push({
-      ...it,
-      id,
-      fingerprint: it.fingerprint && it.fingerprint.trim() ? it.fingerprint : id,
-      url: canonicalUrl
-    });
-  }
-
-  const seen = new Set<string>();
-  const uniq: NewsItem[] = [];
-  for (const it of normalized) {
-    const key = canonicalizeUrl(it.url);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    uniq.push(it);
-  }
-
-  return uniq.slice(0, args.maxItems);
+/**
+ * Legacy HTML/RSS/GitHub news providers have been removed (all returned 403 or were disabled).
+ * Primary news source is now the X Timeline fetcher in fetcher.ts (opinion pipeline).
+ * This legacy pipeline returns empty items — kept for backward compatibility.
+ */
+async function getLatestNewsFromProviders(_args: { cfg: AppConfig; sources: NewsSourceId[]; maxItems: number }): Promise<NewsItem[]> {
+  // All legacy HTML sources (base_blog, base_dev_blog, cdp_launches) removed — 403 Forbidden
+  // DeFiLlama, RSS, GitHub feeds also removed
+  // X timeline and CryptoPanic are handled by the opinion pipeline in fetcher.ts
+  return [];
 }
 
 export function filterUnseenNewsItems(state: AgentState, items: NewsItem[]): NewsItem[] {

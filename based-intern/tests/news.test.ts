@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { canonicalizeUrl, fingerprintNewsItem } from "../src/news/fingerprint.js";
-import { fetchAndParseNewsSource } from "../src/news/sources.js";
 import { shouldPostNewsNow, filterUnseenNewsItems } from "../src/news/news.js";
 import { addSeenNewsFingerprint } from "../src/agent/state.js";
 import type { AgentState } from "../src/agent/state.js";
@@ -72,9 +71,9 @@ function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
     NEWS_MIN_INTERVAL_MINUTES: 120,
     NEWS_REQUIRE_LINK: true,
     NEWS_REQUIRE_SOURCE_WHITELIST: true,
-    NEWS_SOURCES: "defillama,github,rss,base_blog,base_dev_blog,cdp_launches",
-    NEWS_FEEDS: "",
-    NEWS_GITHUB_FEEDS: "",
+    NEWS_SOURCES: "",
+    NEWS_FEEDS: undefined,
+    NEWS_GITHUB_FEEDS: undefined,
     NEWS_MIN_SCORE: 0.5,
     NEWS_POSTS_PER_DAY: undefined,
     NEWS_INTERVAL_MINUTES: undefined,
@@ -83,8 +82,7 @@ function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
     NEWS_FETCH_INTERVAL_MINUTES: 60,
     NEWS_MIN_RELEVANCE_SCORE: 0.5,
     NEWS_CRYPTO_PANIC_KEY: undefined,
-    NEWS_RSS_FEEDS: []
-,
+    NEWS_RSS_FEEDS: [],
     MOLTBOOK_REPLY_TO_COMMENTS: false,
     MOLTBOOK_REPLY_INTERVAL_MINUTES: 30
   };
@@ -125,83 +123,15 @@ function mockState(overrides?: Partial<AgentState>): AgentState {
   return { ...base, ...overrides };
 }
 
-function stubFetchOnce(html: string, status = 200) {
-  globalThis.fetch = vi.fn(async () => {
-    return {
-      ok: status >= 200 && status <= 299,
-      status,
-      text: async () => html,
-      headers: new Headers()
-    } as any;
-  }) as any;
-}
-
-describe("news sources parsing", () => {
-  const realFetch = globalThis.fetch;
-
-  afterEach(() => {
-    globalThis.fetch = realFetch;
-  });
-
-  it("parses base_blog anchors into items", async () => {
-    stubFetchOnce(`
-      <html>
-        <body>
-          <a href="/posts/hello-world">Hello World on Base</a>
-          <a href="/tag/something">tag page</a>
-        </body>
-      </html>
-    `);
-
-    const res = await fetchAndParseNewsSource("base_blog");
-    expect(res.errors).toEqual([]);
-    expect(res.items.length).toBeGreaterThanOrEqual(1);
-    expect(res.items[0]?.url).toContain("https://blog.base.org/");
-    expect(res.items[0]?.title.toLowerCase()).toContain("hello");
-  });
-
-  it("parses base_dev_blog anchors into items", async () => {
-    stubFetchOnce(`
-      <html>
-        <body>
-          <a href="/posts/dev-update">Dev Update: Sequencer</a>
-        </body>
-      </html>
-    `);
-
-    const res = await fetchAndParseNewsSource("base_dev_blog");
-    expect(res.errors).toEqual([]);
-    expect(res.items.length).toBeGreaterThanOrEqual(1);
-    expect(res.items[0]?.url).toContain("https://blog.base.dev/");
-  });
-
-  it("parses cdp_launches anchors into items", async () => {
-    stubFetchOnce(`
-      <html>
-        <body>
-          <a href="/developer-platform/discover/launches/some-launch">CDP Launch: Something New</a>
-          <a href="/other">Other</a>
-        </body>
-      </html>
-    `);
-
-    const res = await fetchAndParseNewsSource("cdp_launches");
-    expect(res.errors).toEqual([]);
-    expect(res.items.length).toBeGreaterThanOrEqual(1);
-    expect(res.items[0]?.url).toContain("coinbase.com");
-    expect(res.items[0]?.url).toContain("/developer-platform/");
-  });
-});
-
 describe("fingerprinting + canonicalization", () => {
   it("canonicalizeUrl strips utm params and hash", () => {
-    const u = canonicalizeUrl("https://blog.base.org/posts/x?utm_source=aa&utm_medium=bb#section");
-    expect(u).toBe("https://blog.base.org/posts/x");
+    const u = canonicalizeUrl("https://example.com/posts/x?utm_source=aa&utm_medium=bb#section");
+    expect(u).toBe("https://example.com/posts/x");
   });
 
   it("fingerprintNewsItem is stable across tracking params", () => {
-    const fp1 = fingerprintNewsItem({ source: "base_blog", title: "Hello   World", url: "https://blog.base.org/posts/x?utm_source=aa" });
-    const fp2 = fingerprintNewsItem({ source: "base_blog", title: "hello world", url: "https://blog.base.org/posts/x" });
+    const fp1 = fingerprintNewsItem({ source: "x_timeline", title: "Hello   World", url: "https://example.com/posts/x?utm_source=aa" });
+    const fp2 = fingerprintNewsItem({ source: "x_timeline", title: "hello world", url: "https://example.com/posts/x" });
     expect(fp1).toBe(fp2);
   });
 });
@@ -223,8 +153,8 @@ describe("dedupe + posting logic", () => {
   });
 
   it("filters unseen items by fingerprint id", () => {
-    const itemA = { id: "a", fingerprint: "a", source: "base_blog" as const, title: "A", url: "https://blog.base.org/a" };
-    const itemB = { id: "b", fingerprint: "b", source: "base_blog" as const, title: "B", url: "https://blog.base.org/b" };
+    const itemA = { id: "a", fingerprint: "a", source: "x_timeline" as const, title: "A", url: "https://x.com/base/status/1" };
+    const itemB = { id: "b", fingerprint: "b", source: "x_timeline" as const, title: "B", url: "https://x.com/base/status/2" };
 
     const state = mockState({ seenNewsFingerprints: ["a"] });
     const unseen = filterUnseenNewsItems(state, [itemA, itemB]);
@@ -236,7 +166,7 @@ describe("dedupe + posting logic", () => {
     const now = new Date("2026-01-30T12:00:00Z");
 
     const state = mockState({ newsDailyCount: 0, newsLastPostMs: null });
-    const item = { id: "x", fingerprint: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
+    const item = { id: "x", fingerprint: "x", source: "x_timeline" as const, title: "X", url: "https://x.com/base/status/1" };
 
     const plan = shouldPostNewsNow({ cfg, state, now, unseenItems: [item] });
     expect(plan.shouldPost).toBe(true);
@@ -245,7 +175,7 @@ describe("dedupe + posting logic", () => {
 
   it("daily mode posts only at configured UTC hour", () => {
     const cfg = mockCfg({ NEWS_MODE: "daily", NEWS_DAILY_HOUR_UTC: 15, NEWS_ENABLED: true });
-    const item = { id: "x", fingerprint: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
+    const item = { id: "x", fingerprint: "x", source: "x_timeline" as const, title: "X", url: "https://x.com/base/status/1" };
 
     const state = mockState({ newsDailyCount: 0, newsLastPostDayUtc: null });
 
@@ -259,7 +189,7 @@ describe("dedupe + posting logic", () => {
   it("respects min interval and daily cap", () => {
     const cfg = mockCfg({ NEWS_ENABLED: true, NEWS_MIN_INTERVAL_MINUTES: 120, NEWS_MAX_POSTS_PER_DAY: 2 });
     const now = new Date("2026-01-30T12:00:00Z");
-    const item = { id: "x", fingerprint: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
+    const item = { id: "x", fingerprint: "x", source: "x_timeline" as const, title: "X", url: "https://x.com/base/status/1" };
 
     const tooSoon = shouldPostNewsNow({
       cfg,
@@ -281,11 +211,10 @@ describe("dedupe + posting logic", () => {
   it("resets daily count at UTC midnight", () => {
     const cfg = mockCfg({ NEWS_ENABLED: true, NEWS_MAX_POSTS_PER_DAY: 2 });
     const now = new Date("2026-01-31T00:01:00Z");
-    const item = { id: "x", fingerprint: "x", source: "base_blog" as const, title: "X", url: "https://blog.base.org/x" };
+    const item = { id: "x", fingerprint: "x", source: "x_timeline" as const, title: "X", url: "https://x.com/base/status/1" };
 
     const state = mockState({ newsDailyCount: 2, newsLastPostDayUtc: "2026-01-30" });
     const plan = shouldPostNewsNow({ cfg, state, now, unseenItems: [item] });
     expect(plan.shouldPost).toBe(true);
   });
 });
-
