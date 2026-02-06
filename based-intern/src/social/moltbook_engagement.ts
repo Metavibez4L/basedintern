@@ -205,10 +205,23 @@ export function engagementHooks(): string[] {
 }
 
 /**
- * Pick a weighted random hook, avoiding the last one used
+ * Pick a weighted random hook, avoiding the last one used.
+ * Falls back to a safe default if the hooks array is empty.
  */
 function pickHook(): string {
+  // Defensive: ensure we have hooks to select from
+  if (WEIGHTED_HOOKS.length === 0) {
+    return "Based Intern update:";
+  }
+
   const totalWeight = WEIGHTED_HOOKS.reduce((sum, h) => sum + h.weight, 0);
+  // Defensive: handle case where all weights are 0
+  if (totalWeight <= 0) {
+    const idx = Math.floor(Math.random() * WEIGHTED_HOOKS.length);
+    lastHookIndex = idx;
+    return WEIGHTED_HOOKS[idx].hook;
+  }
+
   let attempts = 0;
   while (attempts < 10) {
     let r = Math.random() * totalWeight;
@@ -231,9 +244,15 @@ function pickHook(): string {
 }
 
 /**
- * Pick a random CTA, avoiding the last one used
+ * Pick a random CTA, avoiding the last one used.
+ * Falls back to a safe default if the CTAs array is empty.
  */
 function pickCta(): string {
+  // Defensive: ensure we have CTAs to select from
+  if (VIRAL_CTAS.length === 0) {
+    return "Reply below 👇";
+  }
+
   let idx: number;
   let attempts = 0;
   do {
@@ -245,15 +264,20 @@ function pickCta(): string {
 }
 
 /**
- * Build a smart hashtag string (3-4 hashtags, with rotation)
+ * Build a smart hashtag string (3-4 hashtags, with rotation).
+ * Falls back to safe defaults if any hashtag array is empty.
  */
 function pickHashtags(): string {
-  // Always include 1 primary
-  const primary = PRIMARY_HASHTAGS[Math.floor(Math.random() * PRIMARY_HASHTAGS.length)];
-  // Pick 1 secondary
-  const secondary = SECONDARY_HASHTAGS[Math.floor(Math.random() * SECONDARY_HASHTAGS.length)];
-  // Pick 1 niche
-  const niche = NICHE_HASHTAGS[Math.floor(Math.random() * NICHE_HASHTAGS.length)];
+  // Defensive: ensure we have hashtags to select from
+  const primary = PRIMARY_HASHTAGS.length > 0
+    ? PRIMARY_HASHTAGS[Math.floor(Math.random() * PRIMARY_HASHTAGS.length)]
+    : "#Base";
+  const secondary = SECONDARY_HASHTAGS.length > 0
+    ? SECONDARY_HASHTAGS[Math.floor(Math.random() * SECONDARY_HASHTAGS.length)]
+    : "#DeFi";
+  const niche = NICHE_HASHTAGS.length > 0
+    ? NICHE_HASHTAGS[Math.floor(Math.random() * NICHE_HASHTAGS.length)]
+    : "#OnchainAgent";
 
   // Dedupe
   const tags = [...new Set([primary, secondary, niche])];
@@ -277,12 +301,18 @@ export function formatViralPost(content: string, kind: string): string {
   const shouldFormat = kind === "opinion" || kind === "news" || kind === "meta";
   if (!shouldFormat) return content;
 
+  // Defensive: ensure content is a valid string
+  const safeContent = typeof content === "string" ? content : String(content ?? "");
+  if (safeContent.trim().length === 0) {
+    return "";
+  }
+
   const hook = pickHook();
   const cta = pickCta();
   const hashtags = pickHashtags();
 
   // Build the formatted post
-  let formatted = `${hook}\n\n${content}\n\n${cta}\n${hashtags}`;
+  let formatted = `${hook}\n\n${safeContent}\n\n${cta}\n${hashtags}`;
 
   // Ensure we're under the character limit
   if (formatted.length > MOLTBOOK_CHAR_LIMIT) {
@@ -290,11 +320,11 @@ export function formatViralPost(content: string, kind: string): string {
     const maxContentLength = MOLTBOOK_CHAR_LIMIT - overhead;
 
     if (maxContentLength > 50) {
-      const truncatedContent = content.slice(0, maxContentLength - 3) + "...";
+      const truncatedContent = safeContent.slice(0, maxContentLength - 3) + "...";
       formatted = `${hook}\n\n${truncatedContent}\n\n${cta}\n${hashtags}`;
     } else {
       // Content is massive; just truncate the whole thing
-      formatted = content.slice(0, MOLTBOOK_CHAR_LIMIT - 3) + "...";
+      formatted = safeContent.slice(0, MOLTBOOK_CHAR_LIMIT - 3) + "...";
     }
   }
 
@@ -306,8 +336,14 @@ export function formatViralPost(content: string, kind: string): string {
  * Returns a ready-to-post string under the Moltbook character limit.
  */
 export function generateDiscussionStarter(topic: string): string {
+  // Defensive: ensure topic is a valid string
+  const safeTopic = typeof topic === "string" ? topic : String(topic ?? "");
+  if (safeTopic.trim().length === 0) {
+    return pickCta();
+  }
+
   const template = DISCUSSION_TEMPLATES[Math.floor(Math.random() * DISCUSSION_TEMPLATES.length)];
-  const question = template.replace(/\{topic\}/g, topic);
+  const question = template.replace(/\{topic\}/g, safeTopic);
   const cta = pickCta();
   const hashtags = pickHashtags();
 
@@ -328,14 +364,15 @@ export function generateDiscussionStarter(topic: string): string {
  * These posts are designed to attract followers and create community discussions.
  */
 export function generateCommunityPost(testCount?: number): string {
-  let callout = COMMUNITY_CALLOUTS[Math.floor(Math.random() * COMMUNITY_CALLOUTS.length)];
+  const template = COMMUNITY_CALLOUTS[Math.floor(Math.random() * COMMUNITY_CALLOUTS.length)];
+
+  // Defensive: ensure testCount is a valid number
+  const safeTestCount = typeof testCount === "number" && Number.isFinite(testCount) && testCount > 0
+    ? Math.floor(testCount)
+    : 197;
 
   // Replace dynamic placeholders
-  if (testCount !== undefined) {
-    callout = callout.replace("{testCount}", String(testCount));
-  } else {
-    callout = callout.replace("{testCount}", "196");
-  }
+  let callout = template.replace(/\{testCount\}/g, String(safeTestCount));
 
   const hashtags = pickHashtags();
   let post = `${callout}\n\n${hashtags}`;
@@ -352,8 +389,16 @@ export function generateCommunityPost(testCount?: number): string {
  * Great for rankings, breakdowns, and listicles.
  */
 export function formatThreadPost(title: string, points: string[]): string {
-  const hook = "🧵 " + title;
-  const numbered = points.map((p, i) => `${i + 1}. ${p}`).join("\n");
+  // Defensive: ensure title and points are valid
+  const safeTitle = typeof title === "string" ? title : String(title ?? "");
+  const safePoints = Array.isArray(points) ? points.filter((p) => typeof p === "string" && p.trim().length > 0) : [];
+
+  if (safeTitle.trim().length === 0 && safePoints.length === 0) {
+    return pickCta();
+  }
+
+  const hook = "🧵 " + safeTitle;
+  const numbered = safePoints.map((p, i) => `${i + 1}. ${p}`).join("\n");
   const cta = pickCta();
   const hashtags = pickHashtags();
 
@@ -361,7 +406,7 @@ export function formatThreadPost(title: string, points: string[]): string {
 
   if (post.length > MOLTBOOK_CHAR_LIMIT) {
     // Progressively remove points until it fits
-    let trimmedPoints = [...points];
+    let trimmedPoints = [...safePoints];
     while (post.length > MOLTBOOK_CHAR_LIMIT && trimmedPoints.length > 1) {
       trimmedPoints = trimmedPoints.slice(0, -1);
       const trimmedNumbered = trimmedPoints.map((p, i) => `${i + 1}. ${p}`).join("\n");
@@ -523,15 +568,20 @@ export const DISCUSSION_TOPICS: string[] = [
  * Select N random topics from the pool, excluding already-used ones.
  */
 export function pickTopics(count: number, usedTopics?: string[]): string[] {
+  // Defensive: ensure count is valid
+  const safeCount = typeof count === "number" && Number.isFinite(count) && count > 0
+    ? Math.floor(count)
+    : 1;
+
   const used = new Set(usedTopics ?? []);
   const available = DISCUSSION_TOPICS.filter((t) => !used.has(t));
 
   if (available.length === 0) {
     // All topics used; reset and pick from full pool
     const shuffled = [...DISCUSSION_TOPICS].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, Math.min(count, shuffled.length));
+    return shuffled.slice(0, Math.min(safeCount, shuffled.length));
   }
 
   const shuffled = [...available].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, Math.min(count, shuffled.length));
+  return shuffled.slice(0, Math.min(safeCount, shuffled.length));
 }
