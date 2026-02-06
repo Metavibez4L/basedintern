@@ -64,9 +64,11 @@ export class NewsAggregator {
   constructor(private cfg: AppConfig) {
     this.fetchers = [];
     
-    // Primary: @base X timeline (highest signal, real-time)
+    // Primary: X timelines (highest signal, real-time)
     if (cfg.X_API_KEY && cfg.X_API_SECRET && cfg.X_ACCESS_TOKEN && cfg.X_ACCESS_SECRET) {
-      this.fetchers.push(new XTimelineFetcher(cfg));
+      for (const username of X_WATCH_ACCOUNTS) {
+        this.fetchers.push(new XTimelineFetcher(cfg, username));
+      }
     }
 
     // Add fetchers based on config
@@ -261,17 +263,20 @@ class RSSFetcher implements NewsFetcher {
   }
 }
 
-// X Timeline fetcher — pulls recent tweets from @base as news source
+// X accounts to watch for news/opinions (no new env vars needed)
+const X_WATCH_ACCOUNTS = ["base", "buildonbase", "openclaw"] as const;
+
+// X Timeline fetcher — pulls recent tweets from watched accounts
 // Uses existing X API credentials (no new env vars)
 class XTimelineFetcher implements NewsFetcher {
   private cachedUserId: string | null = null;
 
-  constructor(private cfg: AppConfig) {}
+  constructor(private cfg: AppConfig, private username: string = "base") {}
 
   async fetch(): Promise<NewsArticle[]> {
     try {
-      // Resolve @base user ID (cached after first lookup)
-      const userId = await this.resolveBaseUserId();
+      // Resolve user ID (cached after first lookup)
+      const userId = await this.resolveUserId();
       if (!userId) return [];
 
       // Fetch recent tweets (up to 10, exclude replies and retweets)
@@ -304,11 +309,11 @@ class XTimelineFetcher implements NewsFetcher {
             || `https://x.com/base/status/${t.id}`;
 
           return {
-            id: `x_base_${t.id}`,
+            id: `x_${this.username}_${t.id}`,
             title: this.extractTitle(t.text),
             url: tweetUrl,
             publishedAt: t.created_at || new Date().toISOString(),
-            source: "@base (X)",
+            source: `@${this.username} (X)`,
             category: "base" as const,
             content: t.text,
           };
@@ -333,12 +338,12 @@ class XTimelineFetcher implements NewsFetcher {
     return cleaned.length > 80 ? cleaned.slice(0, 77) + "..." : cleaned || "Base update";
   }
 
-  /** Look up @base user ID via X API v2 */
-  private async resolveBaseUserId(): Promise<string | null> {
+  /** Look up X user ID by username via X API v2 */
+  private async resolveUserId(): Promise<string | null> {
     if (this.cachedUserId) return this.cachedUserId;
 
     try {
-      const url = "https://api.twitter.com/2/users/by/username/base";
+      const url = `https://api.twitter.com/2/users/by/username/${this.username}`;
       const authHeader = this.buildOAuth1Header("GET", url);
       const res = await fetchWithRetry(url, {
         headers: {
@@ -348,18 +353,19 @@ class XTimelineFetcher implements NewsFetcher {
       }, { timeoutMs: 10000, retries: 1 });
 
       if (!res.ok) {
-        logger.warn("news.x_timeline.user_lookup_failed", { status: res.status });
+        logger.warn("news.x_timeline.user_lookup_failed", { username: this.username, status: res.status });
         return null;
       }
 
       const data: any = await res.json();
       this.cachedUserId = data?.data?.id || null;
       if (this.cachedUserId) {
-        logger.info("news.x_timeline.resolved_user", { userId: this.cachedUserId, username: "base" });
+        logger.info("news.x_timeline.resolved_user", { userId: this.cachedUserId, username: this.username });
       }
       return this.cachedUserId;
     } catch (err) {
       logger.warn("news.x_timeline.user_lookup_error", {
+        username: this.username,
         error: err instanceof Error ? err.message : String(err)
       });
       return null;
