@@ -73,9 +73,7 @@ export class NewsAggregator {
     if (cfg.NEWS_CRYPTO_PANIC_KEY) {
       this.fetchers.push(new CryptoPanicFetcher(cfg.NEWS_CRYPTO_PANIC_KEY, cfg));
     }
-    if (cfg.NEWS_RSS_FEEDS?.length) {
-      this.fetchers.push(new RSSFetcher(cfg.NEWS_RSS_FEEDS, cfg));
-    }
+    // RSS removed — flaky, replaced by @base X timeline
     // Always include Base ecosystem monitor
     this.fetchers.push(new BaseEcosystemFetcher(cfg));
   }
