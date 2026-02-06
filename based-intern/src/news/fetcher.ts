@@ -71,13 +71,11 @@ export class NewsAggregator {
       }
     }
 
-    // Add fetchers based on config
+    // CryptoPanic (optional, if API key set)
     if (cfg.NEWS_CRYPTO_PANIC_KEY) {
       this.fetchers.push(new CryptoPanicFetcher(cfg.NEWS_CRYPTO_PANIC_KEY, cfg));
     }
-    // RSS removed — flaky, replaced by @base X timeline
-    // Always include Base ecosystem monitor
-    this.fetchers.push(new BaseEcosystemFetcher(cfg));
+    // GitHub feeds and DeFiLlama removed — X timeline is primary source
   }
 
   async fetchLatest(limit = 10): Promise<NewsArticle[]> {
@@ -416,43 +414,4 @@ function rfc3986(input: string): string {
   return encodeURIComponent(input).replace(/[!'()*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
 }
 
-// Base ecosystem monitor (GitHub activity, governance proposals)
-class BaseEcosystemFetcher implements NewsFetcher {
-  constructor(private cfg: AppConfig) {}
-
-  async fetch(): Promise<NewsArticle[]> {
-    const articles: NewsArticle[] = [];
-    
-    // Monitor Base GitHub org for releases
-    try {
-      const res = await fetchWithRetry("https://api.github.com/repos/base-org/node/releases?per_page=3", {
-        headers: {
-          "User-Agent": "BasedIntern/1.0",
-          "Accept": "application/vnd.github+json"
-        }
-      }, {
-        timeoutMs: this.cfg.NEWS_HTTP_TIMEOUT_MS,
-        retries: this.cfg.NEWS_HTTP_RETRIES
-      });
-      if (res.ok) {
-        const releases: any = await res.json();
-        for (const release of releases) {
-          articles.push({
-            id: `github_base_${release.id}`,
-            title: `Base Release: ${release.name}`,
-            url: release.html_url,
-            publishedAt: release.published_at,
-            source: "Base GitHub",
-            category: "base",
-          });
-        }
-      }
-    } catch (err) {
-      logger.warn("news.base.github.error", { 
-        error: err instanceof Error ? err.message : String(err) 
-      });
-    }
-    
-    return articles;
-  }
-}
+// BaseEcosystemFetcher and RSSFetcher removed — X timeline is now the primary news source

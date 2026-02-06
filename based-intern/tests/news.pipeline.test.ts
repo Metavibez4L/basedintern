@@ -77,11 +77,11 @@ function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
     NEWS_POSTS_PER_DAY: undefined,
     NEWS_INTERVAL_MINUTES: undefined,
     NEWS_MIN_SCORE: 0,
-    NEWS_FEEDS: "https://example.com/feed.xml",
-    NEWS_GITHUB_FEEDS: "",
+    NEWS_FEEDS: undefined,
+    NEWS_GITHUB_FEEDS: undefined,
     NEWS_REQUIRE_LINK: true,
     NEWS_REQUIRE_SOURCE_WHITELIST: false,
-    NEWS_SOURCES: "rss",
+    NEWS_SOURCES: "base_blog",
     NEWS_DAILY_HOUR_UTC: 15,
     NEWS_MAX_ITEMS_CONTEXT: 8,
     NEWS_FETCH_INTERVAL_MINUTES: 60,
@@ -138,16 +138,9 @@ describe("news pipeline selection", () => {
       return {
         ok: true,
         status: 200,
-        text: async () => `<?xml version="1.0"?>
-<rss version="2.0">
-  <channel>
-    <item>
-      <title>Base shipped something</title>
-      <link>https://example.com/a</link>
-      <pubDate>Thu, 30 Jan 2026 12:00:00 GMT</pubDate>
-    </item>
-  </channel>
-</rss>`,
+        text: async () => `<html><body>
+          <a href="https://blog.base.org/base-shipped-something">Base shipped something</a>
+        </body></html>`,
         headers: new Headers()
       } as any;
     }) as any;
@@ -169,16 +162,9 @@ describe("news pipeline selection", () => {
       return {
         ok: true,
         status: 200,
-        text: async () => `<?xml version="1.0"?>
-<rss version="2.0">
-  <channel>
-    <item>
-      <title>Base shipped something</title>
-      <link>https://example.com/a</link>
-      <pubDate>Thu, 30 Jan 2026 12:00:00 GMT</pubDate>
-    </item>
-  </channel>
-</rss>`,
+        text: async () => `<html><body>
+          <a href="https://blog.base.org/base-shipped-something">Base shipped something</a>
+        </body></html>`,
         headers: new Headers()
       } as any;
     }) as any;

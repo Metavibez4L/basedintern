@@ -156,25 +156,14 @@ const envSchemaBase = z.object({
   NEWS_INTERVAL_MINUTES: z.coerce.number().int().min(1).optional(),
 
   NEWS_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.5),
-  // GitHub release Atom feeds (must be full .atom URLs, not repo names)
-  // Base infra + OP Stack releases — high signal, no rate limiting
-  NEWS_GITHUB_FEEDS: z.string().default(
-    [
-      "https://github.com/base-org/node/releases.atom",
-      "https://github.com/base-org/contracts/releases.atom",
-      "https://github.com/base-org/withdrawer/releases.atom",
-      "https://github.com/ethereum-optimism/optimism/releases.atom",
-      "https://github.com/ethereum-optimism/op-geth/releases.atom",
-      "https://github.com/ethereum-optimism/superchain-registry/releases.atom",
-    ].join(",")
-  ),
   NEWS_REQUIRE_LINK: BoolFromString.default("true"),
   NEWS_REQUIRE_SOURCE_WHITELIST: BoolFromString.default("true"),
-  // Primary news source is now @base X timeline (fetcher.ts)
-  // RSS removed — was flaky. Kept: defillama, github, x_timeline (auto-enabled)
-  NEWS_SOURCES: z.string().default("defillama,github"),
-  // Legacy fields kept as optional for backward compat (ignored by aggregator)
+  // Primary news source is @base/@buildonbase/@openclaw X timelines (auto-enabled with X API creds)
+  // GitHub feeds and DeFiLlama removed
+  NEWS_SOURCES: z.string().default(""),
+  // Legacy fields kept as optional for backward compat (not used by aggregator)
   NEWS_FEEDS: z.string().optional(),
+  NEWS_GITHUB_FEEDS: z.string().optional(),
   NEWS_DAILY_HOUR_UTC: z.coerce.number().int().min(0).max(23).default(15),
   NEWS_MAX_ITEMS_CONTEXT: z.coerce.number().int().min(1).max(50).default(8),
 

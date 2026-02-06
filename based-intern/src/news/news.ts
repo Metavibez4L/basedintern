@@ -98,38 +98,8 @@ async function getLatestNewsFromProviders(args: { cfg: AppConfig; sources: NewsS
     items.push(...htmlItems);
   }
 
-  // DeFiLlama snapshot
-  if (args.sources.includes("defillama")) {
-    try {
-      items.push(...(await fetchDefiLlamaBaseSnapshot()));
-    } catch (err) {
-      logger.warn("news.defillama failed", { error: err instanceof Error ? err.message : String(err) });
-    }
-  }
-
-  // RSS/Atom feeds (legacy — RSS removed from default sources, but still supported if configured)
-  if (args.sources.includes("rss") && args.cfg.NEWS_FEEDS) {
-    const feeds = safeUrlList(args.cfg.NEWS_FEEDS);
-    for (const url of feeds) {
-      try {
-        items.push(...(await fetchRssAtomFeed(url)));
-      } catch (err) {
-        logger.warn("news.rss failed", { url, error: err instanceof Error ? err.message : String(err) });
-      }
-    }
-  }
-
-  // GitHub Atom feeds
-  if (args.sources.includes("github")) {
-    const feeds = safeUrlList(args.cfg.NEWS_GITHUB_FEEDS);
-    for (const url of feeds) {
-      try {
-        items.push(...(await fetchGitHubAtomFeed(url)));
-      } catch (err) {
-        logger.warn("news.github failed", { url, error: err instanceof Error ? err.message : String(err) });
-      }
-    }
-  }
+  // DeFiLlama, RSS, and GitHub feeds removed — X timeline is now the primary source
+  // Legacy source IDs are still accepted but produce no items
 
   // Normalize invariants and dedupe by canonical URL
   const normalized: NewsItem[] = [];
