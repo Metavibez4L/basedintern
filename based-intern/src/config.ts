@@ -95,6 +95,21 @@ const envSchemaBase = z.object({
   AERODROME_STABLE: BoolFromString.default("false"), // true = stable pair, false = volatile
   AERODROME_GAUGE_ADDRESS: z.string().optional(),
 
+  // =========================
+  // Liquidity Provision (LP)
+  // NOTE: kept optional in type so tests/mocks don't need updating.
+  // Runtime defaults are applied in loadConfig().
+  // =========================
+  LP_ENABLED: BoolFromString.optional(), // Master switch for LP operations (default: false)
+  LP_MAX_ETH_PER_ADD: z.string().optional(), // Max ETH to pair per LP add (default: "0.001")
+  LP_MAX_TOKEN_FRACTION_BPS: z.coerce.number().int().min(0).max(10_000).optional(), // Max % of INTERN (default: 1000 = 10%)
+  LP_SLIPPAGE_BPS: z.coerce.number().int().min(0).max(10_000).optional(), // Slippage tolerance (default: 500 = 5%)
+  USDC_ADDRESS: z.string().optional(), // USDC on Base (default: 0x833589...)
+  POOL_ADDRESS_USDC: z.string().optional(), // INTERN/USDC pool (optional, can be queried)
+  POOL_ADDRESS_USDC_STABLE: BoolFromString.optional(), // USDC pool type (default: false)
+  GAUGE_ADDRESS_WETH: z.string().optional(), // Gauge for INTERN/WETH pool
+  GAUGE_ADDRESS_USDC: z.string().optional(), // Gauge for INTERN/USDC pool
+
   // Social posting
   SOCIAL_MODE: trimmedEnum(SocialMode).default("none"),
   // Used only when SOCIAL_MODE=multi. Comma-separated list of targets.
@@ -428,6 +443,20 @@ function validateGuardrails(cfg: AppConfig): string[] {
   }
 
   // =========================
+  // LP guardrails
+  // =========================
+  if (cfg.LP_ENABLED) {
+    if (!cfg.TRADING_ENABLED) {
+      errors.push("TRADING_ENABLED must be true when LP_ENABLED=true (LP uses the same wallet/router)");
+    }
+    const lpMaxEth = cfg.LP_MAX_ETH_PER_ADD ?? "0.001";
+    const lpSpend = parseFloat(lpMaxEth);
+    if (isNaN(lpSpend) || lpSpend <= 0) {
+      errors.push(`LP_MAX_ETH_PER_ADD must be a positive decimal: ${lpMaxEth}`);
+    }
+  }
+
+  // =========================
   // News Brain guardrails
   // =========================
   if (cfg.NEWS_ENABLED) {
@@ -476,6 +505,14 @@ export function loadConfig(): ResolvedConfig {
   (baseCfg as any).NEWS_HTTP_RETRIES = baseCfg.NEWS_HTTP_RETRIES ?? 2;
   (baseCfg as any).NEWS_OPINION_CIRCUIT_BREAKER_FAILS = baseCfg.NEWS_OPINION_CIRCUIT_BREAKER_FAILS ?? 3;
   (baseCfg as any).NEWS_OPINION_CIRCUIT_BREAKER_MINUTES = baseCfg.NEWS_OPINION_CIRCUIT_BREAKER_MINUTES ?? 30;
+
+  // Apply LP defaults
+  (baseCfg as any).LP_ENABLED = baseCfg.LP_ENABLED ?? false;
+  (baseCfg as any).LP_MAX_ETH_PER_ADD = baseCfg.LP_MAX_ETH_PER_ADD ?? "0.001";
+  (baseCfg as any).LP_MAX_TOKEN_FRACTION_BPS = baseCfg.LP_MAX_TOKEN_FRACTION_BPS ?? 1000;
+  (baseCfg as any).LP_SLIPPAGE_BPS = baseCfg.LP_SLIPPAGE_BPS ?? 500;
+  (baseCfg as any).USDC_ADDRESS = baseCfg.USDC_ADDRESS ?? "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+  (baseCfg as any).POOL_ADDRESS_USDC_STABLE = baseCfg.POOL_ADDRESS_USDC_STABLE ?? false;
 
   // Apply News Brain alias env vars (requested names) onto the existing names.
   // This keeps the rest of the codebase stable while supporting both.

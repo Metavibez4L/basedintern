@@ -11,7 +11,9 @@
 - 🎯 **X Mentions & Auto-Replies**: Polls every 2 minutes, responds to ALL mentions with contextual AI (✅ LIVE)
 - 🛠️ **Remote Operations**: OpenClaw Gateway + token-protected control server for live Railway inspection
 - 💱 **Autonomous Trading**: Triple-safety architecture with modular DEX system (Aerodrome integration complete, ready to enable)
-- ✅ **197 Deterministic Tests**: Comprehensive coverage with zero flaky tests, all passing
+- 🏊 **Liquidity Provision**: Autonomous LP management for INTERN/WETH + INTERN/USDC on Aerodrome with gauge staking
+- 📢 **LP Fundraise Campaign**: Social campaign driving community LP contributions via Moltbook + X
+- ✅ **217 Deterministic Tests**: Comprehensive coverage with zero flaky tests, all passing
 
 This document tracks the current implementation status of all features.
 
@@ -664,6 +666,52 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
    - Auto-registered provider
    - Graceful error handling
 
+### Liquidity Provision (LP)
+- [x] `src/chain/liquidity.ts` — LP executor (add/remove liquidity via Aerodrome Router)
+  - [x] `addLiquidityETH()` — INTERN/WETH pool (native ETH side)
+  - [x] `addLiquidityERC20()` — INTERN/USDC pool (two ERC20 tokens)
+  - [x] `removeLiquidityETH()` — LP withdrawal
+  - [x] `readPoolStats()` — pool reserves, TVL, LP balance, share %
+  - [x] `resolveUsdcPool()` — auto-discover INTERN/USDC pool from factory
+  - [x] ERC20 approval orchestration for router
+  - [x] Slippage protection (`LP_SLIPPAGE_BPS`)
+  - [x] Gas reserve check (keeps 0.001 ETH for gas)
+- [x] `src/chain/gauge.ts` — Aerodrome gauge staking for AERO rewards
+  - [x] `stakeLP()` — deposit LP tokens into gauge
+  - [x] `unstakeLP()` — withdraw LP tokens from gauge
+  - [x] `claimRewards()` — claim earned AERO
+  - [x] `readStakedBalance()` / `readEarnedRewards()` — read gauge state
+- [x] `src/agent/lpManager.ts` — Autonomous LP management
+  - [x] Pool health check (reserves, TVL, imbalance detection)
+  - [x] Auto-seed: adds LP when pool TVL < 1 ETH and agent has idle tokens
+  - [x] Auto-stake: stakes unstaked LP tokens into gauges
+  - [x] Auto-claim: claims earned AERO rewards
+  - [x] Guardrails: `LP_MAX_ETH_PER_ADD`, `LP_MAX_TOKEN_FRACTION_BPS`
+  - [x] Respects `DRY_RUN`, `KILL_SWITCH`
+- [x] `src/chain/aerodrome.ts` extended with LP calldata builders
+  - [x] `buildAddLiquidityETHCalldata()`, `buildAddLiquidityCalldata()`
+  - [x] `buildRemoveLiquidityETHCalldata()`
+  - [x] `readLPBalance()`, `readLPTotalSupply()`, `calculatePoolTVL()`
+- [x] Config: `LP_ENABLED`, `LP_MAX_ETH_PER_ADD`, `LP_MAX_TOKEN_FRACTION_BPS`, `LP_SLIPPAGE_BPS`
+  - [x] `USDC_ADDRESS`, `POOL_ADDRESS_USDC`, `GAUGE_ADDRESS_WETH`, `GAUGE_ADDRESS_USDC`
+  - [x] All optional with safe defaults
+- [x] Wired into main tick loop (after trading tick)
+- [x] State schema v12: `lpLastTickMs`, `lpWethPoolTvlWei`, `lpUsdcPoolTvlWei`
+
+### LP Social Campaign
+- [x] `src/social/lp_campaign.ts` — Dynamic LP campaign post generation
+  - [x] LP status posts with live pool data (TVL, share %)
+  - [x] Step-by-step LP guide posts (Aerodrome walkthrough)
+  - [x] LP milestone celebration posts
+  - [x] LP comparison posts (WETH vs USDC pool)
+  - [x] LP incentive posts (trading fees + gauge rewards)
+  - [x] `generateLPCampaignPost()` — unified generator with weighted distribution
+- [x] 6 LP-focused fundraise templates in `moltbook_engagement.ts`
+- [x] 7 LP-related discussion topics
+- [x] New `lp_campaign` post kind in `moltbook_discussions.ts`
+  - [x] Distribution: 25% discussion, 15% community, 30% fundraise, 30% LP campaign
+  - [x] LP campaign posts pass through `formatViralPost()` for X cross-posting
+
 ### Critical (Must Do for Trading)
 1. **Test with real RPC + wallet on Base Sepolia**
    - Deploy token with `npm run deploy:token -- --network baseSepolia`
@@ -757,6 +805,50 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
 ---
 
 ## 📝 Changelog
+
+### 2026-02-06 (Liquidity Provision + LP Campaign)
+- ✅ **On-chain LP infrastructure** (`src/chain/liquidity.ts`, `src/chain/gauge.ts`)
+  - ✅ `addLiquidityETH` for INTERN/WETH pools via Aerodrome Router
+  - ✅ `addLiquidityERC20` for INTERN/USDC pools
+  - ✅ `removeLiquidityETH` for withdrawing LP
+  - ✅ LP balance and TVL reading for any Aerodrome pool
+  - ✅ Aerodrome gauge staking: `stakeLP`, `unstakeLP`, `claimRewards`
+  - ✅ Earned AERO rewards tracking
+- ✅ **LP calldata builders** (`src/chain/aerodrome.ts` extended)
+  - ✅ `buildAddLiquidityETHCalldata` — for INTERN/WETH (native ETH)
+  - ✅ `buildAddLiquidityCalldata` — for INTERN/USDC (ERC20 pair)
+  - ✅ `buildRemoveLiquidityETHCalldata` — LP withdrawal
+  - ✅ `readLPBalance`, `readLPTotalSupply`, `calculatePoolTVL`
+- ✅ **Autonomous LP manager** (`src/agent/lpManager.ts`)
+  - ✅ Pool health check: reads reserves, TVL, agent's LP share %
+  - ✅ Auto-seed decision: adds LP when pool TVL < 1 ETH and agent has idle tokens
+  - ✅ Gauge auto-staking: stakes any unstaked LP tokens
+  - ✅ Reward claiming: claims earned AERO
+  - ✅ Integrated into main tick loop (behind `LP_ENABLED` flag)
+  - ✅ Respects `DRY_RUN`, `KILL_SWITCH`, and all LP guardrails
+- ✅ **LP social campaign** (`src/social/lp_campaign.ts`)
+  - ✅ LP status posts with live pool data (TVL, share %)
+  - ✅ Step-by-step LP guide posts (how to add liquidity on Aerodrome)
+  - ✅ LP milestone celebration posts (TVL milestones)
+  - ✅ LP comparison posts (INTERN/WETH vs INTERN/USDC)
+  - ✅ LP incentive posts (trading fees + gauge rewards)
+  - ✅ 30/25/20/15/10% distribution across post types
+- ✅ **Fundraise pivot to LP** (`src/social/moltbook_engagement.ts`)
+  - ✅ 6 new LP-focused fundraise templates (education, social proof, micro-asks)
+  - ✅ 7 LP-related discussion topics
+  - ✅ New `lp_campaign` post kind in discussion system
+  - ✅ Distribution: 25% discussion, 15% community, 30% fundraise, 30% LP campaign
+- ✅ **Config** (`src/config.ts`)
+  - ✅ `LP_ENABLED` — master switch (default: `false`)
+  - ✅ `LP_MAX_ETH_PER_ADD` — max ETH per LP add (default: `"0.001"`)
+  - ✅ `LP_MAX_TOKEN_FRACTION_BPS` — max INTERN % (default: `1000` = 10%)
+  - ✅ `LP_SLIPPAGE_BPS` — slippage (default: `500` = 5%)
+  - ✅ `USDC_ADDRESS` — USDC on Base (default: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`)
+  - ✅ `POOL_ADDRESS_USDC` — INTERN/USDC pool (optional, auto-discovered)
+  - ✅ `GAUGE_ADDRESS_WETH`, `GAUGE_ADDRESS_USDC` — gauge addresses (optional)
+- ✅ **State schema v12**: LP tick timestamp, pool TVL caching
+- ✅ **20 new unit tests** for LP calldata, TVL, slippage, campaign posts, state migration
+- ✅ All 217 tests passing, typecheck clean
 
 ### 2026-02-06 (Virality + Fundraise Optimization)
 - ✅ **Fundraise templates overhauled** — 12 templates with urgency, progress narratives, social proof, micro-asks

@@ -18,6 +18,7 @@ import { createTradeExecutor } from "./chain/trade.js";
 import { pollMentionsAndRespond, type MentionPollerContext } from "./social/x_mentions.js";
 import { replyToMoltbookComments } from "./social/moltbook_comments.js";
 import { postMoltbookDiscussion } from "./social/moltbook_discussions.js";
+import { lpTick, type LPTickResult } from "./agent/lpManager.js";
 import { postOpenClawAnnouncementOnce } from "./social/openclaw_announcement.js";
 import { buildNewsPlan } from "./news/news.js";
 import { canonicalizeUrl } from "./news/fingerprint.js";
@@ -115,9 +116,16 @@ async function tick(): Promise<void> {
     cfg.MOLTBOOK_ENABLED &&
     (cfg.SOCIAL_MODE === "moltbook" || (cfg.SOCIAL_MODE === "multi" && cfg.SOCIAL_MULTI_TARGETS.split(",").map((s) => s.trim()).includes("moltbook")));
 
+  // LP tick result — populated later by LP tick, used by discussion system for pool stats
+  let lpResult: LPTickResult | null = null as LPTickResult | null;
+
   if (moltbookEnabledForDiscussions) {
     try {
-      const discussionResult = await postMoltbookDiscussion(cfg, state, saveState);
+      // Pass pool stats from LP tick if available (will be null on first run)
+      const poolStats = lpResult
+        ? { wethPool: lpResult.wethPool, usdcPool: lpResult.usdcPool }
+        : undefined;
+      const discussionResult = await postMoltbookDiscussion(cfg, state, saveState, poolStats);
 
       if (discussionResult.result.posted) {
         logger.info("moltbook.discussion.posted_in_tick", {
@@ -334,6 +342,32 @@ async function tick(): Promise<void> {
     // Always show guardrail block reasons in logs for operator visibility.
     if (decision.blockedReason) {
       logger.info("guardrails blocked trade", { blockedReason: decision.blockedReason });
+    }
+  }
+
+  // ============================================================
+  // LIQUIDITY PROVISION TICK (behind LP_ENABLED flag)
+  // ============================================================
+  if (cfg.LP_ENABLED && tokenAddress) {
+    try {
+      lpResult = await lpTick(cfg, clients, tokenAddress, workingState, saveState);
+
+      if (lpResult.ran) {
+        logger.info("lp.tick.complete", {
+          wethTvl: lpResult.wethPool?.tvlWei.toString() ?? "n/a",
+          usdcTvl: lpResult.usdcPool?.tvlWei.toString() ?? "n/a",
+          actions: lpResult.actions.length,
+          wethStaked: lpResult.gauge.wethStaked.toString(),
+          wethEarned: lpResult.gauge.wethEarned.toString(),
+        });
+      } else {
+        logger.info("lp.tick.skipped", { reason: lpResult.skipReason });
+      }
+    } catch (err) {
+      logger.warn("lp.tick.error", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // Continue with normal loop even if LP tick fails
     }
   }
 

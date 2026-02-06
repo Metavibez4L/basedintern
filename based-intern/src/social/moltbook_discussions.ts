@@ -25,6 +25,8 @@ import {
   generateFundraisePost,
   pickTopics,
 } from "./moltbook_engagement.js";
+import { generateLPCampaignPost } from "./lp_campaign.js";
+import type { PoolStats } from "../chain/liquidity.js";
 
 // Constants
 const DISCUSSION_LRU_SIZE = 50;
@@ -33,7 +35,7 @@ const MAX_DISCUSSION_POSTS_PER_DAY = 3; // Cap: 3 discussion/community/fundraise
 export type DiscussionPostResult = {
   posted: boolean;
   topic: string | null;
-  kind: "discussion" | "community" | "fundraise" | null;
+  kind: "discussion" | "community" | "fundraise" | "lp_campaign" | null;
   reason?: string;
 };
 
@@ -100,7 +102,8 @@ Requirements:
 export async function postMoltbookDiscussion(
   cfg: AppConfig,
   state: AgentState,
-  saveStateFn: (s: AgentState) => Promise<void>
+  saveStateFn: (s: AgentState) => Promise<void>,
+  poolStats?: { wethPool: PoolStats | null; usdcPool: PoolStats | null }
 ): Promise<{ result: DiscussionPostResult; state: AgentState }> {
   const nullResult = (reason: string): { result: DiscussionPostResult; state: AgentState } => ({
     result: { posted: false, topic: null, kind: null, reason },
@@ -135,24 +138,31 @@ export async function postMoltbookDiscussion(
     return nullResult("min_interval");
   }
 
-  // Decide post type: 35% discussion, 25% community callout, 40% fundraise
-  // Fundraise gets highest weight to maximize donation opportunities
+  // Decide post type: 25% discussion, 15% community, 30% fundraise, 30% LP campaign
+  // LP campaign + fundraise together = 60% of posts (liquidity + donations)
   const postTypeDice = Math.random();
 
   let postContent: string;
   let topic: string;
-  let kind: "discussion" | "community" | "fundraise";
+  let kind: "discussion" | "community" | "fundraise" | "lp_campaign";
 
-  if (postTypeDice < 0.25) {
+  if (postTypeDice < 0.15) {
     // Community engagement post (follower growth)
     postContent = generateCommunityPost();
     topic = "community_callout";
     kind = "community";
-  } else if (postTypeDice < 0.65) {
-    // Fundraise post (agent swarm development funding) — 40% weight
+  } else if (postTypeDice < 0.45) {
+    // Fundraise post (agent swarm development funding) — 30% weight
     postContent = generateFundraisePost();
     topic = "agent_swarm_fundraise";
     kind = "fundraise";
+  } else if (postTypeDice < 0.75) {
+    // LP campaign post (liquidity provision) — 30% weight
+    const wethPool = poolStats?.wethPool ?? null;
+    const usdcPool = poolStats?.usdcPool ?? null;
+    postContent = generateLPCampaignPost(wethPool, usdcPool);
+    topic = "lp_campaign";
+    kind = "lp_campaign";
   } else {
     // Discussion post (topic-based engagement)
     const usedTopics = state.postedDiscussionTopics ?? [];
@@ -173,9 +183,11 @@ export async function postMoltbookDiscussion(
 
     const title = kind === "fundraise"
       ? "Based Intern — Agent Swarm Fund"
-      : kind === "community"
-        ? "Based Intern Community"
-        : "Based Intern Discussion";
+      : kind === "lp_campaign"
+        ? "Based Intern — INTERN Liquidity"
+        : kind === "community"
+          ? "Based Intern Community"
+          : "Based Intern Discussion";
 
     await client.createPost({
       submolt: "general",

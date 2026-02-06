@@ -207,6 +207,212 @@ export function buildAerodromeSwapCalldata(
   };
 }
 
+// ============================================================
+// LIQUIDITY PROVISION
+// ============================================================
+
+export type AddLiquidityETHParams = {
+  token: Address;
+  stable: boolean;
+  amountTokenDesired: bigint;
+  amountTokenMin: bigint;
+  amountETHMin: bigint;
+  to: Address;
+  deadlineSeconds?: number;
+};
+
+export type AddLiquidityParams = {
+  tokenA: Address;
+  tokenB: Address;
+  stable: boolean;
+  amountADesired: bigint;
+  amountBDesired: bigint;
+  amountAMin: bigint;
+  amountBMin: bigint;
+  to: Address;
+  deadlineSeconds?: number;
+};
+
+export type RemoveLiquidityETHParams = {
+  token: Address;
+  stable: boolean;
+  liquidity: bigint;
+  amountTokenMin: bigint;
+  amountETHMin: bigint;
+  to: Address;
+  deadlineSeconds?: number;
+};
+
+/**
+ * Build calldata for Aerodrome Router addLiquidityETH.
+ * Used for INTERN/WETH pools where one side is native ETH.
+ *
+ * Router interface:
+ *   addLiquidityETH(address token, bool stable, uint256 amountTokenDesired,
+ *                   uint256 amountTokenMin, uint256 amountETHMin,
+ *                   address to, uint256 deadline)
+ *   returns (uint256 amountToken, uint256 amountETH, uint256 liquidity)
+ */
+export function buildAddLiquidityETHCalldata(
+  params: AddLiquidityETHParams
+): { calldata: `0x${string}`; deadline: bigint; value: bigint } {
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + (params.deadlineSeconds ?? 600));
+
+  // addLiquidityETH selector (without 0x prefix — added in return)
+  const selector = "b7e0d4c0";
+
+  const tokenPadded = params.token.slice(2).padStart(64, "0").toLowerCase();
+  const stablePadded = (params.stable ? "1" : "0").padStart(64, "0");
+  const amtTokenDesired = params.amountTokenDesired.toString(16).padStart(64, "0");
+  const amtTokenMin = params.amountTokenMin.toString(16).padStart(64, "0");
+  const amtETHMin = params.amountETHMin.toString(16).padStart(64, "0");
+  const toPadded = params.to.slice(2).padStart(64, "0").toLowerCase();
+  const deadlinePadded = deadline.toString(16).padStart(64, "0");
+
+  const calldata = selector + tokenPadded + stablePadded + amtTokenDesired +
+    amtTokenMin + amtETHMin + toPadded + deadlinePadded;
+
+  return {
+    calldata: `0x${calldata}` as `0x${string}`,
+    deadline,
+    value: params.amountETHMin // Send at least this much ETH
+  };
+}
+
+/**
+ * Build calldata for Aerodrome Router addLiquidity.
+ * Used for INTERN/USDC pools (two ERC20 tokens).
+ *
+ * Router interface:
+ *   addLiquidity(address tokenA, address tokenB, bool stable,
+ *                uint256 amountADesired, uint256 amountBDesired,
+ *                uint256 amountAMin, uint256 amountBMin,
+ *                address to, uint256 deadline)
+ *   returns (uint256 amountA, uint256 amountB, uint256 liquidity)
+ */
+export function buildAddLiquidityCalldata(
+  params: AddLiquidityParams
+): { calldata: `0x${string}`; deadline: bigint } {
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + (params.deadlineSeconds ?? 600));
+
+  // addLiquidity selector (without 0x prefix — added in return)
+  const selector = "e8e33700";
+
+  const tokenAPadded = params.tokenA.slice(2).padStart(64, "0").toLowerCase();
+  const tokenBPadded = params.tokenB.slice(2).padStart(64, "0").toLowerCase();
+  const stablePadded = (params.stable ? "1" : "0").padStart(64, "0");
+  const amtADesired = params.amountADesired.toString(16).padStart(64, "0");
+  const amtBDesired = params.amountBDesired.toString(16).padStart(64, "0");
+  const amtAMin = params.amountAMin.toString(16).padStart(64, "0");
+  const amtBMin = params.amountBMin.toString(16).padStart(64, "0");
+  const toPadded = params.to.slice(2).padStart(64, "0").toLowerCase();
+  const deadlinePadded = deadline.toString(16).padStart(64, "0");
+
+  const calldata = selector + tokenAPadded + tokenBPadded + stablePadded +
+    amtADesired + amtBDesired + amtAMin + amtBMin + toPadded + deadlinePadded;
+
+  return {
+    calldata: `0x${calldata}` as `0x${string}`,
+    deadline
+  };
+}
+
+/**
+ * Build calldata for Aerodrome Router removeLiquidityETH.
+ *
+ * Router interface:
+ *   removeLiquidityETH(address token, bool stable, uint256 liquidity,
+ *                      uint256 amountTokenMin, uint256 amountETHMin,
+ *                      address to, uint256 deadline)
+ *   returns (uint256 amountToken, uint256 amountETH)
+ */
+export function buildRemoveLiquidityETHCalldata(
+  params: RemoveLiquidityETHParams
+): { calldata: `0x${string}`; deadline: bigint } {
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + (params.deadlineSeconds ?? 600));
+
+  // removeLiquidityETH selector (without 0x prefix — added in return)
+  const selector = "7a8c63b5";
+
+  const tokenPadded = params.token.slice(2).padStart(64, "0").toLowerCase();
+  const stablePadded = (params.stable ? "1" : "0").padStart(64, "0");
+  const liquidityPadded = params.liquidity.toString(16).padStart(64, "0");
+  const amtTokenMin = params.amountTokenMin.toString(16).padStart(64, "0");
+  const amtETHMin = params.amountETHMin.toString(16).padStart(64, "0");
+  const toPadded = params.to.slice(2).padStart(64, "0").toLowerCase();
+  const deadlinePadded = deadline.toString(16).padStart(64, "0");
+
+  const calldata = selector + tokenPadded + stablePadded + liquidityPadded +
+    amtTokenMin + amtETHMin + toPadded + deadlinePadded;
+
+  return {
+    calldata: `0x${calldata}` as `0x${string}`,
+    deadline
+  };
+}
+
+/**
+ * Read LP token balance for a pool address.
+ * Pool tokens are ERC20 — balanceOf returns the LP token balance.
+ */
+export async function readLPBalance(
+  clients: ChainClients,
+  poolAddress: Address,
+  wallet: Address
+): Promise<bigint> {
+  try {
+    const abi = parseAbi(["function balanceOf(address) public view returns (uint256)"]);
+    return await clients.publicClient.readContract({
+      address: poolAddress,
+      abi,
+      functionName: "balanceOf",
+      args: [wallet]
+    });
+  } catch {
+    return 0n;
+  }
+}
+
+/**
+ * Read total supply of an LP pool token.
+ */
+export async function readLPTotalSupply(
+  clients: ChainClients,
+  poolAddress: Address
+): Promise<bigint> {
+  try {
+    const abi = parseAbi(["function totalSupply() public view returns (uint256)"]);
+    return await clients.publicClient.readContract({
+      address: poolAddress,
+      abi,
+      functionName: "totalSupply"
+    });
+  } catch {
+    return 0n;
+  }
+}
+
+/**
+ * Calculate pool TVL in ETH terms.
+ * For INTERN/WETH pools: TVL = 2 * wethReserve (both sides equal value).
+ * For other pairs: returns the raw reserves for external calculation.
+ */
+export function calculatePoolTVL(
+  pool: AerodromePoolInfo,
+  wethAddress: Address
+): { tvlWei: bigint; reserve0: bigint; reserve1: bigint } {
+  const token0Lower = pool.token0.toLowerCase();
+  const wethLower = wethAddress.toLowerCase();
+
+  if (token0Lower === wethLower) {
+    // WETH is token0 — TVL ≈ 2 * reserve0
+    return { tvlWei: pool.reserve0 * 2n, reserve0: pool.reserve0, reserve1: pool.reserve1 };
+  } else {
+    // WETH is token1 — TVL ≈ 2 * reserve1
+    return { tvlWei: pool.reserve1 * 2n, reserve0: pool.reserve0, reserve1: pool.reserve1 };
+  }
+}
+
 /**
  * Query Aerodrome factory for pool address given two tokens and pool type.
  * Aerodrome Factory interface: getPair(token0, token1, stable) -> address

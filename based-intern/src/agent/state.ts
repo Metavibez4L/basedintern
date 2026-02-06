@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 11;
+const STATE_SCHEMA_VERSION = 12;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
@@ -100,6 +100,13 @@ export type AgentState = {
   moltbookDiscussionPostsToday?: number; // Daily cap counter
   moltbookDiscussionLastDayUtc?: string | null; // For daily reset
   postedDiscussionTopics?: string[]; // LRU list of posted topics (max 50) for dedup
+
+  // =========================
+  // Liquidity Provision (v12)
+  // =========================
+  lpLastTickMs?: number | null; // Last LP management tick timestamp
+  lpWethPoolTvlWei?: string | null; // Cached WETH pool TVL for social posting
+  lpUsdcPoolTvlWei?: string | null; // Cached USDC pool TVL for social posting
 };
 
 export const DEFAULT_STATE: AgentState = {
@@ -244,6 +251,14 @@ function migrateState(raw: any, version: number | undefined): AgentState {
   if (version === undefined || version < 11) {
     logger.info("state migration", { from: version || 10, to: STATE_SCHEMA_VERSION });
     if (!("postedNewsUrlFingerprints" in raw) || !Array.isArray(raw.postedNewsUrlFingerprints)) raw.postedNewsUrlFingerprints = [];
+  }
+
+  // v11 → v12: Liquidity provision state fields
+  if (version === undefined || version < 12) {
+    logger.info("state migration", { from: version || 11, to: STATE_SCHEMA_VERSION });
+    if (!("lpLastTickMs" in raw)) raw.lpLastTickMs = null;
+    if (!("lpWethPoolTvlWei" in raw)) raw.lpWethPoolTvlWei = null;
+    if (!("lpUsdcPoolTvlWei" in raw)) raw.lpUsdcPoolTvlWei = null;
   }
 
   return raw as AgentState;
