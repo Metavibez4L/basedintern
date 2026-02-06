@@ -155,25 +155,17 @@ Safety guarantees:
 
 Supported sources:
 
+- **X Timeline** (primary) → Watches `@base`, `@buildonbase`, `@openclaw` for real-time news (auto-enabled when X API creds are set)
 - `defillama` → DeFiLlama Base snapshot (TVL + top protocols)
-- `rss` → RSS/Atom feeds (configure via `NEWS_FEEDS`)
-- `github` → GitHub Atom feeds (configure via `NEWS_GITHUB_FEEDS`)
-- `base_blog` → https://blog.base.org/
-- `base_dev_blog` → https://blog.base.dev/
-- `cdp_launches` → https://www.coinbase.com/developer-platform/discover/launches
+- `github` → GitHub Atom feeds (base-org releases)
+- `cryptopanic` → Hot crypto news (optional, requires `NEWS_CRYPTO_PANIC_KEY`)
 
 Quick enable (log-only):
 
 ```bash
 NEWS_ENABLED=true
 SOCIAL_MODE=none
-
-# choose sources
-NEWS_SOURCES=defillama,github,rss
-
-# required when rss/github enabled
-NEWS_FEEDS="https://example.com/feed.xml"
-NEWS_GITHUB_FEEDS="https://github.com/base-org/node/releases.atom"
+NEWS_SOURCES=defillama,github
 ```
 
 ## 🚀 Quickstart

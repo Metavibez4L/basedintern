@@ -208,10 +208,10 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
 
 ### 📰 Live News Opinion System (PRODUCTION — LIVE on Railway, v11 hardened)
 - [x] **Multi-source news aggregation** (`src/news/fetcher.ts`)
+  - [x] **X Timeline fetcher** (primary) — pulls recent tweets from @base, @buildonbase, @openclaw
   - [x] CryptoPanic API fetcher (hot crypto news, optional with API key)
-  - [x] RSS/Atom fetcher with **dual-format parser** (handles both RSS `<item>` and Atom `<entry>` feeds)
-  - [x] Default feeds: Base Mirror Atom, Paragraph Base blog, GitHub release Atom feeds
   - [x] Base ecosystem fetcher (GitHub releases API for base-org repos)
+  - [x] RSS/Atom fetcher (legacy, optional — disabled by default)
   - [x] Automatic deduplication by URL
   - [x] Date-based sorting (newest first), fetches top 10 candidates
 - [x] **GPT-4o-mini opinion generation** (`src/news/opinion.ts`)
@@ -245,7 +245,7 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
   - [x] NEWS_FETCH_INTERVAL_MINUTES (default 60)
   - [x] NEWS_MIN_RELEVANCE_SCORE (default 0.5)
   - [x] NEWS_CRYPTO_PANIC_KEY (optional)
-  - [x] NEWS_RSS_FEEDS (default: Base Mirror Atom, GitHub release Atom feeds)
+  - [x] NEWS_RSS_FEEDS (optional, legacy — RSS removed from default pipeline)
   - [x] NEWS_GITHUB_FEEDS (default: proper `.atom` URLs — no more `news.feed invalid url` warnings)
   - [x] Safe defaults for all fields (no strict validation errors)
 - [x] **No 403 errors**: Removed HTML scraping sources (base_blog, cdp_launches)
@@ -806,6 +806,29 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
 ---
 
 ## 📝 Changelog
+
+### 2026-02-06 (Opinion System Overhaul + X Timeline News)
+- ✅ **@base, @buildonbase, @openclaw X timelines as primary news source** (`fetcher.ts`)
+  - New `XTimelineFetcher` pulls recent tweets via X API v2 user timeline endpoint
+  - Uses existing X API OAuth 1.0a credentials (no new env vars)
+  - Resolves user IDs dynamically, caches per instance
+  - Extracts clean titles, uses expanded URLs from tweet entities
+  - Filters retweets, takes up to 10 recent original tweets per account
+- ✅ **RSS feeds removed** — was flaky (timeouts, parsing, truncated IDs)
+  - `NEWS_FEEDS` and `NEWS_RSS_FEEDS` now optional (no defaults)
+  - `NEWS_SOURCES` default changed to `"defillama,github"` (X timeline auto-enabled)
+  - RSS validation removed from `validateGuardrails`
+- ✅ **Opinion double-post prevention** (`opinionPoster.ts`, `index.ts`)
+  - OpinionPoster now accepts pre-populated ID + URL fingerprint sets from state
+  - Cross-pipeline dedup: Base News Brain + Opinion Cycle share posted state
+  - URL fingerprint (SHA256) catches same article with different IDs
+- ✅ **Daily opinion counter reset** (`index.ts`)
+  - `newsOpinionPostsToday` properly resets at UTC day boundary
+- ✅ **RSS hardening** (kept for backward compat, not used by default)
+  - Body timeout prevents hanging on slow/chunked responses
+  - 5MB size guard prevents OOM
+  - Stable SHA256-based article IDs (replaces truncated base64)
+- ✅ All 217 tests passing, typecheck clean
 
 ### 2026-02-06 (Hardening + OpenClaw Skills)
 - ✅ **Structured error logging** in Aerodrome silent catch blocks (`aerodrome.ts`)
