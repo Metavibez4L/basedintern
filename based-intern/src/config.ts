@@ -141,20 +141,25 @@ const envSchemaBase = z.object({
   NEWS_INTERVAL_MINUTES: z.coerce.number().int().min(1).optional(),
 
   NEWS_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.5),
-  // Base ecosystem RSS/Atom feeds (comma-separated)
+  // Base ecosystem RSS feeds (comma-separated)
+  // NOTE: Mirror Atom feeds (mirror.xyz, base.mirror.xyz) return HTTP 429 on Railway.
+  // Use Paragraph RSS endpoints instead — both blogs migrated to Paragraph.
   NEWS_FEEDS: z.string().default(
     [
-      "https://mirror.xyz/base.eth/feed/atom",
-      "https://base.mirror.xyz/feed/atom",
-      "https://paragraph.xyz/api/blogs/base/feed",
+      "https://paragraph.com/api/blogs/rss/@base",
+      "https://paragraph.com/api/blogs/rss/@base-engineering-blog",
     ].join(",")
   ),
   // GitHub release Atom feeds (must be full .atom URLs, not repo names)
+  // Base infra + OP Stack releases — high signal, no rate limiting
   NEWS_GITHUB_FEEDS: z.string().default(
     [
       "https://github.com/base-org/node/releases.atom",
       "https://github.com/base-org/contracts/releases.atom",
       "https://github.com/base-org/withdrawer/releases.atom",
+      "https://github.com/ethereum-optimism/optimism/releases.atom",
+      "https://github.com/ethereum-optimism/op-geth/releases.atom",
+      "https://github.com/ethereum-optimism/superchain-registry/releases.atom",
     ].join(",")
   ),
   NEWS_REQUIRE_LINK: BoolFromString.default("true"),
@@ -168,11 +173,16 @@ const envSchemaBase = z.object({
   NEWS_FETCH_INTERVAL_MINUTES: z.coerce.number().int().positive().default(60),
   NEWS_MIN_RELEVANCE_SCORE: z.coerce.number().min(0).max(1).default(0.5),
   NEWS_CRYPTO_PANIC_KEY: z.string().optional(),
+  // RSS feeds for the opinion pipeline (fetcher.ts aggregator)
+  // Uses Paragraph RSS (no rate limiting) + GitHub release Atom feeds
   NEWS_RSS_FEEDS: z.string().default(
     [
-      "https://mirror.xyz/base.eth/feed/atom",
+      "https://paragraph.com/api/blogs/rss/@base",
+      "https://paragraph.com/api/blogs/rss/@base-engineering-blog",
       "https://github.com/base-org/node/releases.atom",
       "https://github.com/base-org/contracts/releases.atom",
+      "https://github.com/ethereum-optimism/optimism/releases.atom",
+      "https://github.com/ethereum-optimism/op-geth/releases.atom",
     ].join(",")
   ).transform((s) => s?.split(",").map((u) => u.trim()).filter(Boolean) || []),
 
