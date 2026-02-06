@@ -64,6 +64,11 @@ export class NewsAggregator {
   constructor(private cfg: AppConfig) {
     this.fetchers = [];
     
+    // Primary: @base X timeline (highest signal, real-time)
+    if (cfg.X_API_KEY && cfg.X_API_SECRET && cfg.X_ACCESS_TOKEN && cfg.X_ACCESS_SECRET) {
+      this.fetchers.push(new XTimelineFetcher(cfg));
+    }
+
     // Add fetchers based on config
     if (cfg.NEWS_CRYPTO_PANIC_KEY) {
       this.fetchers.push(new CryptoPanicFetcher(cfg.NEWS_CRYPTO_PANIC_KEY, cfg));
@@ -256,6 +261,155 @@ class RSSFetcher implements NewsFetcher {
     // Fall back to tag content
     return this.extractTag(xml, "link");
   }
+}
+
+// X Timeline fetcher — pulls recent tweets from @base as news source
+// Uses existing X API credentials (no new env vars)
+class XTimelineFetcher implements NewsFetcher {
+  private cachedUserId: string | null = null;
+
+  constructor(private cfg: AppConfig) {}
+
+  async fetch(): Promise<NewsArticle[]> {
+    try {
+      // Resolve @base user ID (cached after first lookup)
+      const userId = await this.resolveBaseUserId();
+      if (!userId) return [];
+
+      // Fetch recent tweets (up to 10, exclude replies and retweets)
+      const url = `https://api.twitter.com/2/users/${userId}/tweets?max_results=10&tweet.fields=created_at,text,entities&exclude=replies,retweets`;
+
+      const authHeader = this.buildOAuth1Header("GET", url);
+      const res = await fetchWithRetry(url, {
+        headers: {
+          "Authorization": authHeader,
+          "User-Agent": "BasedIntern/1.0"
+        }
+      }, {
+        timeoutMs: this.cfg.NEWS_HTTP_TIMEOUT_MS ?? 15000,
+        retries: 1  // Light retry — X rate limits are strict
+      });
+
+      if (!res.ok) {
+        logger.warn("news.x_timeline.http_error", { status: res.status });
+        return [];
+      }
+
+      const data: any = await res.json();
+      const tweets = data?.data || [];
+
+      return tweets
+        .filter((t: any) => t.text && !t.text.startsWith("RT "))
+        .map((t: any) => {
+          // Extract first URL from tweet entities if available
+          const tweetUrl = t.entities?.urls?.[0]?.expanded_url
+            || `https://x.com/base/status/${t.id}`;
+
+          return {
+            id: `x_base_${t.id}`,
+            title: this.extractTitle(t.text),
+            url: tweetUrl,
+            publishedAt: t.created_at || new Date().toISOString(),
+            source: "@base (X)",
+            category: "base" as const,
+            content: t.text,
+          };
+        });
+    } catch (err) {
+      logger.warn("news.x_timeline.error", {
+        error: err instanceof Error ? err.message : String(err)
+      });
+      return [];
+    }
+  }
+
+  /** Extract a clean title from tweet text (first sentence or first 80 chars) */
+  private extractTitle(text: string): string {
+    // Remove URLs
+    const cleaned = text.replace(/https?:\/\/\S+/g, "").trim();
+    // Take first sentence or first 80 chars
+    const firstSentence = cleaned.split(/[.!?\n]/)[0]?.trim();
+    if (firstSentence && firstSentence.length > 10) {
+      return firstSentence.length > 80 ? firstSentence.slice(0, 77) + "..." : firstSentence;
+    }
+    return cleaned.length > 80 ? cleaned.slice(0, 77) + "..." : cleaned || "Base update";
+  }
+
+  /** Look up @base user ID via X API v2 */
+  private async resolveBaseUserId(): Promise<string | null> {
+    if (this.cachedUserId) return this.cachedUserId;
+
+    try {
+      const url = "https://api.twitter.com/2/users/by/username/base";
+      const authHeader = this.buildOAuth1Header("GET", url);
+      const res = await fetchWithRetry(url, {
+        headers: {
+          "Authorization": authHeader,
+          "User-Agent": "BasedIntern/1.0"
+        }
+      }, { timeoutMs: 10000, retries: 1 });
+
+      if (!res.ok) {
+        logger.warn("news.x_timeline.user_lookup_failed", { status: res.status });
+        return null;
+      }
+
+      const data: any = await res.json();
+      this.cachedUserId = data?.data?.id || null;
+      if (this.cachedUserId) {
+        logger.info("news.x_timeline.resolved_user", { userId: this.cachedUserId, username: "base" });
+      }
+      return this.cachedUserId;
+    } catch (err) {
+      logger.warn("news.x_timeline.user_lookup_error", {
+        error: err instanceof Error ? err.message : String(err)
+      });
+      return null;
+    }
+  }
+
+  /** Build OAuth 1.0a Authorization header (reuses pattern from x_mentions.ts) */
+  private buildOAuth1Header(method: string, url: string): string {
+    const nonce = crypto.randomBytes(16).toString("hex");
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+
+    const consumerKey = this.cfg.X_API_KEY || "";
+    const consumerSecret = this.cfg.X_API_SECRET || "";
+    const accessToken = this.cfg.X_ACCESS_TOKEN || "";
+    const accessSecret = this.cfg.X_ACCESS_SECRET || "";
+
+    const oauthParams: Record<string, string> = {
+      oauth_consumer_key: consumerKey,
+      oauth_nonce: nonce,
+      oauth_signature_method: "HMAC-SHA1",
+      oauth_timestamp: timestamp,
+      oauth_token: accessToken,
+      oauth_version: "1.0"
+    };
+
+    // Build signature base string
+    const u = new URL(url);
+    const baseUrl = `${u.protocol}//${u.host}${u.pathname}`;
+    const params: Array<[string, string]> = [];
+    for (const [k, v] of Object.entries(oauthParams)) params.push([k, v]);
+    for (const [k, v] of u.searchParams.entries()) params.push([k, v]);
+    params.sort(([ak, av], [bk, bv]) => (ak === bk ? av.localeCompare(bv) : ak.localeCompare(bk)));
+    const normalized = params.map(([k, v]) => `${rfc3986(k)}=${rfc3986(v)}`).join("&");
+    const baseString = `${method.toUpperCase()}&${rfc3986(baseUrl)}&${rfc3986(normalized)}`;
+
+    // Sign
+    const signingKey = `${rfc3986(consumerSecret)}&${rfc3986(accessSecret)}`;
+    const signature = crypto.createHmac("sha1", signingKey).update(baseString).digest("base64");
+
+    const headerParams: Record<string, string> = { ...oauthParams, oauth_signature: signature };
+    return "OAuth " + Object.keys(headerParams).sort()
+      .map((k) => `${rfc3986(k)}="${rfc3986(headerParams[k] ?? "")}"`)
+      .join(", ");
+  }
+}
+
+function rfc3986(input: string): string {
+  return encodeURIComponent(input).replace(/[!'()*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
 }
 
 // Base ecosystem monitor (GitHub activity, governance proposals)
