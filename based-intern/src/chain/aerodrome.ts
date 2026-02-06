@@ -1,5 +1,6 @@
 import { parseAbi, type Address } from "viem";
 import type { ChainClients } from "./client.js";
+import { logger } from "../logger.js";
 
 /**
  * Aerodrome pool and swap types.
@@ -77,6 +78,8 @@ export async function readAerodromePool(
       reserve1: BigInt(reserve1)
     };
   } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.warn("aerodrome_pool_read_failed", { poolAddress, stable, error: errorMsg });
     return null;
   }
 }
@@ -368,7 +371,9 @@ export async function readLPBalance(
       functionName: "balanceOf",
       args: [wallet]
     });
-  } catch {
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.warn("lp_balance_read_failed", { poolAddress, wallet, error: errorMsg });
     return 0n;
   }
 }
@@ -387,7 +392,9 @@ export async function readLPTotalSupply(
       abi,
       functionName: "totalSupply"
     });
-  } catch {
+  } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.warn("lp_totalsupply_read_failed", { poolAddress, error: errorMsg });
     return 0n;
   }
 }
@@ -439,6 +446,8 @@ export async function queryAerodromePool(
     // Check if pool exists (non-zero address)
     return pool === "0x0000000000000000000000000000000000000000" ? null : (pool as Address);
   } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logger.warn("aerodrome_factory_query_failed", { factoryAddress, token0, token1, stable, error: errorMsg });
     return null;
   }
 }
