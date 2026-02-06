@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 12;
+const STATE_SCHEMA_VERSION = 13;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
@@ -18,6 +18,8 @@ const STATE_SCHEMA_VERSION = 12;
  * v9: Harden X mentions replies (circuit breaker + throttling state) (2026-02-05)
  * v10: Moltbook viral engagement + proactive discussion posting (2026-02-05)
  * v11: Restart-proof news opinion dedupe (canonical URL fingerprints, LRU 200) (2026-02-05)
+ * v12: Liquidity provision state fields (2026-02-05)
+ * v13: X timeline since_id tracking — prevents re-fetching same tweets (2026-02-06)
  */
 
 export type AgentState = {
@@ -107,6 +109,13 @@ export type AgentState = {
   lpLastTickMs?: number | null; // Last LP management tick timestamp
   lpWethPoolTvlWei?: string | null; // Cached WETH pool TVL for social posting
   lpUsdcPoolTvlWei?: string | null; // Cached USDC pool TVL for social posting
+
+  // =========================
+  // X Timeline since_id tracking (v13)
+  // =========================
+  /** Per-username since_id map — only fetch tweets newer than the stored ID per account.
+   *  Prevents re-fetching and re-evaluating the same tweets every cycle. */
+  xTimelineSinceIds?: Record<string, string>;
 };
 
 export const DEFAULT_STATE: AgentState = {
@@ -157,7 +166,9 @@ export const DEFAULT_STATE: AgentState = {
   moltbookDiscussionLastPostMs: null,
   moltbookDiscussionPostsToday: 0,
   moltbookDiscussionLastDayUtc: null,
-  postedDiscussionTopics: []
+  postedDiscussionTopics: [],
+
+  xTimelineSinceIds: {}
 };
 
 export function statePath(): string {
@@ -261,6 +272,14 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     if (!("lpUsdcPoolTvlWei" in raw)) raw.lpUsdcPoolTvlWei = null;
   }
 
+  // v12 → v13: X timeline since_id tracking (prevents duplicate tweet fetching)
+  if (version === undefined || version < 13) {
+    logger.info("state migration", { from: version || 12, to: STATE_SCHEMA_VERSION });
+    if (!("xTimelineSinceIds" in raw) || typeof raw.xTimelineSinceIds !== "object") {
+      raw.xTimelineSinceIds = {};
+    }
+  }
+
   return raw as AgentState;
 }
 
@@ -328,7 +347,11 @@ export async function loadState(): Promise<AgentState> {
       moltbookDiscussionLastPostMs: migrated.moltbookDiscussionLastPostMs ?? null,
       moltbookDiscussionPostsToday: migrated.moltbookDiscussionPostsToday ?? 0,
       moltbookDiscussionLastDayUtc: migrated.moltbookDiscussionLastDayUtc ?? null,
-      postedDiscussionTopics: Array.isArray(migrated.postedDiscussionTopics) ? migrated.postedDiscussionTopics : []
+      postedDiscussionTopics: Array.isArray(migrated.postedDiscussionTopics) ? migrated.postedDiscussionTopics : [],
+
+      xTimelineSinceIds: (migrated.xTimelineSinceIds && typeof migrated.xTimelineSinceIds === "object")
+        ? migrated.xTimelineSinceIds
+        : {}
     };
 
     // Reset daily counter if the day rolled over.

@@ -465,8 +465,21 @@ async function tick(): Promise<void> {
             postsToday: dailyOpinionCount
           });
 
-          const newsAggregator = new NewsAggregator(cfg);
+          const newsAggregator = new NewsAggregator(cfg, workingState.xTimelineSinceIds ?? {});
           const fetched = await newsAggregator.fetchLatest(10);
+
+          // Persist updated since_ids so next cycle only gets NEW tweets
+          const updatedSinceIds = newsAggregator.getUpdatedSinceIds();
+          if (Object.keys(updatedSinceIds).length > 0) {
+            workingState = {
+              ...workingState,
+              xTimelineSinceIds: {
+                ...(workingState.xTimelineSinceIds ?? {}),
+                ...updatedSinceIds
+              }
+            };
+            await saveState(workingState);
+          }
 
           // --- Dual-layer dedupe (restart-proof) ---
           // Layer 1: article IDs from state (provider-specific, can be unstable)
@@ -485,10 +498,45 @@ async function tick(): Promise<void> {
 
           if (articles.length === 0) {
             logger.info("news.opinion.skip.all_seen_or_none", { fetched: fetched.length });
+            // Even if all articles are filtered, track their IDs so we never re-evaluate them
+            // (important on first run when since_id isn't set yet)
+            if (fetched.length > 0) {
+              const allFetchedIds = [...(workingState.postedNewsArticleIds || [])];
+              const allFetchedFps = [...(workingState.postedNewsUrlFingerprints || [])];
+              for (const a of fetched) {
+                if (!postedIds.has(a.id)) allFetchedIds.push(a.id);
+                const fp = crypto.createHash("sha256").update(canonicalizeUrl(a.url)).digest("hex");
+                if (!postedUrlFps.has(fp)) allFetchedFps.push(fp);
+              }
+              workingState = {
+                ...workingState,
+                postedNewsArticleIds: allFetchedIds.slice(-200),
+                postedNewsUrlFingerprints: allFetchedFps.slice(-200)
+              };
+              await saveState(workingState);
+            }
             return;
           }
 
           logger.info("news.opinion.fetched", { count: articles.length, fetched: fetched.length });
+
+          // Helper: track all fetched article IDs even when skipped/filtered
+          // Prevents re-evaluation on subsequent cycles (belt-and-suspenders with since_id)
+          const trackAllFetchedArticles = async (arts: typeof articles) => {
+            const nextIds = [...(workingState.postedNewsArticleIds || [])];
+            const nextFps = [...(workingState.postedNewsUrlFingerprints || [])];
+            for (const a of arts) {
+              if (!nextIds.includes(a.id)) nextIds.push(a.id);
+              const fp = crypto.createHash("sha256").update(canonicalizeUrl(a.url)).digest("hex");
+              if (!nextFps.includes(fp)) nextFps.push(fp);
+            }
+            workingState = {
+              ...workingState,
+              postedNewsArticleIds: nextIds.slice(-200),
+              postedNewsUrlFingerprints: nextFps.slice(-200)
+            };
+            await saveState(workingState);
+          };
 
           // Efficient: ONE LLM call to pick + generate
           const opinionGen = new OpinionGenerator(cfg);
@@ -496,6 +544,8 @@ async function tick(): Promise<void> {
 
           if (!topOpinion) {
             logger.info("news.opinion.skip.no_opinion");
+            // Track all unseen articles so they don't get re-evaluated
+            await trackAllFetchedArticles(articles);
             return;
           }
 
@@ -505,6 +555,8 @@ async function tick(): Promise<void> {
               relevance: topOpinion.relevanceScore,
               minRelevance: cfg.NEWS_MIN_RELEVANCE_SCORE
             });
+            // Track all unseen articles so irrelevant ones don't get re-evaluated
+            await trackAllFetchedArticles(articles);
             return;
           }
 
@@ -517,10 +569,14 @@ async function tick(): Promise<void> {
             return;
           }
 
-          // Success: update state atomically (single save)
-          const nextPostedIds = [...(workingState.postedNewsArticleIds || []), article.id].slice(-200);
-          const articleUrlFp = crypto.createHash("sha256").update(canonicalizeUrl(article.url)).digest("hex");
-          const nextUrlFps = [...(workingState.postedNewsUrlFingerprints || []), articleUrlFp].slice(-200);
+          // Success: track ALL fetched articles (not just the posted one) to prevent re-evaluation
+          const nextPostedIds = [...(workingState.postedNewsArticleIds || [])];
+          const nextUrlFps = [...(workingState.postedNewsUrlFingerprints || [])];
+          for (const a of articles) {
+            if (!nextPostedIds.includes(a.id)) nextPostedIds.push(a.id);
+            const fp = crypto.createHash("sha256").update(canonicalizeUrl(a.url)).digest("hex");
+            if (!nextUrlFps.includes(fp)) nextUrlFps.push(fp);
+          }
           workingState = {
             ...workingState,
             newsOpinionLastFetchMs: nowMs,

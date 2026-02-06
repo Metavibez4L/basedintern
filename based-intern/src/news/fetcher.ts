@@ -60,14 +60,22 @@ export interface NewsFetcher {
 // Multi-source news aggregator
 export class NewsAggregator {
   private fetchers: NewsFetcher[];
+  private xFetchers: XTimelineFetcher[] = [];
 
-  constructor(private cfg: AppConfig) {
+  constructor(
+    private cfg: AppConfig,
+    /** Per-username since_id map from state — only fetch tweets newer than these IDs */
+    sinceIds?: Record<string, string>
+  ) {
     this.fetchers = [];
     
     // Primary: X timelines (highest signal, real-time)
     if (cfg.X_API_KEY && cfg.X_API_SECRET && cfg.X_ACCESS_TOKEN && cfg.X_ACCESS_SECRET) {
       for (const username of X_WATCH_ACCOUNTS) {
-        this.fetchers.push(new XTimelineFetcher(cfg, username));
+        const sinceId = sinceIds?.[username] ?? undefined;
+        const fetcher = new XTimelineFetcher(cfg, username, sinceId);
+        this.xFetchers.push(fetcher);
+        this.fetchers.push(fetcher);
       }
     }
 
@@ -105,6 +113,19 @@ export class NewsAggregator {
     return unique
       .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
       .slice(0, limit);
+  }
+
+  /**
+   * After fetchLatest(), returns the updated since_id map.
+   * Callers should persist this in state so the next cycle only fetches newer tweets.
+   */
+  getUpdatedSinceIds(): Record<string, string> {
+    const ids: Record<string, string> = {};
+    for (const f of this.xFetchers) {
+      const highest = f.getHighestSeenId();
+      if (highest) ids[f.getUsername()] = highest;
+    }
+    return ids;
   }
 }
 
@@ -266,10 +287,23 @@ const X_WATCH_ACCOUNTS = ["base", "buildonbase", "openclaw"] as const;
 
 // X Timeline fetcher — pulls recent tweets from watched accounts
 // Uses existing X API credentials (no new env vars)
+// Supports since_id to avoid re-fetching already-seen tweets
 class XTimelineFetcher implements NewsFetcher {
   private cachedUserId: string | null = null;
+  private highestSeenTweetId: string | null = null;
 
-  constructor(private cfg: AppConfig, private username: string = "base") {}
+  constructor(
+    private cfg: AppConfig,
+    private username: string = "base",
+    /** If provided, only tweets with IDs greater than this are returned */
+    private sinceId?: string
+  ) {}
+
+  /** Returns the username this fetcher watches */
+  getUsername(): string { return this.username; }
+
+  /** After fetch(), returns the highest tweet ID seen (for persisting as next since_id) */
+  getHighestSeenId(): string | null { return this.highestSeenTweetId; }
 
   async fetch(): Promise<NewsArticle[]> {
     try {
@@ -278,7 +312,12 @@ class XTimelineFetcher implements NewsFetcher {
       if (!userId) return [];
 
       // Fetch recent tweets (up to 10, exclude replies and retweets)
-      const url = `https://api.twitter.com/2/users/${userId}/tweets?max_results=10&tweet.fields=created_at,text,entities&exclude=replies,retweets`;
+      let url = `https://api.twitter.com/2/users/${userId}/tweets?max_results=10&tweet.fields=created_at,text,entities&exclude=replies,retweets`;
+
+      // Append since_id to only get NEW tweets (avoids re-fetching same content)
+      if (this.sinceId) {
+        url += `&since_id=${this.sinceId}`;
+      }
 
       const authHeader = this.buildOAuth1Header("GET", url);
       const res = await fetchWithRetry(url, {
@@ -292,19 +331,46 @@ class XTimelineFetcher implements NewsFetcher {
       });
 
       if (!res.ok) {
-        logger.warn("news.x_timeline.http_error", { status: res.status });
+        logger.warn("news.x_timeline.http_error", { username: this.username, status: res.status });
         return [];
       }
 
       const data: any = await res.json();
-      const tweets = data?.data || [];
+      const tweets: any[] = data?.data || [];
+
+      // Track highest tweet ID for since_id pagination on next cycle
+      // Tweet IDs are numeric strings — pick the max (newest)
+      for (const t of tweets) {
+        if (t.id && (!this.highestSeenTweetId || BigInt(t.id) > BigInt(this.highestSeenTweetId))) {
+          this.highestSeenTweetId = t.id;
+        }
+      }
+      // If no new tweets returned, preserve the previous since_id as highest
+      if (!this.highestSeenTweetId && this.sinceId) {
+        this.highestSeenTweetId = this.sinceId;
+      }
+
+      if (tweets.length === 0) {
+        logger.info("news.x_timeline.no_new_tweets", {
+          username: this.username,
+          sinceId: this.sinceId ?? "none"
+        });
+        return [];
+      }
+
+      logger.info("news.x_timeline.fetched", {
+        username: this.username,
+        count: tweets.length,
+        sinceId: this.sinceId ?? "none",
+        newestId: this.highestSeenTweetId
+      });
 
       return tweets
         .filter((t: any) => t.text && !t.text.startsWith("RT "))
         .map((t: any) => {
           // Extract first URL from tweet entities if available
           const tweetUrl = t.entities?.urls?.[0]?.expanded_url
-            || `https://x.com/base/status/${t.id}`;
+            || `https://x.com/${this.username}/status/${t.id}`;
 
           return {
             id: `x_${this.username}_${t.id}`,
@@ -318,6 +384,7 @@ class XTimelineFetcher implements NewsFetcher {
         });
     } catch (err) {
       logger.warn("news.x_timeline.error", {
+        username: this.username,
         error: err instanceof Error ? err.message : String(err)
       });
       return [];
