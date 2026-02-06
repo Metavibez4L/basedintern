@@ -330,7 +330,7 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
 
 ### State Persistence with Schema Versioning (NEW)
 - [x] `src/agent/state.ts` - Migration infrastructure
-  - [x] STATE_SCHEMA_VERSION = 10
+  - [x] STATE_SCHEMA_VERSION = 12
   - [x] `migrateState()` function for safe evolution
   - [x] v1 → v2: Added lastSeenBlockNumber field
   - [x] v2 → v3: Added Base News Brain fields (caps + dedupe + idempotency)
@@ -604,7 +604,8 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 | Activity detection (watch.ts) | 32 | ✅ | tests/watch.test.ts |
 | State persistence & migrations | 30 | ✅ | tests/state.test.ts + tests/state-persistence.test.ts |
 | X Mentions (x_mentions.ts) | 37 | ✅ | tests/x_mentions.test.ts |
-| **Total (Vitest)** | **196** | **✅ ALL PASS** | **tests/** |
+| LP infrastructure + campaign | 20 | ✅ | tests/lp.test.ts |
+| **Total (Vitest)** | **217** | **✅ ALL PASS** | **tests/** |
 
 **Test Framework**: Vitest v1.6+ (dev dependency)
 
@@ -742,7 +743,7 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
    - Verify receipts
 
 3. **CI/CD pipeline** - Automated tests on every push
-  - Run Vitest unit tests (currently 196)
+  - Run Vitest unit tests (currently 217)
    - Type check
    - Lint
 
@@ -805,6 +806,27 @@ See [tests/README.md](../tests/README.md) for comprehensive test documentation.
 ---
 
 ## 📝 Changelog
+
+### 2026-02-06 (Hardening + OpenClaw Skills)
+- ✅ **Structured error logging** in Aerodrome silent catch blocks (`aerodrome.ts`)
+  - `readAerodromePool`, `readLPBalance`, `readLPTotalSupply`, `queryAerodromePool` now log failures with context
+- ✅ **Retry + timeout for CoinGecko price adapter** (`httpAdapter.ts`)
+  - `fetchWithTimeout` — AbortController-based 10s timeout
+  - `fetchWithRetry` — exponential backoff on 429/5xx (2 retries: 1s → 2s → 4s)
+- ✅ **Cookie sanitization in Moltbook client** (`moltbook/client.ts`)
+  - `sanitizeCookiePart()` strips control chars, semicolons, commas, backslashes
+  - Prevents malformed Cookie headers and potential injection
+- ✅ **BigInt overflow fix in `parseMinTokenDelta`** (`watch.ts`)
+  - Changed from unsafe `BigInt(10 ** decimals)` to pure BigInt arithmetic `10n ** BigInt(decimals)`
+  - Added input validation: clamps decimals to [0, 100] range
+- ✅ **Defensive guards in Moltbook engagement** (`moltbook_engagement.ts`)
+  - 8 functions hardened: `pickHook`, `pickCta`, `pickHashtags`, `formatViralPost`, `generateDiscussionStarter`, `generateCommunityPost`, `formatThreadPost`, `pickTopics`
+  - Guards against empty arrays, zero weights, undefined inputs, invalid numerics
+- ✅ **OpenClaw Skills installed**
+  - `repo-ops` — atomic shell commands (typecheck, test, build, commit, push, check)
+  - `repo-health` — single-command health check returning structured JSON
+  - `github`, `self-edit`, `self-evolve` — linked from global skills
+- ✅ All 217 tests passing, typecheck clean
 
 ### 2026-02-06 (Liquidity Provision + LP Campaign)
 - ✅ **On-chain LP infrastructure** (`src/chain/liquidity.ts`, `src/chain/gauge.ts`)

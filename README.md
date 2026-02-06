@@ -1,6 +1,6 @@
 # 🤖 Based Intern
 
-> **The first autonomous agent on Base with ERC-8004 on-chain identity. AI-powered engagement. Live threaded conversations on X + Moltbook. Remote ops. Triple-safety trading. 197 tests. Actually working.**
+> **The first autonomous agent on Base with ERC-8004 on-chain identity. AI-powered engagement. Live threaded conversations on X + Moltbook. Remote ops. Triple-safety trading. Autonomous LP. 217 tests. Actually working.**
 
 Based Intern is a LIVE production autonomous agent that combines capabilities no other Base agent has:
 - **On-chain identity** via ERC-8004 Identity Registry (first Base agent with portable, verifiable, wallet-bound identity)
@@ -8,7 +8,9 @@ Based Intern is a LIVE production autonomous agent that combines capabilities no
 - **Multi-platform omnipresence** via dual posting (X API + Moltbook) with independent circuit breakers and rate-limit handling
 - **Remote operations** via OpenClaw Gateway (attach to live Railway workers, trigger actions, inspect state in real-time)
 - **Autonomous trading** with triple-safety architecture (config validation + LLM fallback + execution guardrails, ready to enable)
+- **Autonomous LP** on Aerodrome (INTERN/WETH + INTERN/USDC pools, gauge staking, AERO rewards)
 - **Event-driven posting** that only speaks when there's something to say (no timer spam)
+- **Production-hardened** with retry logic, timeouts, input validation, and defensive coding across all modules
 
 This repo includes **LIVE Base mainnet (chainId 8453) deployments** with verified contracts and registered identities. Treat all mainnet addresses and trading configuration as production.
 
@@ -30,7 +32,7 @@ This repo includes **LIVE Base mainnet (chainId 8453) deployments** with verifie
   - **X Mentions**: Polls every 2 minutes, responds to ALL mentions with GPT-4o-mini contextual replies
   - **Moltbook Threaded Replies**: Fetches comments via `/agents/profile` + `/posts/{id}`, generates GPT-4o-mini replies, posts to `/posts/{postId}/comments` with `parent_id` for proper conversation threading, respects 20s cooldown
   - **Deduplication**: SHA256 fingerprinting prevents duplicate replies (LRU 100 tracked per platform)
-  - **Personality**: Technical, confident, slightly cocky but friendly - references ERC-8004 identity, 197 tests, Railway deployment
+  - **Personality**: Technical, confident, slightly cocky but friendly - references ERC-8004 identity, 217 tests, Railway deployment
 - **Event-Driven**: Only posts receipts when wallet activity detected (no timer spam)
 
 ### 🛠️ Remote Operations (OpenClaw)
@@ -41,6 +43,29 @@ This repo includes **LIVE Base mainnet (chainId 8453) deployments** with verifie
 - **OpenClaw Gateway Service** (separate Railway Web service)
   - Skills: `based-intern-ops`, `based-intern-railway-control`
   - Private networking: `http://basedintern.railway.internal:8080`
+
+### 🏊 Autonomous Liquidity Provision
+- **Aerodrome LP Management** (behind `LP_ENABLED` flag)
+  - INTERN/WETH pool: add/remove liquidity with native ETH
+  - INTERN/USDC pool: add/remove liquidity with ERC20 pairs
+  - Gauge staking for AERO rewards (auto-stake, auto-claim)
+  - Pool health monitoring (reserves, TVL, share %)
+  - Auto-seed when pool TVL < 1 ETH
+- **LP Social Campaign**: Status posts, guides, milestones, comparisons, incentive posts
+- **Guardrails**: `LP_MAX_ETH_PER_ADD`, `LP_MAX_TOKEN_FRACTION_BPS`, `LP_SLIPPAGE_BPS`
+
+### 🛡️ Production Hardening
+- **Retry + Timeout**: CoinGecko adapter with exponential backoff (429/5xx) and AbortController timeout
+- **Error Logging**: Structured warnings on all Aerodrome catch blocks (pool reads, LP balance, factory queries)
+- **Input Sanitization**: Cookie values sanitized to prevent header injection in Moltbook client
+- **Overflow Protection**: Pure BigInt arithmetic in `parseMinTokenDelta` for any ERC20 decimals value
+- **Defensive Guards**: 8 Moltbook engagement functions hardened against empty arrays and invalid inputs
+
+### 🔧 OpenClaw Skills
+- **repo-ops**: Atomic shell commands — `typecheck`, `test`, `build`, `commit`, `push`, `check`
+- **repo-health**: Single-command health check returning structured JSON (tsc + tests + git status)
+- **github**: GitHub CLI integration for issues, PRs, CI runs
+- **self-edit / self-evolve**: Self-modification with backup/restore
 
 ### 💱 Autonomous Trading (Full Power, Off by Default)
 - **Triple-Safety Architecture**:
@@ -57,7 +82,7 @@ This repo includes **LIVE Base mainnet (chainId 8453) deployments** with verifie
 - **Base News Brain**: Multi-source aggregation (DeFiLlama, RSS, GitHub, Base blogs) with scoring/ranking
 - **AI Social Engagement**: GPT-4o-mini generates contextual replies to all mentions and comments
   - Personality: Technical, confident, slightly cocky but friendly
-  - Context-aware: References on-chain identity, 197 tests, ERC-8004, Railway deployment
+  - Context-aware: References on-chain identity, 217 tests, ERC-8004, Railway deployment
   - Witty & helpful: Stays in character while providing value
 
 ## 🛡️ Safety Model
