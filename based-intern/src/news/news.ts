@@ -107,8 +107,8 @@ async function getLatestNewsFromProviders(args: { cfg: AppConfig; sources: NewsS
     }
   }
 
-  // RSS/Atom feeds
-  if (args.sources.includes("rss")) {
+  // RSS/Atom feeds (legacy — RSS removed from default sources, but still supported if configured)
+  if (args.sources.includes("rss") && args.cfg.NEWS_FEEDS) {
     const feeds = safeUrlList(args.cfg.NEWS_FEEDS);
     for (const url of feeds) {
       try {

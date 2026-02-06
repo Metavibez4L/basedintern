@@ -156,15 +156,6 @@ const envSchemaBase = z.object({
   NEWS_INTERVAL_MINUTES: z.coerce.number().int().min(1).optional(),
 
   NEWS_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.5),
-  // Base ecosystem RSS feeds (comma-separated)
-  // NOTE: Mirror Atom feeds (mirror.xyz, base.mirror.xyz) return HTTP 429 on Railway.
-  // Use Paragraph RSS endpoints instead — both blogs migrated to Paragraph.
-  NEWS_FEEDS: z.string().default(
-    [
-      "https://paragraph.com/api/blogs/rss/@base",
-      "https://paragraph.com/api/blogs/rss/@base-engineering-blog",
-    ].join(",")
-  ),
   // GitHub release Atom feeds (must be full .atom URLs, not repo names)
   // Base infra + OP Stack releases — high signal, no rate limiting
   NEWS_GITHUB_FEEDS: z.string().default(
@@ -179,8 +170,11 @@ const envSchemaBase = z.object({
   ),
   NEWS_REQUIRE_LINK: BoolFromString.default("true"),
   NEWS_REQUIRE_SOURCE_WHITELIST: BoolFromString.default("true"),
-  // Default updated: removed base_blog/cdp_launches (403 errors), using RSS instead
-  NEWS_SOURCES: z.string().default("defillama,github,rss"),
+  // Primary news source is now @base X timeline (fetcher.ts)
+  // RSS removed — was flaky. Kept: defillama, github, x_timeline (auto-enabled)
+  NEWS_SOURCES: z.string().default("defillama,github"),
+  // Legacy fields kept as optional for backward compat (ignored by aggregator)
+  NEWS_FEEDS: z.string().optional(),
   NEWS_DAILY_HOUR_UTC: z.coerce.number().int().min(0).max(23).default(15),
   NEWS_MAX_ITEMS_CONTEXT: z.coerce.number().int().min(1).max(50).default(8),
 
@@ -188,18 +182,9 @@ const envSchemaBase = z.object({
   NEWS_FETCH_INTERVAL_MINUTES: z.coerce.number().int().positive().default(60),
   NEWS_MIN_RELEVANCE_SCORE: z.coerce.number().min(0).max(1).default(0.5),
   NEWS_CRYPTO_PANIC_KEY: z.string().optional(),
-  // RSS feeds for the opinion pipeline (fetcher.ts aggregator)
-  // Uses Paragraph RSS (no rate limiting) + GitHub release Atom feeds
-  NEWS_RSS_FEEDS: z.string().default(
-    [
-      "https://paragraph.com/api/blogs/rss/@base",
-      "https://paragraph.com/api/blogs/rss/@base-engineering-blog",
-      "https://github.com/base-org/node/releases.atom",
-      "https://github.com/base-org/contracts/releases.atom",
-      "https://github.com/ethereum-optimism/optimism/releases.atom",
-      "https://github.com/ethereum-optimism/op-geth/releases.atom",
-    ].join(",")
-  ).transform((s) => s?.split(",").map((u) => u.trim()).filter(Boolean) || []),
+  // RSS removed — @base X timeline is now the primary news source
+  // Legacy field kept as optional for backward compat
+  NEWS_RSS_FEEDS: z.string().optional().transform((s) => s?.split(",").map((u) => u.trim()).filter(Boolean) || []),
 
   // HTTP fetch tuning (Railway-friendly)
   // NOTE: kept optional in type so tests/mocks don't need updating.
@@ -479,10 +464,6 @@ function validateGuardrails(cfg: AppConfig): string[] {
       errors.push("NEWS_MIN_INTERVAL_MINUTES must be >= 1 when NEWS_ENABLED=true");
     }
 
-    const sources = parseCsv(cfg.NEWS_SOURCES);
-    if (sources.includes("rss") && parseCsv(cfg.NEWS_FEEDS).length === 0) {
-      errors.push("NEWS_FEEDS is required when NEWS_SOURCES includes rss");
-    }
     // NEWS_GITHUB_FEEDS has safe default (proper .atom URLs), no strict validation needed
 
     if (cfg.NEWS_MODE === "daily") {
