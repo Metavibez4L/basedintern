@@ -1,9 +1,11 @@
+import crypto from "crypto";
 import { logger } from "../logger.js";
 import type { AppConfig } from "../config.js";
 import type { NewsArticle } from "./fetcher.js";
 import type { Opinion } from "./opinion.js";
 import type { SocialPoster } from "../social/poster.js";
 import { formatViralPost } from "../social/moltbook_engagement.js";
+import { canonicalizeUrl } from "./fingerprint.js";
 
 export interface NewsPost {
   article: NewsArticle;
@@ -14,16 +16,35 @@ export interface NewsPost {
 
 export class NewsOpinionPoster {
   private lastPostedIds = new Set<string>();
+  private lastPostedUrlFps = new Set<string>();
 
   constructor(
     private cfg: AppConfig,
-    private socialPoster: SocialPoster
-  ) {}
+    private socialPoster: SocialPoster,
+    /** Pre-populated from state — all article IDs already posted by ANY pipeline */
+    alreadyPostedIds?: Set<string>,
+    /** Pre-populated from state — all URL fingerprints already posted by ANY pipeline */
+    alreadyPostedUrlFps?: Set<string>
+  ) {
+    if (alreadyPostedIds) {
+      for (const id of alreadyPostedIds) this.lastPostedIds.add(id);
+    }
+    if (alreadyPostedUrlFps) {
+      for (const fp of alreadyPostedUrlFps) this.lastPostedUrlFps.add(fp);
+    }
+  }
 
   async post(article: NewsArticle, opinion: Opinion): Promise<NewsPost | null> {
-    // Skip if already posted
+    // Skip if already posted (by ID)
     if (this.lastPostedIds.has(article.id)) {
-      logger.info("news.opinion.skip.duplicate", { articleId: article.id });
+      logger.info("news.opinion.skip.duplicate_id", { articleId: article.id });
+      return null;
+    }
+
+    // Skip if already posted (by URL fingerprint — catches cross-pipeline dupes)
+    const urlFp = crypto.createHash("sha256").update(canonicalizeUrl(article.url)).digest("hex");
+    if (this.lastPostedUrlFps.has(urlFp)) {
+      logger.info("news.opinion.skip.duplicate_url", { articleId: article.id, url: article.url });
       return null;
     }
 
@@ -52,6 +73,7 @@ export class NewsOpinionPoster {
       }
 
       this.lastPostedIds.add(article.id);
+      this.lastPostedUrlFps.add(urlFp);
 
       return {
         article,

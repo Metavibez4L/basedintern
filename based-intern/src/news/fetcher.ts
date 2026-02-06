@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AppConfig } from "../config.js";
@@ -159,9 +160,25 @@ class RSSFetcher implements NewsFetcher {
           timeoutMs: this.cfg.NEWS_HTTP_TIMEOUT_MS,
           retries: this.cfg.NEWS_HTTP_RETRIES
         });
-        if (!res.ok) continue;
+        if (!res.ok) {
+          logger.warn("news.rss.http_error", { feedUrl, status: res.status });
+          continue;
+        }
         
-        const text = await res.text();
+        // Body timeout: prevent hanging on slow/chunked responses
+        const bodyTimeoutMs = this.cfg.NEWS_HTTP_TIMEOUT_MS ?? 15000;
+        const text = await Promise.race([
+          res.text(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`RSS body timeout after ${bodyTimeoutMs}ms`)), bodyTimeoutMs)
+          )
+        ]);
+
+        // Size guard: skip feeds larger than 5MB (prevents OOM)
+        if (text.length > 5_000_000) {
+          logger.warn("news.rss.too_large", { feedUrl, bytes: text.length });
+          continue;
+        }
         const isAtom = text.includes("<feed") || text.includes("<entry>");
         
         if (isAtom) {
@@ -177,8 +194,10 @@ class RSSFetcher implements NewsFetcher {
             const entryId = this.extractTag(entry, "id");
             
             if (title && link) {
+              // Stable ID: prefer entry ID, fallback to SHA256 of URL (collision-resistant)
+              const stableId = entryId || `atom_${crypto.createHash("sha256").update(link).digest("hex").slice(0, 24)}`;
               articles.push({
-                id: entryId || `atom_${Buffer.from(link).toString("base64").slice(0, 16)}`,
+                id: stableId,
                 title,
                 url: link,
                 publishedAt: updated || new Date().toISOString(),
@@ -198,8 +217,10 @@ class RSSFetcher implements NewsFetcher {
             const pubDate = this.extractTag(item, "pubDate");
             
             if (title && link) {
+              // Stable ID: SHA256 of URL (collision-resistant, replaces truncated base64)
+              const stableId = `rss_${crypto.createHash("sha256").update(link).digest("hex").slice(0, 24)}`;
               articles.push({
-                id: `rss_${Buffer.from(link).toString("base64").slice(0, 12)}`,
+                id: stableId,
                 title,
                 url: link,
                 publishedAt: pubDate || new Date().toISOString(),

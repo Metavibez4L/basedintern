@@ -429,6 +429,17 @@ async function tick(): Promise<void> {
   if (cfg.NEWS_ENABLED && cfg.OPENAI_API_KEY) {
     const nowMs = Date.now();
 
+    // Daily counter reset at UTC day boundary
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    if ((workingState.newsOpinionLastDayUtc ?? "") !== todayUtc) {
+      workingState = {
+        ...workingState,
+        newsOpinionPostsToday: 0,
+        newsOpinionLastDayUtc: todayUtc
+      };
+      logger.info("news.opinion.daily_reset", { todayUtc });
+    }
+
     // Circuit breaker: temporarily disable on repeated failures
     const disabledUntil = workingState.newsOpinionCircuitBreakerDisabledUntilMs ?? null;
     if (disabledUntil && nowMs < disabledUntil) {
@@ -498,7 +509,7 @@ async function tick(): Promise<void> {
           }
 
           const article = articles.find((a) => a.id === topOpinion.articleId) ?? articles[0];
-          const newsPoster = new NewsOpinionPoster(cfg, poster);
+          const newsPoster = new NewsOpinionPoster(cfg, poster, postedIds, postedUrlFps);
           const posted = await newsPoster.post(article, topOpinion);
 
           if (!posted) {
