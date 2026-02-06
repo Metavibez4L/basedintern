@@ -170,13 +170,27 @@ export function parseMinEthDelta(ethStr: string): bigint {
 
 /**
  * Helper: parse MIN_TOKEN_DELTA from config (raw units, respecting decimals)
+ * 
+ * SAFETY: Uses BigInt exponentiation (10n ** BigInt(decimals)) to avoid
+ * JavaScript number overflow that would occur with BigInt(10 ** decimals).
+ * For decimals >= 309, 10 ** decimals becomes Infinity, causing BigInt() to throw.
  */
 export function parseMinTokenDelta(tokenStr: string, decimals: number): bigint {
+  // Guard against unreasonable decimals to prevent excessive computation
+  if (decimals < 0 || decimals > 100) {
+    logger.warn("decimals out of safe range, clamping to 18", { decimals });
+    decimals = 18;
+  }
+
   try {
     const amount = BigInt(tokenStr);
-    return amount * BigInt(10 ** decimals);
+    // Use pure BigInt arithmetic to avoid number overflow
+    const multiplier = 10n ** BigInt(decimals);
+    return amount * multiplier;
   } catch {
     logger.warn("failed to parse MIN_TOKEN_DELTA, using default 1000", { tokenStr, decimals });
-    return BigInt(1000) * BigInt(10 ** decimals);
+    // Use pure BigInt arithmetic for the fallback as well
+    const multiplier = 10n ** BigInt(decimals);
+    return BigInt(1000) * multiplier;
   }
 }
