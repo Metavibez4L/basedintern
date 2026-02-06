@@ -204,13 +204,14 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
   - [x] Respects Moltbook rate limits (handles 429 responses gracefully)
   - [x] Configurable check interval (MOLTBOOK_REPLY_INTERVAL_MINUTES, default 30)
 
-### 📰 Live News Opinion System (PRODUCTION — LIVE on Railway)
+### 📰 Live News Opinion System (PRODUCTION — LIVE on Railway, v11 hardened)
 - [x] **Multi-source news aggregation** (`src/news/fetcher.ts`)
   - [x] CryptoPanic API fetcher (hot crypto news, optional with API key)
-  - [x] RSS/Atom fetcher (Base Mirror blog via `https://mirror.xyz/base.eth/feed/atom`)
+  - [x] RSS/Atom fetcher with **dual-format parser** (handles both RSS `<item>` and Atom `<entry>` feeds)
+  - [x] Default feeds: Base Mirror Atom, Paragraph Base blog, GitHub release Atom feeds
   - [x] Base ecosystem fetcher (GitHub releases API for base-org repos)
   - [x] Automatic deduplication by URL
-  - [x] Date-based sorting (newest first)
+  - [x] Date-based sorting (newest first), fetches top 10 candidates
 - [x] **GPT-4o-mini opinion generation** (`src/news/opinion.ts`)
   - [x] LangChain integration with structured JSON output
   - [x] Generates: tone, summary, commentary, confidence (0-1), relevanceScore (0-1)
@@ -220,13 +221,19 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
   - [x] Emoji-coded sentiment (🚀 bullish, ⚠️ bearish, 📊 neutral, 🤔 mixed)
   - [x] Formatted posts: emoji + commentary + URL + confidence
   - [x] Relevance filtering (≥ NEWS_MIN_RELEVANCE_SCORE, default 0.5)
-  - [x] Duplicate prevention (LRU list of 50 posted article IDs)
-- [x] **State management v5** (`src/agent/state.ts`)
+  - [x] **Restart-proof dual-layer deduplication** (v11):
+    - [x] Layer 1: article IDs from provider (LRU 200, up from 50)
+    - [x] Layer 2: canonical URL fingerprints — sha256 of canonicalized URL (LRU 200)
+    - [x] Catches same-article-different-ID across providers and URL variants
+    - [x] Survives Railway state resets better than article IDs alone
+- [x] **State management v11** (`src/agent/state.ts`)
   - [x] newsOpinionLastFetchMs (60min interval enforcement)
   - [x] newsOpinionPostsToday (daily cap, resets at UTC midnight)
   - [x] newsOpinionLastDayUtc (automatic daily reset logic)
-  - [x] postedNewsArticleIds (LRU list for duplicate detection)
+  - [x] postedNewsArticleIds (LRU 200 for provider-ID duplicate detection)
+  - [x] **postedNewsUrlFingerprints** (LRU 200 — canonical URL sha256 for restart-proof dedupe)
   - [x] Migration v4→v5 (adds opinion fields on upgrade)
+  - [x] Migration v10→v11 (adds postedNewsUrlFingerprints)
 - [x] **Integration into main tick loop** (`src/index.ts`)
   - [x] Independent cycle after existing Base News Brain
   - [x] Runs every NEWS_FETCH_INTERVAL_MINUTES (default 60)
@@ -236,8 +243,8 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
   - [x] NEWS_FETCH_INTERVAL_MINUTES (default 60)
   - [x] NEWS_MIN_RELEVANCE_SCORE (default 0.5)
   - [x] NEWS_CRYPTO_PANIC_KEY (optional)
-  - [x] NEWS_RSS_FEEDS (default includes Base Mirror RSS)
-  - [x] NEWS_GITHUB_FEEDS (default base-org/node,base-org/contracts)
+  - [x] NEWS_RSS_FEEDS (default: Base Mirror Atom, GitHub release Atom feeds)
+  - [x] NEWS_GITHUB_FEEDS (default: proper `.atom` URLs — no more `news.feed invalid url` warnings)
   - [x] Safe defaults for all fields (no strict validation errors)
 - [x] **No 403 errors**: Removed HTML scraping sources (base_blog, cdp_launches)
   - [x] Replaced with Mirror RSS (no bot protection)
@@ -332,6 +339,7 @@ NOTE: This is a **LIVE Base mainnet (chainId 8453)** deployment.
   - [x] v7 → v8: Added lastPostedMoltbookMiscFingerprint for kind-aware social posting
   - [x] v8 → v9: Hardened X mentions replies (circuit breaker + throttling state)
   - [x] v9 → v10: Moltbook viral engagement + proactive discussion posting
+  - [x] v10 → v11: Restart-proof news opinion dedupe (canonical URL fingerprints, LRU 200)
   - [x] Backward compatible: old state files auto-upgraded
   - [x] Logs migration events for debugging
   - [x] 8+ unit tests covering migration and field preservation
@@ -549,8 +557,8 @@ npm run build                         # ✅ Compiles all TS sources cleanly
 | `NEWS_MODE` | ✅ | `event` | event/daily |
 | `NEWS_SOURCES` | ✅ | `defillama,github,rss` | CSV list; legacy HTML sources also supported |
 | `NEWS_MIN_SCORE` | ✅ | `0.5` | 0..1 threshold for ranked candidates |
-| `NEWS_FEEDS` | ✅ | (empty) | Required when `NEWS_SOURCES` includes `rss` |
-| `NEWS_GITHUB_FEEDS` | ✅ | (empty) | Required when `NEWS_SOURCES` includes `github` |
+| `NEWS_FEEDS` | ✅ | Base Mirror Atom + Paragraph | Required when `NEWS_SOURCES` includes `rss` |
+| `NEWS_GITHUB_FEEDS` | ✅ | base-org `.atom` URLs | Required when `NEWS_SOURCES` includes `github` |
 | `NEWS_MAX_POSTS_PER_DAY` | ✅ | `2` | Daily cap |
 | `NEWS_MIN_INTERVAL_MINUTES` | ✅ | `120` | Minimum minutes between news posts |
 | `NEWS_REQUIRE_LINK` | ✅ | `true` | Hard safety: skip if post missing URL |

@@ -141,9 +141,22 @@ const envSchemaBase = z.object({
   NEWS_INTERVAL_MINUTES: z.coerce.number().int().min(1).optional(),
 
   NEWS_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.5),
-  // Base official blog via Mirror RSS (no bot protection)
-  NEWS_FEEDS: z.string().default("https://mirror.xyz/base.eth/feed/atom"),
-  NEWS_GITHUB_FEEDS: z.string().default("base-org/node,base-org/contracts"),
+  // Base ecosystem RSS/Atom feeds (comma-separated)
+  NEWS_FEEDS: z.string().default(
+    [
+      "https://mirror.xyz/base.eth/feed/atom",
+      "https://base.mirror.xyz/feed/atom",
+      "https://paragraph.xyz/api/blogs/base/feed",
+    ].join(",")
+  ),
+  // GitHub release Atom feeds (must be full .atom URLs, not repo names)
+  NEWS_GITHUB_FEEDS: z.string().default(
+    [
+      "https://github.com/base-org/node/releases.atom",
+      "https://github.com/base-org/contracts/releases.atom",
+      "https://github.com/base-org/withdrawer/releases.atom",
+    ].join(",")
+  ),
   NEWS_REQUIRE_LINK: BoolFromString.default("true"),
   NEWS_REQUIRE_SOURCE_WHITELIST: BoolFromString.default("true"),
   // Default updated: removed base_blog/cdp_launches (403 errors), using RSS instead
@@ -155,7 +168,13 @@ const envSchemaBase = z.object({
   NEWS_FETCH_INTERVAL_MINUTES: z.coerce.number().int().positive().default(60),
   NEWS_MIN_RELEVANCE_SCORE: z.coerce.number().min(0).max(1).default(0.5),
   NEWS_CRYPTO_PANIC_KEY: z.string().optional(),
-  NEWS_RSS_FEEDS: z.string().optional().transform((s) => s?.split(",").map((u) => u.trim()).filter(Boolean) || []),
+  NEWS_RSS_FEEDS: z.string().default(
+    [
+      "https://mirror.xyz/base.eth/feed/atom",
+      "https://github.com/base-org/node/releases.atom",
+      "https://github.com/base-org/contracts/releases.atom",
+    ].join(",")
+  ).transform((s) => s?.split(",").map((u) => u.trim()).filter(Boolean) || []),
 
   // HTTP fetch tuning (Railway-friendly)
   // NOTE: kept optional in type so tests/mocks don't need updating.
@@ -425,7 +444,7 @@ function validateGuardrails(cfg: AppConfig): string[] {
     if (sources.includes("rss") && parseCsv(cfg.NEWS_FEEDS).length === 0) {
       errors.push("NEWS_FEEDS is required when NEWS_SOURCES includes rss");
     }
-    // NEWS_GITHUB_FEEDS has safe default (base-org/node,base-org/contracts), no strict validation needed
+    // NEWS_GITHUB_FEEDS has safe default (proper .atom URLs), no strict validation needed
 
     if (cfg.NEWS_MODE === "daily") {
       // Zod already constrains this, but keep a clear guardrail error for operators.

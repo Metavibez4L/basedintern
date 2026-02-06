@@ -162,25 +162,51 @@ class RSSFetcher implements NewsFetcher {
         if (!res.ok) continue;
         
         const text = await res.text();
+        const isAtom = text.includes("<feed") || text.includes("<entry>");
         
-        // Basic RSS/Atom parsing (extract items)
-        const itemRegex = /<item>[\s\S]*?<\/item>/g;
-        const items = text.match(itemRegex) || [];
-        
-        for (const item of items.slice(0, 5)) {
-          const title = this.extractTag(item, "title");
-          const link = this.extractTag(item, "link");
-          const pubDate = this.extractTag(item, "pubDate");
+        if (isAtom) {
+          // Atom feed parsing (<entry> elements)
+          const entryRegex = /<entry>[\s\S]*?<\/entry>/g;
+          const entries = text.match(entryRegex) || [];
           
-          if (title && link) {
-            articles.push({
-              id: `rss_${Buffer.from(link).toString("base64").slice(0, 12)}`,
-              title,
-              url: link,
-              publishedAt: pubDate || new Date().toISOString(),
-              source: new URL(feedUrl).hostname,
-              category: "general" as const,
-            });
+          for (const entry of entries.slice(0, 5)) {
+            const title = this.extractTag(entry, "title");
+            // Atom uses <link href="..."/> (self-closing) or <link>text</link>
+            const link = this.extractAtomLink(entry);
+            const updated = this.extractTag(entry, "updated") || this.extractTag(entry, "published");
+            const entryId = this.extractTag(entry, "id");
+            
+            if (title && link) {
+              articles.push({
+                id: entryId || `atom_${Buffer.from(link).toString("base64").slice(0, 16)}`,
+                title,
+                url: link,
+                publishedAt: updated || new Date().toISOString(),
+                source: new URL(feedUrl).hostname,
+                category: feedUrl.includes("base") ? "base" as const : "general" as const,
+              });
+            }
+          }
+        } else {
+          // RSS feed parsing (<item> elements)
+          const itemRegex = /<item>[\s\S]*?<\/item>/g;
+          const items = text.match(itemRegex) || [];
+          
+          for (const item of items.slice(0, 5)) {
+            const title = this.extractTag(item, "title");
+            const link = this.extractTag(item, "link");
+            const pubDate = this.extractTag(item, "pubDate");
+            
+            if (title && link) {
+              articles.push({
+                id: `rss_${Buffer.from(link).toString("base64").slice(0, 12)}`,
+                title,
+                url: link,
+                publishedAt: pubDate || new Date().toISOString(),
+                source: new URL(feedUrl).hostname,
+                category: "general" as const,
+              });
+            }
           }
         }
       } catch (err) {
@@ -197,6 +223,17 @@ class RSSFetcher implements NewsFetcher {
   private extractTag(xml: string, tag: string): string {
     const match = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`));
     return match ? match[1].replace(/<!\[CDATA\[|\]\]>/g, "").trim() : "";
+  }
+
+  /** Extract href from Atom <link> element: <link href="..." rel="alternate"/> */
+  private extractAtomLink(xml: string): string {
+    // Prefer rel="alternate" link, fall back to any <link href="...">
+    const altMatch = xml.match(/<link[^>]+rel=["']alternate["'][^>]+href=["']([^"']+)["']/);
+    if (altMatch) return altMatch[1];
+    const hrefMatch = xml.match(/<link[^>]+href=["']([^"']+)["']/);
+    if (hrefMatch) return hrefMatch[1];
+    // Fall back to tag content
+    return this.extractTag(xml, "link");
   }
 }
 

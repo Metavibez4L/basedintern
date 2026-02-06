@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 10;
+const STATE_SCHEMA_VERSION = 11;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
@@ -17,6 +17,7 @@ const STATE_SCHEMA_VERSION = 10;
  * v8: Added lastPostedMoltbookMiscFingerprint for kind-aware social posting (2026-02-05)
  * v9: Harden X mentions replies (circuit breaker + throttling state) (2026-02-05)
  * v10: Moltbook viral engagement + proactive discussion posting (2026-02-05)
+ * v11: Restart-proof news opinion dedupe (canonical URL fingerprints, LRU 200) (2026-02-05)
  */
 
 export type AgentState = {
@@ -81,6 +82,10 @@ export type AgentState = {
   newsOpinionPostsToday?: number;
   newsOpinionLastDayUtc?: string | null; // YYYY-MM-DD
   postedNewsArticleIds?: string[]; // LRU list to prevent duplicates
+  // Restart-proof dedupe: canonical URL fingerprints (sha256 of canonicalized URL).
+  // Survives state resets better than article IDs because same article from different
+  // providers will match by URL. LRU 200 (larger than postedNewsArticleIds).
+  postedNewsUrlFingerprints?: string[];
 
   // =========================
   // OpenClaw Announcement (v6)
@@ -137,6 +142,7 @@ export const DEFAULT_STATE: AgentState = {
   newsOpinionPostsToday: 0,
   newsOpinionLastDayUtc: null,
   postedNewsArticleIds: [],
+  postedNewsUrlFingerprints: [],
 
   openclawAnnouncementPosted: false,
   openclawAnnouncementPostedAt: undefined,
@@ -234,6 +240,12 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     if (!("postedDiscussionTopics" in raw) || !Array.isArray(raw.postedDiscussionTopics)) raw.postedDiscussionTopics = [];
   }
 
+  // v10 → v11: Restart-proof news opinion dedupe (canonical URL fingerprints)
+  if (version === undefined || version < 11) {
+    logger.info("state migration", { from: version || 10, to: STATE_SCHEMA_VERSION });
+    if (!("postedNewsUrlFingerprints" in raw) || !Array.isArray(raw.postedNewsUrlFingerprints)) raw.postedNewsUrlFingerprints = [];
+  }
+
   return raw as AgentState;
 }
 
@@ -293,6 +305,7 @@ export async function loadState(): Promise<AgentState> {
       newsOpinionPostsToday: migrated.newsOpinionPostsToday ?? 0,
       newsOpinionLastDayUtc: migrated.newsOpinionLastDayUtc ?? null,
       postedNewsArticleIds: Array.isArray(migrated.postedNewsArticleIds) ? migrated.postedNewsArticleIds : [],
+      postedNewsUrlFingerprints: Array.isArray(migrated.postedNewsUrlFingerprints) ? migrated.postedNewsUrlFingerprints : [],
 
       openclawAnnouncementPosted: migrated.openclawAnnouncementPosted ?? false,
       openclawAnnouncementPostedAt: migrated.openclawAnnouncementPostedAt,

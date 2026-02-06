@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { type Address } from "viem";
@@ -19,9 +20,10 @@ import { replyToMoltbookComments } from "./social/moltbook_comments.js";
 import { postMoltbookDiscussion } from "./social/moltbook_discussions.js";
 import { postOpenClawAnnouncementOnce } from "./social/openclaw_announcement.js";
 import { buildNewsPlan } from "./news/news.js";
+import { canonicalizeUrl } from "./news/fingerprint.js";
 import { postNewsTweet } from "./social/news_poster.js";
 import { startControlServer } from "./control/server.js";
-import { NewsAggregator } from "./news/fetcher.js";
+import { NewsAggregator, type NewsArticle } from "./news/fetcher.js";
 import { OpinionGenerator } from "./news/opinion.js";
 import { NewsOpinionPoster } from "./news/opinionPoster.js";
 
@@ -419,11 +421,22 @@ async function tick(): Promise<void> {
           });
 
           const newsAggregator = new NewsAggregator(cfg);
-          const fetched = await newsAggregator.fetchLatest(5);
+          const fetched = await newsAggregator.fetchLatest(10);
 
-          // Dedupe before any LLM usage
+          // --- Dual-layer dedupe (restart-proof) ---
+          // Layer 1: article IDs from state (provider-specific, can be unstable)
           const postedIds = new Set(workingState.postedNewsArticleIds || []);
-          const articles = fetched.filter((a) => !postedIds.has(a.id));
+          // Layer 2: canonical URL fingerprints (survives restarts, provider changes)
+          const postedUrlFps = new Set(workingState.postedNewsUrlFingerprints || []);
+
+          const articles = fetched.filter((a) => {
+            // Check by article ID
+            if (postedIds.has(a.id)) return false;
+            // Check by canonical URL fingerprint
+            const urlFp = crypto.createHash("sha256").update(canonicalizeUrl(a.url)).digest("hex");
+            if (postedUrlFps.has(urlFp)) return false;
+            return true;
+          });
 
           if (articles.length === 0) {
             logger.info("news.opinion.skip.all_seen_or_none", { fetched: fetched.length });
@@ -460,14 +473,17 @@ async function tick(): Promise<void> {
           }
 
           // Success: update state atomically (single save)
-          const nextPostedIds = [...(workingState.postedNewsArticleIds || []), article.id].slice(-50);
+          const nextPostedIds = [...(workingState.postedNewsArticleIds || []), article.id].slice(-200);
+          const articleUrlFp = crypto.createHash("sha256").update(canonicalizeUrl(article.url)).digest("hex");
+          const nextUrlFps = [...(workingState.postedNewsUrlFingerprints || []), articleUrlFp].slice(-200);
           workingState = {
             ...workingState,
             newsOpinionLastFetchMs: nowMs,
             newsOpinionFailureCount: 0,
             newsOpinionCircuitBreakerDisabledUntilMs: null,
             newsOpinionPostsToday: (workingState.newsOpinionPostsToday || 0) + 1,
-            postedNewsArticleIds: nextPostedIds
+            postedNewsArticleIds: nextPostedIds,
+            postedNewsUrlFingerprints: nextUrlFps
           };
           await saveState(workingState);
 
