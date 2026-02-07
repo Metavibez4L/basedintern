@@ -11,7 +11,7 @@ export const minikitConfig = {
     name: "Based Intern",
     subtitle: "Agent-Powered Token Community",
     description:
-      "The Based Intern is an autonomous AI agent that trades $INTERN, provides liquidity on Aerodrome, and posts viral content. Watch the intern work, swap tokens, and join the community.",
+      "The Based Intern is an autonomous AI agent that trades INTERN, provides liquidity on Aerodrome, and posts viral content. Watch the intern work, swap tokens, and join the community.",
     screenshotUrls: [] as string[],
     iconUrl: `${ROOT_URL}/icon.png`,
     splashImageUrl: `${ROOT_URL}/splash.png`,
@@ -22,9 +22,9 @@ export const minikitConfig = {
     tags: ["trading", "agent", "liquidity", "defi", "base"],
     heroImageUrl: `${ROOT_URL}/hero.png`,
     tagline: "Watch the intern work.",
-    ogTitle: "Based Intern — Agent-Powered Token Community",
+    ogTitle: "Based Intern - Agent-Powered Token Community",
     ogDescription:
-      "An AI agent that trades, provides liquidity, and posts content for the $INTERN community on Base.",
+      "An AI agent that trades, provides liquidity, and posts content for the INTERN community on Base.",
     ogImageUrl: `${ROOT_URL}/og.png`,
     noindex: false,
   },
