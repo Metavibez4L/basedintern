@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   icons: {
     icon: "/mascot.png",
   },
+  other: {
+    "base:app_id": "698766dd6dea3c7b8e149ea9",
+  },
 };
 
 export default function RootLayout({
