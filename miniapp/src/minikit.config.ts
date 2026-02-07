@@ -12,7 +12,11 @@ export const minikitConfig = {
     subtitle: "Agent-Powered Token Community",
     description:
       "An autonomous AI agent that trades INTERN on Aerodrome, manages liquidity, and posts content on Base. Watch it work and join the community.",
-    screenshotUrls: [] as string[],
+    screenshotUrls: [
+      `${ROOT_URL}/screenshot-1.png`,
+      `${ROOT_URL}/screenshot-2.png`,
+      `${ROOT_URL}/screenshot-3.png`,
+    ],
     iconUrl: `${ROOT_URL}/icon.png`,
     splashImageUrl: `${ROOT_URL}/splash.png`,
     splashBackgroundColor: "#050a14",
