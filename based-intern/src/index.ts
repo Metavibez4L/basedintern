@@ -20,6 +20,7 @@ import { replyToMoltbookComments } from "./social/moltbook_comments.js";
 import { postMoltbookDiscussion } from "./social/moltbook_discussions.js";
 import { lpTick, type LPTickResult } from "./agent/lpManager.js";
 import { postOpenClawAnnouncementOnce } from "./social/openclaw_announcement.js";
+import { maybePostPoolLaunch, maybeTriggerLPCampaign } from "./social/lp_campaign_trigger.js";
 import { buildNewsPlan } from "./news/news.js";
 import { canonicalizeUrl } from "./news/fingerprint.js";
 import { postNewsTweet } from "./social/news_poster.js";
@@ -105,43 +106,6 @@ async function tick(): Promise<void> {
         });
         // Continue with normal loop even if reply system fails
       }
-    }
-  }
-
-  // ============================================================
-  // MOLTBOOK PROACTIVE DISCUSSION POSTING (Viral Engagement)
-  // ============================================================
-  // Posts standalone discussion starters and community callouts to Moltbook
-  const moltbookEnabledForDiscussions =
-    cfg.MOLTBOOK_ENABLED &&
-    (cfg.SOCIAL_MODE === "moltbook" || (cfg.SOCIAL_MODE === "multi" && cfg.SOCIAL_MULTI_TARGETS.split(",").map((s) => s.trim()).includes("moltbook")));
-
-  // LP tick result — populated later by LP tick, used by discussion system for pool stats
-  let lpResult: LPTickResult | null = null as LPTickResult | null;
-
-  if (moltbookEnabledForDiscussions) {
-    try {
-      // Pass pool stats from LP tick if available (will be null on first run)
-      const poolStats = lpResult
-        ? { wethPool: lpResult.wethPool, usdcPool: lpResult.usdcPool }
-        : undefined;
-      const discussionResult = await postMoltbookDiscussion(cfg, state, saveState, poolStats);
-
-      if (discussionResult.result.posted) {
-        logger.info("moltbook.discussion.posted_in_tick", {
-          topic: discussionResult.result.topic,
-          kind: discussionResult.result.kind
-        });
-      } else {
-        logger.info("moltbook.discussion.skipped", {
-          reason: discussionResult.result.reason
-        });
-      }
-    } catch (err) {
-      logger.warn("moltbook.discussion.error", {
-        error: err instanceof Error ? err.message : String(err)
-      });
-      // Continue with normal loop even if discussion posting fails
     }
   }
 
@@ -348,6 +312,9 @@ async function tick(): Promise<void> {
   // ============================================================
   // LIQUIDITY PROVISION TICK (behind LP_ENABLED flag)
   // ============================================================
+  // LP tick result — populated here, used by discussion and campaign systems
+  let lpResult: LPTickResult | null = null;
+
   if (cfg.LP_ENABLED && tokenAddress) {
     try {
       lpResult = await lpTick(cfg, clients, tokenAddress, workingState, saveState);
@@ -360,6 +327,8 @@ async function tick(): Promise<void> {
           wethStaked: lpResult.gauge.wethStaked.toString(),
           wethEarned: lpResult.gauge.wethEarned.toString(),
         });
+        // Update working state with any state changes from LP tick
+        workingState = { ...workingState, lpLastTickMs: Date.now() };
       } else {
         logger.info("lp.tick.skipped", { reason: lpResult.skipReason });
       }
@@ -369,6 +338,89 @@ async function tick(): Promise<void> {
       });
       // Continue with normal loop even if LP tick fails
     }
+  }
+
+  // ============================================================
+  // MOLTBOOK PROACTIVE DISCUSSION POSTING (Viral Engagement)
+  // ============================================================
+  // Posts standalone discussion starters and community callouts to Moltbook
+  // Runs AFTER LP tick so we have pool stats for rich discussion content
+  const moltbookEnabledForDiscussions =
+    cfg.MOLTBOOK_ENABLED &&
+    (cfg.SOCIAL_MODE === "moltbook" || (cfg.SOCIAL_MODE === "multi" && cfg.SOCIAL_MULTI_TARGETS.split(",").map((s) => s.trim()).includes("moltbook")));
+
+  if (moltbookEnabledForDiscussions) {
+    try {
+      // Pass pool stats from LP tick if available
+      const poolStats = lpResult
+        ? { wethPool: lpResult.wethPool, usdcPool: lpResult.usdcPool }
+        : undefined;
+      const discussionResult = await postMoltbookDiscussion(cfg, workingState, saveState, poolStats);
+
+      if (discussionResult.result.posted) {
+        logger.info("moltbook.discussion.posted_in_tick", {
+          topic: discussionResult.result.topic,
+          kind: discussionResult.result.kind
+        });
+      } else {
+        logger.info("moltbook.discussion.skipped", {
+          reason: discussionResult.result.reason
+        });
+      }
+    } catch (err) {
+      logger.warn("moltbook.discussion.error", {
+        error: err instanceof Error ? err.message : String(err)
+      });
+      // Continue with normal loop even if discussion posting fails
+    }
+  }
+
+  // ============================================================
+  // LP CAMPAIGN SOCIAL POSTING
+  // ============================================================
+  // Periodic posts to drive liquidity provision (X + Moltbook)
+  // Posts launch announcement once, then periodic campaign posts
+  try {
+    // First, try to post launch announcement (one-time)
+    const launchResult = await maybePostPoolLaunch({
+      cfg,
+      state: workingState,
+      saveStateFn: saveState,
+      poster,
+      poolStats: lpResult
+        ? { wethPool: lpResult.wethPool, usdcPool: lpResult.usdcPool }
+        : null,
+    });
+
+    if (launchResult.posted) {
+      logger.info("lp_campaign.launch_posted", { postText: launchResult.postText?.slice(0, 50) });
+      workingState = launchResult.state;
+    } else if (launchResult.reason === "already_posted") {
+      // Launch already posted, try regular campaign post
+      const campaignResult = await maybeTriggerLPCampaign({
+        cfg,
+        state: workingState,
+        saveStateFn: saveState,
+        poster,
+        poolStats: lpResult
+          ? { wethPool: lpResult.wethPool, usdcPool: lpResult.usdcPool }
+          : null,
+      });
+
+      if (campaignResult.posted) {
+        logger.info("lp_campaign.posted", { postText: campaignResult.postText?.slice(0, 50) });
+        workingState = campaignResult.state;
+      } else {
+        logger.info("lp_campaign.skipped", { reason: campaignResult.reason });
+      }
+    } else {
+      logger.info("lp_campaign.launch_skipped", { reason: launchResult.reason });
+    }
+  } catch (err) {
+    logger.warn("lp_campaign.error", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    // Continue with normal loop even if campaign fails
   }
 
   // ============================================================

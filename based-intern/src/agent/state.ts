@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 13;
+const STATE_SCHEMA_VERSION = 14;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
@@ -20,6 +20,7 @@ const STATE_SCHEMA_VERSION = 13;
  * v11: Restart-proof news opinion dedupe (canonical URL fingerprints, LRU 200) (2026-02-05)
  * v12: Liquidity provision state fields (2026-02-05)
  * v13: X timeline since_id tracking — prevents re-fetching same tweets (2026-02-06)
+ * v14: LP campaign social posting state (launch posted flag, daily counters, intervals) (2026-02-06)
  */
 
 export type AgentState = {
@@ -67,7 +68,7 @@ export type AgentState = {
   moltbookFailureCount?: number;
   moltbookCircuitBreakerDisabledUntilMs?: number | null;
   // LRU list of replied Moltbook comment dedupe keys.
-  // Current primary format is `id:<commentId>` (stable). Synthetic fallback is `fp:<sha256(...)>`.
+  // Current primary format is `id:<commentId>` (stable). Synthetic fallback is `fp:<sha256(...)>.
   // Legacy entries may also include sha256(`${commentId}:${author}:${content}`) from older versions.
   repliedMoltbookCommentIds?: string[];
   moltbookLastReplyCheckMs?: number | null;
@@ -116,6 +117,14 @@ export type AgentState = {
   /** Per-username since_id map — only fetch tweets newer than the stored ID per account.
    *  Prevents re-fetching and re-evaluating the same tweets every cycle. */
   xTimelineSinceIds?: Record<string, string>;
+
+  // =========================
+  // LP Campaign (v14)
+  // =========================
+  lpCampaignLaunchPosted?: boolean; // One-time launch announcement posted
+  lpCampaignLastPostMs?: number | null; // Last campaign post timestamp
+  lpCampaignPostsToday?: number; // Daily counter
+  lpCampaignLastDayUtc?: string | null; // For daily reset
 };
 
 export const DEFAULT_STATE: AgentState = {
@@ -168,7 +177,12 @@ export const DEFAULT_STATE: AgentState = {
   moltbookDiscussionLastDayUtc: null,
   postedDiscussionTopics: [],
 
-  xTimelineSinceIds: {}
+  xTimelineSinceIds: {},
+
+  lpCampaignLaunchPosted: false,
+  lpCampaignLastPostMs: null,
+  lpCampaignPostsToday: 0,
+  lpCampaignLastDayUtc: null,
 };
 
 export function statePath(): string {
@@ -280,6 +294,15 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     }
   }
 
+  // v13 → v14: LP campaign social posting state
+  if (version === undefined || version < 14) {
+    logger.info("state migration", { from: version || 13, to: STATE_SCHEMA_VERSION });
+    if (!("lpCampaignLaunchPosted" in raw)) raw.lpCampaignLaunchPosted = false;
+    if (!("lpCampaignLastPostMs" in raw)) raw.lpCampaignLastPostMs = null;
+    if (!("lpCampaignPostsToday" in raw)) raw.lpCampaignPostsToday = 0;
+    if (!("lpCampaignLastDayUtc" in raw)) raw.lpCampaignLastDayUtc = null;
+  }
+
   return raw as AgentState;
 }
 
@@ -351,7 +374,12 @@ export async function loadState(): Promise<AgentState> {
 
       xTimelineSinceIds: (migrated.xTimelineSinceIds && typeof migrated.xTimelineSinceIds === "object")
         ? migrated.xTimelineSinceIds
-        : {}
+        : {},
+
+      lpCampaignLaunchPosted: migrated.lpCampaignLaunchPosted ?? false,
+      lpCampaignLastPostMs: migrated.lpCampaignLastPostMs ?? null,
+      lpCampaignPostsToday: migrated.lpCampaignPostsToday ?? 0,
+      lpCampaignLastDayUtc: migrated.lpCampaignLastDayUtc ?? null,
     };
 
     // Reset daily counter if the day rolled over.
@@ -377,6 +405,12 @@ export async function loadState(): Promise<AgentState> {
     if (merged.moltbookDiscussionLastDayUtc !== today) {
       merged.moltbookDiscussionPostsToday = 0;
       merged.moltbookDiscussionLastDayUtc = today;
+    }
+
+    // Reset LP campaign daily counter if day rolled over
+    if (merged.lpCampaignLastDayUtc !== today) {
+      merged.lpCampaignPostsToday = 0;
+      merged.lpCampaignLastDayUtc = today;
     }
 
     return merged;

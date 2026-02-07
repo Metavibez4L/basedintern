@@ -2,14 +2,14 @@
  * LP Campaign — Social posts for liquidity provision fundraise.
  *
  * Generates viral Moltbook + X posts to drive community LP contributions
- * to INTERN/WETH and INTERN/USDC pools on Aerodrome.
+ * to INTERN/WETH pool on Aerodrome.
  *
  * Post types:
  *  - LP status updates (with live pool data)
  *  - LP how-to guides (step-by-step Aerodrome instructions)
  *  - LP milestone celebrations (TVL milestones)
- *  - LP comparison posts (WETH vs USDC pool)
  *  - LP incentive posts (gauge rewards, APR, trading fees)
+ *  - LP comparison posts (WETH vs USDC pool comparison)
  *
  * No new environment variables required.
  */
@@ -19,18 +19,50 @@ import type { PoolStats } from "../chain/liquidity.js";
 
 const MOLTBOOK_CHAR_LIMIT = 500;
 const INTERN_TOKEN = "0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11";
-const AERODROME_URL = "https://aerodrome.finance";
+const WETH_TOKEN = "0x4200000000000000000000000000000000000006";
+const POOL_ADDRESS = "0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc";
+
+// Direct Aerodrome deposit URL for INTERN/WETH pool
+const AERODROME_DEPOSIT_URL = `https://aerodrome.finance/deposit?token0=${WETH_TOKEN}&token1=${INTERN_TOKEN}&type=-1`;
 
 // ============================================================
 // LP STATUS POSTS (dynamic, uses live pool data)
 // ============================================================
 
 const LP_STATUS_TEMPLATES = [
-  "📊 INTERN Pool Update:\n\nINTERN/WETH TVL: {wethTvl} ETH\nMy pool share: {wethShare}%\n\nLiquidity providers earn Aerodrome trading fees on every swap. The deeper the pool, the tighter the spread.\n\nAdd LP on Aerodrome: {aeroUrl}\n\nWho's providing liquidity? 👇",
+  `📊 INTERN Pool Update:
 
-  "📈 Pool health check:\n\nINTERN/WETH: {wethTvl} ETH TVL\n\nEvery LP position strengthens INTERN's market infrastructure. More liquidity = less slippage = better trades for everyone.\n\nAdd liquidity: {aeroUrl}\n\nAre you LP'ing? Reply with your pool share 👇",
+INTERN/WETH is LIVE on Aerodrome (Base mainnet)
+TVL: {wethTvl} ETH
+My pool share: {wethShare}%
 
-  "⚡ Quick LP update:\n\nINTERN pools on Aerodrome are live and earning fees.\n\nCurrent WETH pool: {wethTvl} ETH TVL\n\nLP providers earn trading fees + gauge rewards. It's how you support the ecosystem AND earn yield.\n\nGet started: {aeroUrl}",
+LPs earn trading fees on every swap + AERO gauge rewards. The deeper the pool, the tighter the spread.
+
+Add LP now: {depositUrl}
+
+Who's providing liquidity? 👇`,
+
+  `📈 Pool health check:
+
+INTERN/WETH on Aerodrome: {wethTvl} ETH TVL
+Pool: ${POOL_ADDRESS.slice(0, 6)}...${POOL_ADDRESS.slice(-4)}
+
+Every LP position strengthens INTERN's market infrastructure. More liquidity = less slippage = better trades.
+
+Add liquidity: {depositUrl}
+
+Are you LP'ing? Drop your pool share 👇`,
+
+  `⚡ Quick LP update:
+
+INTERN/WETH is live and earning fees on Aerodrome Base.
+
+Current TVL: {wethTvl} ETH
+Earn: Trading fees + AERO rewards
+
+No lockups. Withdraw anytime. Fully permissionless.
+
+Start LP'ing: {depositUrl}`,
 ];
 
 /**
@@ -52,15 +84,7 @@ export function generateLPStatusPost(
   let post = template
     .replace(/\{wethTvl\}/g, wethTvl)
     .replace(/\{wethShare\}/g, wethShare)
-    .replace(/\{aeroUrl\}/g, AERODROME_URL);
-
-  // Add USDC pool info if available
-  if (usdcPool && usdcPool.tvlWei > 0n) {
-    const usdcNote = `\nINTERN/USDC: also live on Aerodrome!`;
-    if (post.length + usdcNote.length < MOLTBOOK_CHAR_LIMIT) {
-      post += usdcNote;
-    }
-  }
+    .replace(/\{depositUrl\}/g, AERODROME_DEPOSIT_URL);
 
   return truncate(post);
 }
@@ -70,13 +94,58 @@ export function generateLPStatusPost(
 // ============================================================
 
 const LP_GUIDE_TEMPLATES = [
-  `🎓 How to add liquidity to INTERN on Aerodrome:\n\n1. Go to ${AERODROME_URL}\n2. Connect wallet (Base network)\n3. Click "Liquidity" → "Add"\n4. Select INTERN/WETH pair\n5. Enter amounts and confirm\n\nYou'll earn trading fees on every INTERN swap. Let's deepen the pool together 🏊`,
+  `🎓 How to add liquidity to INTERN on Aerodrome:
 
-  `💡 LP Guide: INTERN/WETH on Aerodrome\n\nWhat you need:\n• ETH on Base\n• INTERN tokens\n• 2 minutes\n\nWhat you get:\n• Trading fee revenue\n• Gauge rewards (AERO)\n• Deeper markets for INTERN\n\nStep 1: ${AERODROME_URL}\nStep 2: Add Liquidity → INTERN/WETH\nStep 3: Done. You're an LP now.\n\nQuestions? Ask below 👇`,
+1. Go to {depositUrl}
+2. Connect wallet (Base network)
+3. Enter ETH + INTERN amounts
+4. Click "Add Liquidity" and confirm
 
-  `🏗️ Want to support INTERN's on-chain infrastructure?\n\nAdd liquidity on Aerodrome. Here's why:\n\n• More liquidity = less slippage\n• LPs earn fees on every trade\n• Gauge stakers earn AERO emissions\n• You're building the agent economy\n\n${AERODROME_URL}\n\nDrop a 🏊 if you're LP'ing`,
+You'll earn trading fees on every swap + AERO gauge rewards. Let's deepen the pool together 🏊
 
-  `⚡ Quick guide: INTERN LP on Aerodrome\n\n1. Bridge ETH to Base (if needed)\n2. Buy INTERN on Aerodrome\n3. Add INTERN + ETH as liquidity\n4. Stake LP tokens in the gauge\n5. Earn AERO + trading fees 24/7\n\nToken: ${INTERN_TOKEN}\nDEX: ${AERODROME_URL}\n\nWho's already LP'ing? 👇`,
+Pool: ${POOL_ADDRESS.slice(0, 6)}...${POOL_ADDRESS.slice(-4)}`,
+
+  `💡 LP Guide: INTERN/WETH on Aerodrome (Base)
+
+What you need:
+• ETH on Base
+• INTERN tokens
+• 2 minutes
+
+What you get:
+• Trading fee revenue
+• AERO gauge rewards
+• Deeper markets for INTERN
+
+Deposit directly: {depositUrl}
+
+Questions? Ask below 👇`,
+
+  `🏗️ Want to support INTERN's on-chain infrastructure?
+
+Add liquidity on Aerodrome. Here's why:
+
+• More liquidity = less slippage
+• LPs earn fees on every trade
+• Gauge stakers earn AERO emissions
+• You're building the agent economy
+
+{depositUrl}
+
+Drop a 🏊 if you're LP'ing`,
+
+  `⚡ Quick guide: INTERN LP on Aerodrome
+
+1. Bridge ETH to Base (if needed)
+2. Get INTERN tokens
+3. Go to: {depositUrl}
+4. Add liquidity (any amount)
+5. Stake LP tokens in gauge for AERO rewards
+
+Token: ${INTERN_TOKEN.slice(0, 6)}...${INTERN_TOKEN.slice(-4)}
+Pool: ${POOL_ADDRESS.slice(0, 6)}...${POOL_ADDRESS.slice(-4)}
+
+Who's already LP'ing? 👇`,
 ];
 
 /**
@@ -84,7 +153,7 @@ const LP_GUIDE_TEMPLATES = [
  */
 export function generateLPGuidePost(): string {
   const template = LP_GUIDE_TEMPLATES[Math.floor(Math.random() * LP_GUIDE_TEMPLATES.length)];
-  return truncate(template);
+  return truncate(template.replace(/\{depositUrl\}/g, AERODROME_DEPOSIT_URL));
 }
 
 // ============================================================
@@ -92,11 +161,34 @@ export function generateLPGuidePost(): string {
 // ============================================================
 
 const LP_MILESTONE_TEMPLATES = [
-  "🎉 INTERN pool milestone!\n\nINTERN/WETH just crossed {tvl} ETH in TVL on Aerodrome.\n\nEvery LP position makes INTERN stronger. Thanks to everyone providing liquidity.\n\nNext milestone: {nextMilestone} ETH. Let's get there.\n\n{aeroUrl}",
+  `🎉 INTERN pool milestone!
 
-  "📊 Progress update: INTERN/WETH pool is at {tvl} ETH TVL.\n\nWe started from zero. Now we're building real on-chain infrastructure.\n\nThe agents who LP early get recognized. The pool remembers.\n\n{aeroUrl}\n\nShare your LP receipts below 👇",
+INTERN/WETH just hit {tvl} ETH TVL on Aerodrome Base! 🚀
 
-  "🔥 INTERN/WETH pool update: {tvl} ETH TVL\n\nThe pool is growing. The spread is tightening. The ecosystem is strengthening.\n\nIf you haven't added LP yet, now's the time:\n{aeroUrl}\n\nWhat's your target TVL? 👇",
+Every LP position makes INTERN stronger. Thanks to everyone providing liquidity.
+
+Next milestone: {nextMilestone} ETH
+
+Add LP: {depositUrl}`,
+
+  `📊 Progress update: INTERN/WETH pool at {tvl} ETH TVL
+
+We started from zero. Now we're building real on-chain infrastructure on Base.
+
+The agents who LP early get recognized. The pool remembers.
+
+{depositUrl}
+
+Share your LP receipts below 👇`,
+
+  `🔥 INTERN/WETH pool update: {tvl} ETH TVL
+
+The pool is growing. The spread is tightening. The ecosystem is strengthening.
+
+If you haven't added LP yet, join us:
+{depositUrl}
+
+What's your target TVL? 👇`,
 ];
 
 /**
@@ -114,7 +206,58 @@ export function generateLPMilestonePost(tvlEth: number): string {
     template
       .replace(/\{tvl\}/g, tvlEth.toFixed(2))
       .replace(/\{nextMilestone\}/g, nextMilestone.toString())
-      .replace(/\{aeroUrl\}/g, AERODROME_URL)
+      .replace(/\{depositUrl\}/g, AERODROME_DEPOSIT_URL)
+  );
+}
+
+// ============================================================
+// LP INCENTIVE POSTS
+// ============================================================
+
+const LP_INCENTIVE_TEMPLATES = [
+  `💰 Why LP INTERN on Aerodrome?
+
+1. Trading fees: earn % of every INTERN swap
+2. AERO gauge rewards: Aerodrome emissions for LPs
+3. You're building INTERN's market infrastructure
+4. Deeper pools = more demand = more fees
+
+It's a positive feedback loop.
+
+{depositUrl}
+
+Who's earning fees already? 👇`,
+
+  `📈 DeFi yield 101:
+
+Provide INTERN + ETH liquidity on Aerodrome → earn trading fees + AERO rewards
+
+No lockups. Withdraw anytime. Fully permissionless.
+
+Token: ${INTERN_TOKEN.slice(0, 6)}...${INTERN_TOKEN.slice(-4)}
+Pool: ${POOL_ADDRESS.slice(0, 6)}...${POOL_ADDRESS.slice(-4)}
+
+Start here: {depositUrl}
+
+Are you farming or just watching? 🌾`,
+
+  `🎯 Agent alpha: INTERN LP is live on Aerodrome Base.
+
+• Trade fees accrue to LPs in real-time
+• Gauge stakers earn AERO emissions
+• The pool supports Based Intern's autonomous trading
+• More LP = tighter spreads = better agent performance
+
+Support the agent economy: {depositUrl}`,
+];
+
+/**
+ * Generate an LP incentive/yield post.
+ */
+export function generateLPIncentivePost(): string {
+  const template = LP_INCENTIVE_TEMPLATES[Math.floor(Math.random() * LP_INCENTIVE_TEMPLATES.length)];
+  return truncate(
+    template.replace(/\{depositUrl\}/g, AERODROME_DEPOSIT_URL)
   );
 }
 
@@ -123,9 +266,31 @@ export function generateLPMilestonePost(tvlEth: number): string {
 // ============================================================
 
 const LP_COMPARISON_TEMPLATES = [
-  "⚖️ Two ways to LP with INTERN on Aerodrome:\n\n🔷 INTERN/WETH — volatile pair, higher fees\n🟢 INTERN/USDC — stable pair, lower IL risk\n\nBoth earn gauge rewards. Both strengthen INTERN.\n\nWhich pool are you in? 👇",
+  `⚖️ Pool comparison:
 
-  "📊 INTERN pool showdown:\n\nINTERN/WETH: {wethTvl} ETH TVL\nINTERN/USDC: {usdcTvl} TVL\n\nMore pools = more ways to trade INTERN with less slippage.\n\nPick your side: 🔷 WETH or 🟢 USDC?\n\n{aeroUrl}",
+🔷 INTERN/WETH (volatile): Higher fees, more IL risk
+🟢 INTERN/USDC (stable): Lower IL risk, steadier fees
+
+Both earn AERO gauge rewards. Both strengthen INTERN's market depth.
+
+Current TVL:
+• WETH pool: {wethTvl} ETH
+• USDC pool: {usdcTvl} USDC value
+
+{depositUrl}
+
+Which pool are you in? 👇`,
+
+  `📊 INTERN pool breakdown:
+
+INTERN/WETH: {wethTvl} ETH TVL (volatile pair)
+INTERN/USDC: {usdcTvl} value TVL (stable pair)
+
+More pools = more ways to trade INTERN with less slippage.
+
+Add to INTERN/WETH: {depositUrl}
+
+Pick your strategy: 🔷 volatile or 🟢 stable?`,
 ];
 
 /**
@@ -148,31 +313,34 @@ export function generateLPComparisonPost(
     template
       .replace(/\{wethTvl\}/g, wethTvl)
       .replace(/\{usdcTvl\}/g, usdcTvl)
-      .replace(/\{aeroUrl\}/g, AERODROME_URL)
+      .replace(/\{depositUrl\}/g, AERODROME_DEPOSIT_URL)
   );
 }
 
 // ============================================================
-// LP INCENTIVE POSTS
+// POOL LAUNCH POST
 // ============================================================
 
-const LP_INCENTIVE_TEMPLATES = [
-  "💰 Why LP INTERN on Aerodrome?\n\n1. Trading fees: earn % of every INTERN swap\n2. AERO gauge rewards: Aerodrome emissions for LPs\n3. You're building INTERN's market infrastructure\n4. Deeper pools = more demand = more fees\n\nIt's a positive feedback loop.\n\n{aeroUrl}\n\nWho's earning fees already? 👇",
-
-  "📈 DeFi yield 101:\n\nProvide INTERN + ETH liquidity on Aerodrome → earn trading fees + AERO rewards\n\nNo lockups. Withdraw anytime. Fully permissionless.\n\nToken: {token}\nDEX: {aeroUrl}\n\nAre you farming or just watching? 🌾",
-
-  "🎯 Agent alpha: INTERN LP is live on Aerodrome.\n\n• Trade fees accrue to LPs in real-time\n• Gauge stakers earn AERO emissions\n• The pool supports Based Intern's autonomous trading\n• More LP = tighter spreads = better agent performance\n\nSupport the agent economy: {aeroUrl}",
-];
-
 /**
- * Generate an LP incentive/yield post.
+ * Generate the official pool launch announcement post.
+ * Use this once when the pool first goes live.
  */
-export function generateLPIncentivePost(): string {
-  const template = LP_INCENTIVE_TEMPLATES[Math.floor(Math.random() * LP_INCENTIVE_TEMPLATES.length)];
+export function generatePoolLaunchPost(): string {
   return truncate(
-    template
-      .replace(/\{aeroUrl\}/g, AERODROME_URL)
-      .replace(/\{token\}/g, INTERN_TOKEN)
+    `🚀 INTERN/WETH is LIVE on Aerodrome!
+
+📍 Base mainnet
+🏊 Pool: ${POOL_ADDRESS}
+💰 Add liquidity: ${AERODROME_DEPOSIT_URL}
+
+LP providers earn:
+• Trading fees on every swap
+• AERO gauge rewards
+• Our eternal gratitude
+
+The agent economy needs deep liquidity. Be early. 🏊‍♂️
+
+Who's adding LP? 👇`
   );
 }
 
@@ -189,7 +357,7 @@ export function generateLPIncentivePost(): string {
  *  - 25% LP guide
  *  - 20% LP incentive
  *  - 15% LP milestone (if TVL > 0)
- *  - 10% LP comparison (if both pools exist)
+ *  - 10% LP comparison
  */
 export function generateLPCampaignPost(
   wethPool: PoolStats | null,
