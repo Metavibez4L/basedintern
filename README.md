@@ -33,6 +33,34 @@ Based Intern is a LIVE production autonomous agent that combines capabilities no
 
 This repo includes **LIVE Base mainnet (chainId 8453) deployments** with verified contracts and registered identities. Treat all mainnet addresses and trading configuration as production.
 
+---
+
+## 🔴 LIVE Deployment Status
+
+| Field | Status |
+|-------|--------|
+| **Deployed** | ✅ YES — Railway |
+| **Network** | Base mainnet (chainId 8453) |
+| **Pool** | INTERN/WETH volatile pool on Aerodrome |
+| **Pool Address** | `0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc` |
+| **Router** | Aerodrome `0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43` |
+| **Token** | INTERN `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11` |
+| **Status** | 🟢 LIVE |
+| **Trading** | ✅ Active — 1 trade/day cap, 0.0005 ETH max spend |
+| **LP** | ✅ Active — auto-seed enabled, max 0.001 ETH per add |
+| **Social** | ✅ Active — X + Moltbook (multi-target) |
+| **Guardrails** | ✅ All active — KILL_SWITCH, daily caps, slippage limits |
+
+**Loop Configuration:**
+- Interval: 30 minutes
+- Daily trade cap: 1
+- Max spend per trade: 0.0005 ETH
+- Slippage: 300 BPS
+- LP max per add: 0.001 ETH
+- LP max token fraction: 1000 BPS
+
+---
+
 ## ✨ Core Capabilities
 
 ### 🔐 Identity & Verification
@@ -132,7 +160,7 @@ Trading is optional and defaults to safe mode, but when enabled Based Intern can
 - **Approval orchestration (sells)**: reads allowance and submits ERC20 approvals when needed (configurable).
 - **Receipts + audit trail**: every action is surfaced in the receipt (mode, balances, and tx hash when executed).
 
-**How to enable live trading (only after you’ve run in safe mode)**
+**How to enable live trading (only after you've run in safe mode)**
 
 1. Run posting-only first: `DRY_RUN=true`, `TRADING_ENABLED=false`, `KILL_SWITCH=true`.
 2. Configure router + pool.
@@ -167,7 +195,7 @@ Based Intern can optionally post commentary about Base ecosystem news.
 
 Safety guarantees:
 
-- **Must include source URL:** every news post includes the chosen item’s URL.
+- **Must include source URL:** every news post includes the chosen item's URL.
 - **Dedupe:** LRU fingerprinting prevents reposting the same item.
 - **Daily caps + interval:** enforced via persisted state.
 - **Non-blocking:** news failures are logged and do not break the tick.
@@ -234,6 +262,7 @@ SOCIAL_MODE=x_api
 - [based-intern/docs/OPENCLAW.md](based-intern/docs/OPENCLAW.md) — OpenClaw local setup
 - [based-intern/docs/OPENCLAW_RAILWAY.md](based-intern/docs/OPENCLAW_RAILWAY.md) — OpenClaw on Railway + attach to running agent
 - [based-intern/docs/RAILWAY.md](based-intern/docs/RAILWAY.md) — Railway worker deploy
+- [RUNBOOK.md](RUNBOOK.md) — Live operations checklist & monitoring
 
 Repo-level Dockerfiles:
 - `Dockerfile` — build/run the agent from repo root
@@ -278,7 +307,7 @@ If you want receipts to include a portable on-chain identifier, register the age
 ### ERC-8004 (Deployed on Base mainnet)
 
 ERC-8004 turns the agent into a **portable on-chain identity**:
-- Anyone can independently verify the agent’s canonical id and profile URI on Base.
+- Anyone can independently verify the agent's canonical id and profile URI on Base.
 - The identity can be bound to a wallet (EIP-712 signed) without trusting off-chain claims.
 - Receipts can include a stable `Agent:` reference for attribution and monitoring.
 
@@ -317,4 +346,3 @@ MIT
 ## Security Warning
 
 Use a fresh wallet with minimal funds. Never commit secrets. Keep safety caps conservative.
-
