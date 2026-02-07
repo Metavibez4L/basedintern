@@ -142,6 +142,15 @@ export type AgentState = {
   recentSocialPostFingerprints?: string[]; // LRU list (max 20)
   /** Raw text of recent posts for similarity comparison */
   recentSocialPostTexts?: string[]; // LRU list (max 10) - actual content for comparison
+
+  // =========================
+  // Mini App Campaign (v16)
+  // =========================
+  miniAppCampaignLaunchPosted?: boolean; // One-time launch burst fired
+  miniAppCampaignLastPostMs?: number | null; // Last recurring post timestamp
+  miniAppCampaignPostsToday?: number; // Daily counter
+  miniAppCampaignLastDayUtc?: string | null; // For daily reset
+  miniAppCampaignRecentTemplates?: number[]; // Recently used template indices
 };
 
 export const DEFAULT_STATE: AgentState = {

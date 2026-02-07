@@ -21,6 +21,7 @@ import { replyToMoltbookComments } from "./social/moltbook_comments.js";
 import { postMoltbookDiscussion } from "./social/moltbook_discussions.js";
 import { lpTick, type LPTickResult } from "./agent/lpManager.js";
 import { postOpenClawAnnouncementOnce } from "./social/openclaw_announcement.js";
+import { miniAppLaunchBurst, miniAppRecurringPost, isMiniAppCampaignEnabled } from "./social/miniapp_campaign.js";
 import { buildNewsPlan } from "./news/news.js";
 import { canonicalizeUrl } from "./news/fingerprint.js";
 import { postNewsTweet } from "./social/news_poster.js";
@@ -161,6 +162,35 @@ async function tick(): Promise<void> {
       error: err instanceof Error ? err.message : String(err)
     });
     // Continue with normal loop even if announcement fails
+  }
+
+  // ============================================================
+  // MINI APP CAMPAIGN (launch burst + recurring viral posts)
+  // ============================================================
+  if (isMiniAppCampaignEnabled()) {
+    try {
+      // Reload state for freshest data
+      const campState = await loadState();
+
+      // Launch burst (one-time, 3 posts)
+      const launchResult = await miniAppLaunchBurst(cfg, campState, saveState, poster);
+      if (launchResult.posted) {
+        logger.info("miniapp.campaign.launch_burst_complete", { postsCount: launchResult.postsCount });
+        recordAction({ type: "social", timestamp: Date.now(), summary: "Mini app launch campaign posted to X + Moltbook", platform: "multi" });
+      }
+
+      // Recurring viral posts (every 4 hours, max 6/day)
+      const latestState = launchResult.posted ? launchResult.state : campState;
+      const recurringResult = await miniAppRecurringPost(cfg, latestState, saveState, poster);
+      if (recurringResult.posted) {
+        logger.info("miniapp.campaign.recurring_posted");
+        recordAction({ type: "social", timestamp: Date.now(), summary: "Mini app viral post to X + Moltbook", platform: "multi" });
+      }
+    } catch (err) {
+      logger.warn("miniapp.campaign.error", {
+        error: err instanceof Error ? err.message : String(err)
+      });
+    }
   }
 
   let tokenAddress: Address | null = null;
