@@ -27,6 +27,7 @@ Operations guide for monitoring and managing the live Based Intern agent deploym
 - [ ] Check trade execution on Basescan
 - [ ] Confirm receipt posted to social channels
 - [ ] Validate slippage protection applied (300 BPS)
+- [ ] **Verify trade announcement posted** (community hype)
 
 **Key addresses to monitor:**
 - Pool: [`0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc`](https://basescan.org/address/0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc)
@@ -51,8 +52,32 @@ Operations guide for monitoring and managing the live Based Intern agent deploym
 - [ ] Check engagement system responding to mentions (X)
 - [ ] Check threaded replies working on Moltbook
 - [ ] Confirm no duplicate posts (deduplication working)
+- [ ] **Verify trade announcements fire after trades**
 
-### 5. Error Monitoring
+### 5. News Opinion Pipeline
+- [ ] Check X timeline fetching (watches @base, @buildonbase, @openclaw)
+- [ ] Verify opinion generation triggers on relevant news
+- [ ] Confirm posts include source URLs (safety requirement)
+- [ ] Check circuit breaker opens after 3 consecutive failures
+- [ ] Monitor `NEWS_ENABLED` and `OPENAI_API_KEY` config
+
+### 6. Mini App Monitoring
+- [ ] Verify mini app loads at [basedintern.vercel.app](https://basedintern.vercel.app)
+- [ ] Check stats endpoint responding: `GET /api/stats`
+- [ ] Verify pool data endpoint: `GET /api/pool`
+- [ ] Confirm action feed showing recent trades/LP/social
+- [ ] Test swap component loads (requires CDP API key)
+- [ ] Monitor Vercel deployment status
+
+**Mini App Health Checks:**
+```bash
+# Test agent API endpoints
+curl https://basedintern.vercel.app/api/stats
+curl https://basedintern.vercel.app/api/pool
+curl https://basedintern.vercel.app/api/feed
+```
+
+### 7. Error Monitoring
 
 **Critical errors to watch for:**
 ```
@@ -64,6 +89,8 @@ Operations guide for monitoring and managing the live Based Intern agent deploym
 [ERROR] Moltbook API errors (4xx/5xx)
 [ERROR] LLM/AI service unavailable
 [ERROR] Router/pool contract errors
+[ERROR] State file corruption detected
+[ERROR] Atomic state write failed
 ```
 
 **Warning patterns:**
@@ -73,6 +100,8 @@ Operations guide for monitoring and managing the live Based Intern agent deploym
 [WARN] Slippage exceeded, trade rejected
 [WARN] Cooldown active, skipping engagement
 [WARN] Duplicate content detected
+[WARN] News opinion circuit breaker opened
+[WARN] Mini app API cache stale
 ```
 
 ---
@@ -91,8 +120,9 @@ Then redeploy the service.
 ### Option 2: Control Endpoint
 If you have access to the control server:
 ```bash
-curl -X POST http://basedintern.railway.internal:8080/kill \
-  -H "Authorization: Bearer $CONTROL_TOKEN"
+curl -X POST http://basedintern.railway.internal:8080/tick \
+  -H "Authorization: Bearer $CONTROL_TOKEN" \
+  -d "reason=emergency_stop"
 ```
 
 ### Option 3: Railway Dashboard
@@ -125,6 +155,15 @@ Check logs for:
 | LP position | Growing | Agent state / Aerodrome |
 | Social posts | Regular | X + Moltbook feeds |
 | Engagement replies | All mentions | X mentions tab |
+| News opinions | 1-6/day | Agent logs |
+
+### Mini App Health
+| Metric | Target | Check |
+|--------|--------|-------|
+| Uptime | > 99% | Vercel dashboard |
+| API response time | < 500ms | Mini app network tab |
+| Cache hit rate | > 80% | Agent logs |
+| Feed freshness | < 5 min | Action feed timestamps |
 
 ### Wallet Status
 | Metric | Healthy Range | Check |
@@ -132,6 +171,67 @@ Check logs for:
 | ETH balance | > 0.01 ETH | Agent state / Basescan |
 | INTERN balance | > 0 | Agent state / Basescan |
 | Gas reserves | Always funded | Wallet |
+
+---
+
+## ⚙️ Recent Optimizations (Monitor These)
+
+### 1. TTL Caching on API Endpoints
+Mini app API responses are now cached for 30 seconds to reduce RPC load.
+
+**What to monitor:**
+- Cache hit rates in logs
+- RPC call frequency
+- API response times
+
+**Troubleshooting:**
+```bash
+# If cache is stale, check for errors in:
+# - src/control/server.ts (getPoolData, getTokenData)
+# - TTLCache implementation in src/utils.ts
+```
+
+### 2. Atomic State Writes with Backup Recovery
+State updates now use atomic write-to-temp + rename pattern. Automatic backup recovery on corruption.
+
+**What to monitor:**
+- State file integrity in `data/state.json`
+- Backup files: `data/state.json.tmp`, `data/state.json.bak`
+- Log entries: `state write successful`, `state recovered from backup`
+
+**Troubleshooting:**
+```bash
+# Check for state corruption logs
+railway logs --service basedintern | grep -i "state\|backup\|corruption"
+
+# Manual recovery from backup
+cp data/state.json.bak data/state.json
+```
+
+### 3. Persistent Action Log
+Action feed now persists to `data/action-log.json` and survives restarts.
+
+**What to monitor:**
+- Action log file size (should be bounded)
+- Feed endpoint returning data after restart
+- Ring buffer not exceeding 50 entries
+
+**Troubleshooting:**
+```bash
+# Check action log persistence
+curl http://basedintern.railway.internal:8080/api/feed
+
+# Verify log file exists
+ls -la data/action-log.json
+```
+
+### 4. Shared Utilities Module
+All `sleep()` functions consolidated to `src/utils.ts`. No more duplicates.
+
+**What to monitor:**
+- No "sleep is not defined" errors
+- Interruptible sleep working (manual tick wakes loop)
+- TTLCache functioning correctly
 
 ---
 
@@ -178,6 +278,26 @@ SLIPPAGE_BPS=500
 LP_SLIPPAGE_BPS=500
 ```
 
+### News Opinion Settings
+**Adjust when:**
+- Too many/few opinion posts
+- Relevance threshold too strict/loose
+- Circuit breaker triggering too often
+
+```bash
+# Daily post cap (default: 6)
+NEWS_MAX_POSTS_PER_DAY=6
+
+# Relevance threshold 0-1 (default: 0.5)
+NEWS_MIN_RELEVANCE_SCORE=0.6
+
+# Circuit breaker after N fails (default: 3)
+NEWS_OPINION_CIRCUIT_BREAKER_FAILS=3
+
+# Circuit breaker duration minutes (default: 30)
+NEWS_OPINION_CIRCUIT_BREAKER_MINUTES=30
+```
+
 ---
 
 ## 🎯 Gauge Staking (AERO Rewards)
@@ -205,6 +325,43 @@ Agent auto-claims when:
 
 ---
 
+## 📱 Mini App Operations
+
+### Deployment
+- **Production URL**: [basedintern.vercel.app](https://basedintern.vercel.app)
+- **Hosting**: Vercel (auto-deploys on push to main)
+- **Framework**: Next.js 15 + MiniKit
+- **Build Command**: `npx next build`
+
+### Environment Variables (Vercel)
+```bash
+NEXT_PUBLIC_CDP_CLIENT_API_KEY=<coinbase_developer_platform_key>
+NEXT_PUBLIC_AGENT_API_URL=https://basedintern.railway.internal:8080
+NEXT_PUBLIC_URL=https://basedintern.vercel.app
+```
+
+### Monitoring Checklist
+- [ ] Mini app loads in Coinbase Wallet
+- [ ] Swap component accessible
+- [ ] Stats update within 30 seconds
+- [ ] Feed shows recent actions
+- [ ] No 5xx errors from API endpoints
+
+### Troubleshooting Mini App
+```bash
+# Check if API is responding
+curl -v https://basedintern.vercel.app/api/stats
+
+# Check agent directly (if on same network)
+curl http://basedintern.railway.internal:8080/api/stats \
+  -H "Authorization: Bearer $CONTROL_TOKEN"
+
+# Restart Vercel deployment
+vercel --prod
+```
+
+---
+
 ## 🔍 Quick Diagnostic Commands
 
 ### Check Agent Health
@@ -218,15 +375,30 @@ curl http://basedintern.railway.internal:8080/status \
   -H "Authorization: Bearer $CONTROL_TOKEN"
 ```
 
+### Get Live Stats (Mini App API)
+```bash
+curl http://basedintern.railway.internal:8080/api/stats
+curl http://basedintern.railway.internal:8080/api/pool
+curl http://basedintern.railway.internal:8080/api/feed
+```
+
 ### Trigger Manual Tick
 ```bash
 curl -X POST http://basedintern.railway.internal:8080/tick \
-  -H "Authorization: Bearer $CONTROL_TOKEN"
+  -H "Authorization: Bearer $CONTROL_TOKEN" \
+  -d "reason=manual_check"
 ```
 
 ### View Recent Railway Logs
 ```bash
 railway logs --service basedintern --tail 100
+```
+
+### Check State File
+```bash
+railway ssh --service basedintern
+cat data/state.json | jq .lastExecutedTradeAtMs
+cat data/action-log.json | jq '. | length'
 ```
 
 ---
@@ -240,7 +412,24 @@ railway logs --service basedintern --tail 100
 | LP operations failing | Check pool health, token approvals, slippage |
 | Agent unresponsive | Check Railway service status, restart if needed |
 | Suspicious transactions | Immediately trigger kill switch, investigate wallet |
+| Mini app not loading | Check Vercel status, API endpoint health |
+| State corruption detected | Restore from backup, investigate disk space |
+| News opinions stopped | Check OPENAI_API_KEY, circuit breaker status |
 
 ---
 
-Last updated: Live deployment activation
+## 🔄 Deployment Checklist
+
+Before deploying new code:
+
+- [ ] All 218 tests passing
+- [ ] TypeScript typecheck clean
+- [ ] Mini app builds successfully
+- [ ] No new environment variables required
+- [ ] State migration version bumped if needed
+- [ ] README updated if features changed
+- [ ] RUNBOOK updated if ops procedures changed
+
+---
+
+Last updated: Post-optimization deployment (shared utils, TTL caching, atomic state writes, persistent action log)
