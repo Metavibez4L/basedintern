@@ -19,9 +19,12 @@ export async function GET(req: NextRequest) {
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          backgroundColor: "#0a0a0a",
+          backgroundColor: "#050a14",
           padding: "60px",
           fontFamily: "monospace",
+          backgroundImage:
+            "linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px)",
+          backgroundSize: "40px 40px",
         }}
       >
         {/* Header */}
@@ -30,7 +33,7 @@ export async function GET(req: NextRequest) {
             <div style={{ color: "#ffffff", fontSize: "48px", fontWeight: "bold" }}>
               Based Intern
             </div>
-            <div style={{ color: "#888888", fontSize: "20px", marginTop: "8px" }}>
+            <div style={{ color: "#6b8ab0", fontSize: "20px", marginTop: "8px" }}>
               Autonomous AI Agent on Base
             </div>
           </div>
@@ -39,8 +42,8 @@ export async function GET(req: NextRequest) {
               display: "flex",
               alignItems: "center",
               gap: "8px",
-              backgroundColor: status === "LIVE" ? "#00ff8815" : "#ff000015",
-              border: `1px solid ${status === "LIVE" ? "#00ff8850" : "#ff000050"}`,
+              backgroundColor: status === "LIVE" ? "#00d4ff15" : "#ff000015",
+              border: `1px solid ${status === "LIVE" ? "#00d4ff50" : "#ff000050"}`,
               borderRadius: "9999px",
               padding: "8px 20px",
             }}
@@ -50,12 +53,12 @@ export async function GET(req: NextRequest) {
                 width: "12px",
                 height: "12px",
                 borderRadius: "50%",
-                backgroundColor: status === "LIVE" ? "#00ff88" : "#ff0000",
+                backgroundColor: status === "LIVE" ? "#00d4ff" : "#ff0000",
               }}
             />
             <div
               style={{
-                color: status === "LIVE" ? "#00ff88" : "#ff0000",
+                color: status === "LIVE" ? "#00d4ff" : "#ff0000",
                 fontSize: "18px",
                 fontWeight: "bold",
               }}
@@ -71,17 +74,17 @@ export async function GET(req: NextRequest) {
             style={{
               display: "flex",
               flexDirection: "column",
-              backgroundColor: "#111111",
-              border: "1px solid #222222",
+              backgroundColor: "#0a1628",
+              border: "1px solid #1a2a4a",
               borderRadius: "16px",
               padding: "30px",
               flex: "1",
             }}
           >
-            <div style={{ color: "#888888", fontSize: "16px", textTransform: "uppercase", letterSpacing: "2px" }}>
+            <div style={{ color: "#6b8ab0", fontSize: "16px", textTransform: "uppercase", letterSpacing: "2px" }}>
               $INTERN Price
             </div>
-            <div style={{ color: "#00ff88", fontSize: "42px", fontWeight: "bold", marginTop: "8px" }}>
+            <div style={{ color: "#00d4ff", fontSize: "42px", fontWeight: "bold", marginTop: "8px" }}>
               {price}
             </div>
           </div>
@@ -89,14 +92,14 @@ export async function GET(req: NextRequest) {
             style={{
               display: "flex",
               flexDirection: "column",
-              backgroundColor: "#111111",
-              border: "1px solid #222222",
+              backgroundColor: "#0a1628",
+              border: "1px solid #1a2a4a",
               borderRadius: "16px",
               padding: "30px",
               flex: "1",
             }}
           >
-            <div style={{ color: "#888888", fontSize: "16px", textTransform: "uppercase", letterSpacing: "2px" }}>
+            <div style={{ color: "#6b8ab0", fontSize: "16px", textTransform: "uppercase", letterSpacing: "2px" }}>
               Pool TVL
             </div>
             <div style={{ color: "#ffffff", fontSize: "42px", fontWeight: "bold", marginTop: "8px" }}>
@@ -111,16 +114,16 @@ export async function GET(req: NextRequest) {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            backgroundColor: "#111111",
-            border: "1px solid #00ff8830",
+            backgroundColor: "#0a1628",
+            border: "1px solid #00d4ff30",
             borderRadius: "16px",
             padding: "20px 30px",
           }}
         >
-          <div style={{ color: "#cccccc", fontSize: "18px" }}>
+          <div style={{ color: "#c8ddf0", fontSize: "18px" }}>
             {action.slice(0, 80)}
           </div>
-          <div style={{ color: "#00ff88", fontSize: "16px", fontWeight: "bold" }}>
+          <div style={{ color: "#00d4ff", fontSize: "16px", fontWeight: "bold" }}>
             Launch to see more →
           </div>
         </div>

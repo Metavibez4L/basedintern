@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   title: "Based Intern — Agent-Powered Token Community",
   description:
     "An AI agent that trades, provides liquidity, and posts content for the $INTERN community on Base.",
+  icons: {
+    icon: "/mascot.png",
+  },
 };
 
 export default function RootLayout({
@@ -16,7 +19,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-intern-dark text-white antialiased">
+      <body className="min-h-screen bg-cyber-dark text-cyber-text antialiased scanline">
         <Providers>
           <main className="pb-20 min-h-screen">{children}</main>
           <BottomNav />
