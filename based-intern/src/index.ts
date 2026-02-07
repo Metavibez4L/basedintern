@@ -24,7 +24,7 @@ import { postOpenClawAnnouncementOnce } from "./social/openclaw_announcement.js"
 import { buildNewsPlan } from "./news/news.js";
 import { canonicalizeUrl } from "./news/fingerprint.js";
 import { postNewsTweet } from "./social/news_poster.js";
-import { startControlServer } from "./control/server.js";
+import { startControlServer, recordAction } from "./control/server.js";
 import { NewsAggregator, type NewsArticle } from "./news/fetcher.js";
 import { OpinionGenerator } from "./news/opinion.js";
 import { NewsOpinionPoster } from "./news/opinionPoster.js";
@@ -359,6 +359,12 @@ async function tick(): Promise<void> {
           txHash,
           textLength: hypeText.length,
         });
+        recordAction({
+          type: "trade",
+          timestamp: Date.now(),
+          summary: `${decision.action} executed — ${hypeText.slice(0, 100)}`,
+          txHash: txHash ?? undefined,
+        });
       } catch (err) {
         logger.warn("trade announcement failed (non-blocking)", {
           error: err instanceof Error ? err.message : String(err),
@@ -391,6 +397,14 @@ async function tick(): Promise<void> {
           wethStaked: lpResult.gauge.wethStaked.toString(),
           wethEarned: lpResult.gauge.wethEarned.toString(),
         });
+        for (const a of lpResult.actions) {
+          recordAction({
+            type: "lp",
+            timestamp: Date.now(),
+            summary: `LP: ${a.type} on ${a.pool}`,
+            txHash: a.txHash ?? undefined,
+          });
+        }
       } else {
         logger.info("lp.tick.skipped", { reason: lpResult.skipReason });
       }
@@ -619,6 +633,11 @@ async function tick(): Promise<void> {
           };
           await saveState(workingState);
 
+          recordAction({
+            type: "news",
+            timestamp: Date.now(),
+            summary: `News take: ${article.title?.slice(0, 80) ?? topOpinion.articleId}`,
+          });
           logger.info("news.opinion.posted", {
             articleId: article.id,
             tone: topOpinion.tone,
@@ -692,11 +711,71 @@ async function main() {
     });
   };
 
+  // Resolve chain clients + token for mini app API
+  const miniClients = createChainClients(cfg);
+  const miniTokenAddress = await resolveTokenAddress(cfg);
+  const miniWallet = miniClients.walletAddress;
+
   const control = startControlServer({
     enabled: cfg.CONTROL_ENABLED,
     bind: cfg.CONTROL_BIND,
     port: cfg.CONTROL_PORT,
     token: cfg.CONTROL_TOKEN?.trim() ?? null,
+    miniAppData: {
+      getAgentStats: async () => {
+        const st = await loadState();
+        return {
+          status: "live" as const,
+          lastTradeAt: st.lastExecutedTradeAtMs ?? null,
+          tradesToday: st.tradesExecutedToday ?? 0,
+          lpTvlWei: st.lpWethPoolTvlWei ?? null,
+          lpSharePercent: null,
+          socialPostsToday: (st.lpCampaignPostsToday ?? 0) + (st.newsDailyCount ?? 0),
+          uptime: Math.floor((Date.now() - startedAtMs) / 1000),
+          dryRun: cfg.DRY_RUN,
+        };
+      },
+      getPoolData: async () => {
+        if (!miniTokenAddress || !miniWallet || !cfg.POOL_ADDRESS) return null;
+        try {
+          const { readPoolStats } = await import("./chain/liquidity.js");
+          const pool = await readPoolStats(
+            miniClients,
+            cfg.POOL_ADDRESS as Address,
+            miniWallet,
+            cfg.WETH_ADDRESS as Address,
+            "INTERN/WETH",
+            cfg.AERODROME_STABLE ?? false,
+          );
+          if (!pool) return null;
+          return {
+            tvlWei: pool.tvlWei.toString(),
+            reserve0: pool.reserve0.toString(),
+            reserve1: pool.reserve1.toString(),
+            internPrice: pool.reserve0 > 0n
+              ? (Number(pool.reserve0) / Number(pool.reserve1 || 1n)).toFixed(12)
+              : "0",
+            poolAddress: cfg.POOL_ADDRESS,
+          };
+        } catch {
+          return null;
+        }
+      },
+      getTokenData: async () => {
+        if (!miniTokenAddress) return null;
+        try {
+          const decimals = await readErc20Decimals(miniClients, miniTokenAddress);
+          return {
+            price: "—",
+            totalSupply: "1000000000",
+            symbol: "INTERN",
+            decimals,
+          };
+        } catch {
+          return null;
+        }
+      },
+    },
     getStatus: async () => {
       const state = await loadState();
       return {

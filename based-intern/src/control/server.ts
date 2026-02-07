@@ -3,6 +3,60 @@ import { URL } from "node:url";
 
 import { logger } from "../logger.js";
 
+// ============================================================
+// ACTION LOG RING BUFFER (for mini app /api/feed)
+// ============================================================
+
+export type ActionLogEntry = {
+  type: "trade" | "lp" | "social" | "news";
+  timestamp: number;
+  summary: string;
+  txHash?: string;
+  platform?: string;
+};
+
+const ACTION_LOG_MAX = 50;
+const actionLog: ActionLogEntry[] = [];
+
+export function recordAction(entry: ActionLogEntry): void {
+  actionLog.unshift(entry); // newest first
+  if (actionLog.length > ACTION_LOG_MAX) actionLog.pop();
+}
+
+export function getActionLog(): ActionLogEntry[] {
+  return [...actionLog];
+}
+
+// ============================================================
+// MINI APP API DATA PROVIDERS
+// ============================================================
+
+export type MiniAppDataProviders = {
+  getAgentStats: () => Promise<{
+    status: "live" | "offline";
+    lastTradeAt: number | null;
+    tradesToday: number;
+    lpTvlWei: string | null;
+    lpSharePercent: number | null;
+    socialPostsToday: number;
+    uptime: number;
+    dryRun: boolean;
+  }>;
+  getPoolData: () => Promise<{
+    tvlWei: string;
+    reserve0: string;
+    reserve1: string;
+    internPrice: string;
+    poolAddress: string;
+  } | null>;
+  getTokenData: () => Promise<{
+    price: string;
+    totalSupply: string;
+    symbol: string;
+    decimals: number;
+  } | null>;
+};
+
 export type ControlServerOptions = {
   enabled: boolean;
   bind: string;
@@ -10,6 +64,7 @@ export type ControlServerOptions = {
   token: string | null;
   getStatus: () => Promise<unknown>;
   requestTick: (reason: string) => { accepted: boolean; message: string };
+  miniAppData?: MiniAppDataProviders;
 };
 
 function readAuthBearer(req: http.IncomingMessage): string | null {
@@ -49,9 +104,44 @@ export function startControlServer(opts: ControlServerOptions): { close: () => P
     try {
       const u = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
+      // CORS for mini app (public read-only endpoints)
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      if (req.method === "OPTIONS") {
+        res.statusCode = 204;
+        return res.end();
+      }
+
+      // ---- Public endpoints (no auth) ----
+
       if (u.pathname === "/healthz") {
         return sendJson(res, 200, { ok: true });
       }
+
+      // Mini App API: public read-only endpoints
+      if (req.method === "GET" && u.pathname === "/api/stats" && opts.miniAppData) {
+        const stats = await opts.miniAppData.getAgentStats();
+        return sendJson(res, 200, stats);
+      }
+
+      if (req.method === "GET" && u.pathname === "/api/pool" && opts.miniAppData) {
+        const pool = await opts.miniAppData.getPoolData();
+        if (!pool) return sendJson(res, 503, { error: "pool data unavailable" });
+        return sendJson(res, 200, pool);
+      }
+
+      if (req.method === "GET" && u.pathname === "/api/feed") {
+        return sendJson(res, 200, getActionLog());
+      }
+
+      if (req.method === "GET" && u.pathname === "/api/token" && opts.miniAppData) {
+        const token = await opts.miniAppData.getTokenData();
+        if (!token) return sendJson(res, 503, { error: "token data unavailable" });
+        return sendJson(res, 200, token);
+      }
+
+      // ---- Protected endpoints (require auth) ----
 
       const bearer = readAuthBearer(req);
       if (!bearer || bearer !== opts.token) {
