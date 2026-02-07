@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import type { AppConfig } from "../config.js";
 import type { AgentState } from "../agent/state.js";
 import { logger } from "../logger.js";
+import { sleep } from "../utils.js";
 
 /**
  * X Mentions Poller - Phase 1 (Intent Recognition Only)
@@ -535,10 +536,6 @@ async function postReplyWithRetry(ctx: MentionPollerContext, inReplyToTweetId: s
     }
   }
   throw new Error("unreachable");
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
 }
 
 /**

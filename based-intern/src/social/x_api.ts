@@ -4,6 +4,7 @@ import { logger } from "../logger.js";
 import type { AgentState } from "../agent/state.js";
 import { saveState } from "../agent/state.js";
 import type { SocialPoster, SocialPostKind } from "./poster.js";
+import { sleep } from "../utils.js";
 
 type XCreateTweetResponse =
   | { data: { id: string; text?: string } }
@@ -431,6 +432,3 @@ function backoffMs(attempt: number): number {
   return 8_000;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}

@@ -2,10 +2,7 @@ import crypto from "crypto";
 import { z } from "zod";
 import { logger } from "../logger.js";
 import type { AppConfig } from "../config.js";
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
+import { sleep } from "../utils.js";
 
 async function fetchWithTimeout(url: string, init?: RequestInit, timeoutMs = 15000): Promise<Response> {
   const controller = new AbortController();

@@ -481,6 +481,25 @@ export async function loadState(): Promise<AgentState> {
 
     return merged;
   } catch (err) {
+    const isCorruption = err instanceof SyntaxError; // JSON parse failure
+    if (isCorruption) {
+      logger.error("state file corrupted, attempting recovery from backup", {
+        error: err.message
+      });
+      // Try loading from backup (previous successful save's temp file)
+      const backupPath = p + ".bak";
+      try {
+        const backupRaw = await readFile(backupPath, "utf8");
+        const backupParsed = JSON.parse(backupRaw) as any;
+        const migrated = migrateState(backupParsed, backupParsed.schemaVersion);
+        logger.info("recovered state from backup", { version: migrated.schemaVersion });
+        // Re-save the recovered state as the primary
+        await saveState(migrated);
+        return migrated;
+      } catch {
+        logger.warn("backup recovery failed, initializing fresh state");
+      }
+    }
     // Create folder lazily and initialize with default state
     await ensureStateDir();
     const defaultState = { ...DEFAULT_STATE, schemaVersion: STATE_SCHEMA_VERSION };
@@ -490,6 +509,8 @@ export async function loadState(): Promise<AgentState> {
   }
 }
 
+let saveCounter = 0;
+
 export async function saveState(state: AgentState): Promise<void> {
   await ensureStateDir();
   const p = statePath();
@@ -497,7 +518,22 @@ export async function saveState(state: AgentState): Promise<void> {
     ...state,
     schemaVersion: STATE_SCHEMA_VERSION
   };
-  await writeFile(p, JSON.stringify(toSave, null, 2), "utf8");
+  const json = JSON.stringify(toSave, null, 2);
+  // Atomic write: write to temp file then rename to prevent corruption on crash
+  const tmpPath = p + ".tmp";
+  await writeFile(tmpPath, json, "utf8");
+  const { rename, copyFile } = await import("node:fs/promises");
+  await rename(tmpPath, p);
+
+  // Create a backup every 10 saves (resilience against corruption)
+  saveCounter++;
+  if (saveCounter % 10 === 0) {
+    try {
+      await copyFile(p, p + ".bak");
+    } catch {
+      // Non-critical: backup failure shouldn't break the agent
+    }
+  }
 }
 
 export async function recordExecutedTrade(state: AgentState, at: Date): Promise<AgentState> {

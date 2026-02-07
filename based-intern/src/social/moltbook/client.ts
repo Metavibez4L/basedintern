@@ -3,6 +3,7 @@ import path from "node:path";
 import type { AppConfig } from "../../config.js";
 import { logger } from "../../logger.js";
 import { redactCookieHeader, redactToken, safeErrorMessage } from "./redact.js";
+import { sleep } from "../../utils.js";
 
 type SkillEndpoint = { method: string; path: string; query?: Record<string, string> };
 
@@ -115,10 +116,6 @@ function cookiesArrayToHeader(cookies: Array<{ name: string; value: string }>): 
     })
     .filter((pair): pair is string => pair !== null);
   return pairs.join("; ");
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
 }
 
 function jitterMs(base: number): number {

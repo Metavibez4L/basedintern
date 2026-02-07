@@ -2,10 +2,15 @@ import http from "node:http";
 import { URL } from "node:url";
 
 import { logger } from "../logger.js";
+import { TTLCache } from "../utils.js";
 
 // ============================================================
 // ACTION LOG RING BUFFER (for mini app /api/feed)
+// Persists to disk on every write for crash resilience.
 // ============================================================
+
+import { readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 
 export type ActionLogEntry = {
   type: "trade" | "lp" | "social" | "news";
@@ -16,14 +21,57 @@ export type ActionLogEntry = {
 };
 
 const ACTION_LOG_MAX = 50;
-const actionLog: ActionLogEntry[] = [];
+let actionLog: ActionLogEntry[] = [];
+let actionLogLoaded = false;
+
+function actionLogPath(): string {
+  const fromEnv = process.env.STATE_PATH?.trim();
+  const stateDir = fromEnv && fromEnv.length > 0
+    ? path.dirname(path.resolve(process.cwd(), fromEnv))
+    : path.resolve(process.cwd(), "data");
+  return path.join(stateDir, "action_log.json");
+}
+
+async function loadActionLog(): Promise<void> {
+  if (actionLogLoaded) return;
+  try {
+    const raw = await readFile(actionLogPath(), "utf8");
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      actionLog = parsed.slice(0, ACTION_LOG_MAX);
+    }
+  } catch {
+    // File doesn't exist yet or is corrupted — start fresh
+    actionLog = [];
+  }
+  actionLogLoaded = true;
+}
+
+// Debounced persistence — avoid disk writes on every single recordAction call
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+function schedulePersist(): void {
+  if (persistTimer) return;
+  persistTimer = setTimeout(async () => {
+    persistTimer = null;
+    try {
+      const { mkdir } = await import("node:fs/promises");
+      await mkdir(path.dirname(actionLogPath()), { recursive: true });
+      await writeFile(actionLogPath(), JSON.stringify(actionLog), "utf8");
+    } catch (err) {
+      // Non-critical: log failure shouldn't break the agent
+    }
+  }, 2000); // 2s debounce
+}
 
 export function recordAction(entry: ActionLogEntry): void {
   actionLog.unshift(entry); // newest first
   if (actionLog.length > ACTION_LOG_MAX) actionLog.pop();
+  schedulePersist();
 }
 
-export function getActionLog(): ActionLogEntry[] {
+export async function getActionLog(): Promise<ActionLogEntry[]> {
+  await loadActionLog();
   return [...actionLog];
 }
 
@@ -100,6 +148,11 @@ export function startControlServer(opts: ControlServerOptions): { close: () => P
     throw new Error("CONTROL_TOKEN must be set (>= 16 chars) when CONTROL_ENABLED=true");
   }
 
+  // TTL caches for mini app endpoints — prevents fresh RPC calls on every request
+  const statsCache = new TTLCache<string, unknown>(15_000);   // 15s TTL
+  const poolCache = new TTLCache<string, unknown>(30_000);    // 30s TTL (RPC-heavy)
+  const tokenCache = new TTLCache<string, unknown>(60_000);   // 60s TTL (rarely changes)
+
   const server = http.createServer(async (req, res) => {
     try {
       const u = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
@@ -119,24 +172,37 @@ export function startControlServer(opts: ControlServerOptions): { close: () => P
         return sendJson(res, 200, { ok: true });
       }
 
-      // Mini App API: public read-only endpoints
+      // Mini App API: public read-only endpoints (with TTL caching)
       if (req.method === "GET" && u.pathname === "/api/stats" && opts.miniAppData) {
-        const stats = await opts.miniAppData.getAgentStats();
+        let stats = statsCache.get("stats");
+        if (!stats) {
+          stats = await opts.miniAppData.getAgentStats();
+          statsCache.set("stats", stats);
+        }
         return sendJson(res, 200, stats);
       }
 
       if (req.method === "GET" && u.pathname === "/api/pool" && opts.miniAppData) {
-        const pool = await opts.miniAppData.getPoolData();
+        let pool = poolCache.get("pool");
+        if (pool === undefined) {
+          pool = await opts.miniAppData.getPoolData();
+          if (pool) poolCache.set("pool", pool);
+        }
         if (!pool) return sendJson(res, 503, { error: "pool data unavailable" });
         return sendJson(res, 200, pool);
       }
 
       if (req.method === "GET" && u.pathname === "/api/feed") {
-        return sendJson(res, 200, getActionLog());
+        const feed = await getActionLog();
+        return sendJson(res, 200, feed);
       }
 
       if (req.method === "GET" && u.pathname === "/api/token" && opts.miniAppData) {
-        const token = await opts.miniAppData.getTokenData();
+        let token = tokenCache.get("token");
+        if (token === undefined) {
+          token = await opts.miniAppData.getTokenData();
+          if (token) tokenCache.set("token", token);
+        }
         if (!token) return sendJson(res, 503, { error: "token data unavailable" });
         return sendJson(res, 200, token);
       }

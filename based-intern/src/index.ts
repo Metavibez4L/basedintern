@@ -29,6 +29,7 @@ import { startControlServer, recordAction } from "./control/server.js";
 import { NewsAggregator, type NewsArticle } from "./news/fetcher.js";
 import { OpinionGenerator } from "./news/opinion.js";
 import { NewsOpinionPoster } from "./news/opinionPoster.js";
+import { interruptibleSleep } from "./utils.js";
 
 async function resolveTokenAddress(cfg: ReturnType<typeof loadConfig>): Promise<Address | null> {
   if (cfg.TOKEN_ADDRESS) return cfg.TOKEN_ADDRESS as Address;
@@ -590,9 +591,8 @@ async function tick(): Promise<void> {
               };
               await saveState(workingState);
             }
-            return;
-          }
-
+            // continue — do not return from tick()
+          } else {
           logger.info("news.opinion.fetched", { count: articles.length, fetched: fetched.length });
 
           // Helper: track all fetched article IDs even when skipped/filtered
@@ -621,10 +621,7 @@ async function tick(): Promise<void> {
             logger.info("news.opinion.skip.no_opinion");
             // Track all unseen articles so they don't get re-evaluated
             await trackAllFetchedArticles(articles);
-            return;
-          }
-
-          if (topOpinion.relevanceScore < (cfg.NEWS_MIN_RELEVANCE_SCORE || 0.5)) {
+          } else if (topOpinion.relevanceScore < (cfg.NEWS_MIN_RELEVANCE_SCORE || 0.5)) {
             logger.info("news.opinion.skip.irrelevant", {
               articleId: topOpinion.articleId,
               relevance: topOpinion.relevanceScore,
@@ -632,48 +629,49 @@ async function tick(): Promise<void> {
             });
             // Track all unseen articles so irrelevant ones don't get re-evaluated
             await trackAllFetchedArticles(articles);
-            return;
+          } else {
+            const article = articles.find((a) => a.id === topOpinion.articleId) ?? articles[0];
+            const newsPoster = new NewsOpinionPoster(cfg, poster, postedIds, postedUrlFps);
+            const posted = await newsPoster.post(article, topOpinion);
+
+            if (!posted) {
+              logger.info("news.opinion.post.skipped", { articleId: article.id });
+              // Track all articles to prevent re-evaluation even when post is skipped
+              await trackAllFetchedArticles(articles);
+            } else {
+              // Success: track ALL fetched articles (not just the posted one) to prevent re-evaluation
+              const nextPostedIds = [...(workingState.postedNewsArticleIds || [])];
+              const nextUrlFps = [...(workingState.postedNewsUrlFingerprints || [])];
+              for (const a of articles) {
+                if (!nextPostedIds.includes(a.id)) nextPostedIds.push(a.id);
+                const fp = crypto.createHash("sha256").update(canonicalizeUrl(a.url)).digest("hex");
+                if (!nextUrlFps.includes(fp)) nextUrlFps.push(fp);
+              }
+              workingState = {
+                ...workingState,
+                newsOpinionLastFetchMs: nowMs,
+                newsOpinionFailureCount: 0,
+                newsOpinionCircuitBreakerDisabledUntilMs: null,
+                newsOpinionPostsToday: (workingState.newsOpinionPostsToday || 0) + 1,
+                postedNewsArticleIds: nextPostedIds,
+                postedNewsUrlFingerprints: nextUrlFps
+              };
+              await saveState(workingState);
+
+              recordAction({
+                type: "news",
+                timestamp: Date.now(),
+                summary: `News take: ${article.title?.slice(0, 80) ?? topOpinion.articleId}`,
+              });
+              logger.info("news.opinion.posted", {
+                articleId: article.id,
+                tone: topOpinion.tone,
+                relevance: topOpinion.relevanceScore,
+                confidence: topOpinion.confidence
+              });
+            }
           }
-
-          const article = articles.find((a) => a.id === topOpinion.articleId) ?? articles[0];
-          const newsPoster = new NewsOpinionPoster(cfg, poster, postedIds, postedUrlFps);
-          const posted = await newsPoster.post(article, topOpinion);
-
-          if (!posted) {
-            logger.info("news.opinion.post.skipped", { articleId: article.id });
-            return;
-          }
-
-          // Success: track ALL fetched articles (not just the posted one) to prevent re-evaluation
-          const nextPostedIds = [...(workingState.postedNewsArticleIds || [])];
-          const nextUrlFps = [...(workingState.postedNewsUrlFingerprints || [])];
-          for (const a of articles) {
-            if (!nextPostedIds.includes(a.id)) nextPostedIds.push(a.id);
-            const fp = crypto.createHash("sha256").update(canonicalizeUrl(a.url)).digest("hex");
-            if (!nextUrlFps.includes(fp)) nextUrlFps.push(fp);
-          }
-          workingState = {
-            ...workingState,
-            newsOpinionLastFetchMs: nowMs,
-            newsOpinionFailureCount: 0,
-            newsOpinionCircuitBreakerDisabledUntilMs: null,
-            newsOpinionPostsToday: (workingState.newsOpinionPostsToday || 0) + 1,
-            postedNewsArticleIds: nextPostedIds,
-            postedNewsUrlFingerprints: nextUrlFps
-          };
-          await saveState(workingState);
-
-          recordAction({
-            type: "news",
-            timestamp: Date.now(),
-            summary: `News take: ${article.title?.slice(0, 80) ?? topOpinion.articleId}`,
-          });
-          logger.info("news.opinion.posted", {
-            articleId: article.id,
-            tone: topOpinion.tone,
-            relevance: topOpinion.relevanceScore,
-            confidence: topOpinion.confidence
-          });
+          } // end articles else
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           const failureCount = (workingState.newsOpinionFailureCount ?? 0) + 1;
@@ -726,20 +724,8 @@ async function main() {
   let manualTickRequested = false;
   let manualTickReason: string | null = null;
 
-  let wakeSleep: (() => void) | null = null;
-  const interruptibleSleep = async (ms: number) => {
-    await new Promise<void>((resolve) => {
-      const t = setTimeout(() => {
-        wakeSleep = null;
-        resolve();
-      }, ms);
-      wakeSleep = () => {
-        clearTimeout(t);
-        wakeSleep = null;
-        resolve();
-      };
-    });
-  };
+  // Use shared interruptible sleep for the main loop
+  let currentSleep: ReturnType<typeof interruptibleSleep> | null = null;
 
   // Resolve chain clients + token for mini app API
   const miniClients = createChainClients(cfg);
@@ -845,7 +831,7 @@ async function main() {
       if (tickInFlight) return { accepted: false, message: "tick already in flight" };
       manualTickRequested = true;
       manualTickReason = reason;
-      wakeSleep?.();
+      currentSleep?.wake();
       return { accepted: true, message: "tick requested" };
     }
   });
@@ -874,12 +860,10 @@ async function main() {
       lastTickFinishedAtMs = Date.now();
     }
 
-    await interruptibleSleep(cfg.LOOP_MINUTES * 60_000);
+    currentSleep = interruptibleSleep(cfg.LOOP_MINUTES * 60_000);
+    await currentSleep.promise;
+    currentSleep = null;
   }
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
 }
 
 main().catch((err) => {

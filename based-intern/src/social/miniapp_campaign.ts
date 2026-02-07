@@ -17,6 +17,7 @@ import { recordSocialPostFingerprint, isContentTooSimilar } from "../agent/state
 import type { SocialPoster, SocialPostKind } from "./poster.js";
 import { fingerprintContent, pickNonRecentIndex } from "./dedupe.js";
 import { logger } from "../logger.js";
+import { sleep } from "../utils.js";
 
 const MINIAPP_URL = "https://basedintern.vercel.app";
 const AERODROME_URL = "https://aerodrome.finance/deposit?token0=0x4200000000000000000000000000000000000006&token1=0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11&type=-1";
@@ -343,6 +344,3 @@ export async function miniAppRecurringPost(
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}

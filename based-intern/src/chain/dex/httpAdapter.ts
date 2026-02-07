@@ -3,10 +3,7 @@ import type { AppConfig } from "../../config.js";
 import type { ChainClients } from "../client.js";
 import { registerDexProvider } from "./index.js";
 import { logger } from "../../logger.js";
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
+import { sleep } from "../../utils.js";
 
 /**
  * Fetch with timeout using AbortController
