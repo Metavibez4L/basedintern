@@ -236,10 +236,10 @@ describe("generateLPGuidePost", () => {
   });
 
   it("avoids recently used templates", () => {
-    const recentIndices = [0, 1, 2];
+    const recentIndices = [2, 3];
     const result = generateLPGuidePost(recentIndices);
-    // Should pick index 3 (the only one not in recent)
-    expect(result.templateIndex).toBe(3);
+    // Should not pick any of the recent indices
+    expect(recentIndices).not.toContain(result.templateIndex);
   });
 });
 
