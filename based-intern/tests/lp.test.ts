@@ -204,77 +204,115 @@ const mockUsdcPool: PoolStats = {
 
 describe("generateLPStatusPost", () => {
   it("generates a post under character limit", () => {
-    const post = generateLPStatusPost(mockWethPool, mockUsdcPool);
-    expect(post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
-    expect(post).toContain("aerodrome.finance");
+    const result = generateLPStatusPost(mockWethPool, mockUsdcPool);
+    expect(result.post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
+    expect(result.post).toContain("aerodrome.finance");
+    expect(result.templateIndex).toBeGreaterThanOrEqual(0);
+    expect(result.templateIndex).toBeLessThan(3); // 3 status templates
   });
 
   it("works with null pools", () => {
-    const post = generateLPStatusPost(null, null);
-    expect(post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
-    expect(post).toContain("0.0000");
+    const result = generateLPStatusPost(null, null);
+    expect(result.post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
+    expect(result.post).toContain("0.0000");
+  });
+
+  it("avoids recently used templates", () => {
+    // If we pass recent indices, should pick a different one
+    const recentIndices = [0, 1];
+    const result = generateLPStatusPost(mockWethPool, mockUsdcPool, recentIndices);
+    // Should not pick 0 or 1 since those are recent
+    expect(recentIndices).not.toContain(result.templateIndex);
   });
 });
 
 describe("generateLPGuidePost", () => {
   it("generates guide under character limit", () => {
-    const post = generateLPGuidePost();
-    expect(post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
-    expect(post).toContain("aerodrome.finance");
+    const result = generateLPGuidePost();
+    expect(result.post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
+    expect(result.post).toContain("aerodrome.finance");
+    expect(result.templateIndex).toBeGreaterThanOrEqual(0);
+    expect(result.templateIndex).toBeLessThan(4); // 4 guide templates
+  });
+
+  it("avoids recently used templates", () => {
+    const recentIndices = [0, 1, 2];
+    const result = generateLPGuidePost(recentIndices);
+    // Should pick index 3 (the only one not in recent)
+    expect(result.templateIndex).toBe(3);
   });
 });
 
 describe("generateLPMilestonePost", () => {
   it("generates milestone post with TVL", () => {
-    const post = generateLPMilestonePost(0.5);
-    expect(post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
-    expect(post).toContain("0.50");
+    const result = generateLPMilestonePost(0.5);
+    expect(result.post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
+    expect(result.post).toContain("0.50");
+    expect(result.templateIndex).toBeGreaterThanOrEqual(0);
   });
 
   it("generates different posts for different TVL values", () => {
     const low = generateLPMilestonePost(0.1);
     const high = generateLPMilestonePost(10.5);
     // Both should be valid posts
-    expect(low.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
-    expect(high.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
+    expect(low.post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
+    expect(high.post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
     // TVL values should appear
-    expect(low).toContain("0.10");
-    expect(high).toContain("10.50");
+    expect(low.post).toContain("0.10");
+    expect(high.post).toContain("10.50");
   });
 });
 
 describe("generateLPIncentivePost", () => {
   it("generates incentive post under limit", () => {
-    const post = generateLPIncentivePost();
-    expect(post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
+    const result = generateLPIncentivePost();
+    expect(result.post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
+    expect(result.templateIndex).toBeGreaterThanOrEqual(0);
   });
 });
 
 describe("generateLPComparisonPost", () => {
   it("generates comparison post", () => {
-    const post = generateLPComparisonPost(mockWethPool, mockUsdcPool);
-    expect(post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
+    const result = generateLPComparisonPost(mockWethPool, mockUsdcPool);
+    expect(result.post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
+    expect(result.templateIndex).toBeGreaterThanOrEqual(0);
   });
 });
 
 describe("generateLPCampaignPost", () => {
   it("generates a random LP campaign post under limit", () => {
     for (let i = 0; i < 20; i++) {
-      const post = generateLPCampaignPost(mockWethPool, mockUsdcPool);
-      expect(post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
-      expect(post.length).toBeGreaterThan(10);
+      const result = generateLPCampaignPost(mockWethPool, mockUsdcPool);
+      expect(result.post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
+      expect(result.post.length).toBeGreaterThan(10);
+      expect(result.postType).toBeDefined();
+      expect(result.templateIndex).toBeGreaterThanOrEqual(0);
     }
   });
 
   it("works without pool data", () => {
-    const post = generateLPCampaignPost(null, null);
-    expect(post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
-    expect(post.length).toBeGreaterThan(10);
+    const result = generateLPCampaignPost(null, null);
+    expect(result.post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
+    expect(result.post.length).toBeGreaterThan(10);
+  });
+
+  it("respects recent template tracking", () => {
+    const recentTemplates = {
+      status: [0, 1],
+      guide: [0, 1, 2],
+      incentive: [0, 1],
+      milestone: [0],
+      comparison: [0],
+    };
+    const result = generateLPCampaignPost(mockWethPool, mockUsdcPool, recentTemplates);
+    // Should still generate a valid post
+    expect(result.post.length).toBeLessThanOrEqual(MOLTBOOK_CHAR_LIMIT);
+    expect(result.postType).toBeDefined();
   });
 });
 
 // ============================================================
-// State Migration v12
+// State Migration v12 and v15
 // ============================================================
 
 describe("state migration v11 -> v12", () => {
@@ -307,5 +345,41 @@ describe("state migration v11 -> v12", () => {
     // schemaVersion is updated by loadState after migration, not by migrateState itself
     // The migration function just adds fields — the version bump happens on save
     expect(migrated.lpLastTickMs).toEqual(null);
+  });
+});
+
+describe("state migration v14 -> v15", () => {
+  it("adds LP template tracking and content dedupe fields", async () => {
+    const { migrateStateForTests } = await import("../src/agent/state.js");
+    const oldState = {
+      schemaVersion: 14,
+      lastExecutedTradeAtMs: null,
+      dayKey: "2026-02-06",
+      tradesExecutedToday: 0,
+      newsLastPostMs: null,
+      newsDailyCount: 0,
+      newsLastPostDayUtc: null,
+      seenNewsFingerprints: [],
+      lastPostedNewsFingerprint: null,
+      xApiFailureCount: 0,
+      xApiCircuitBreakerDisabledUntilMs: null,
+      lastPostedReceiptFingerprint: null,
+      lastSeenNonce: null,
+      lastSeenEthWei: null,
+      lastSeenTokenRaw: null,
+      lastSeenBlockNumber: null,
+      lastPostDayUtc: null,
+      lpCampaignLaunchPosted: false,
+      lpCampaignLastPostMs: null,
+      lpCampaignPostsToday: 0,
+      lpCampaignLastDayUtc: null,
+    };
+
+    const migrated = migrateStateForTests(oldState);
+    expect(migrated.lpCampaignRecentTemplates).toBeDefined();
+    expect(migrated.lpCampaignRecentTemplates?.status).toEqual([]);
+    expect(migrated.lpCampaignRecentTemplates?.guide).toEqual([]);
+    expect(migrated.recentSocialPostFingerprints).toEqual([]);
+    expect(migrated.recentSocialPostTexts).toEqual([]);
   });
 });

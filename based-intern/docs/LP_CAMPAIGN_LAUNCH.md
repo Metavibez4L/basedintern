@@ -1,0 +1,29 @@
+### 2026-02-07 (LP Recruitment Campaign Launch)
+- ✅ **LP Campaign Social Trigger System** (`src/social/lp_campaign_trigger.ts`)
+  - `maybePostPoolLaunch()` — one-time pool launch announcement
+  - `maybeTriggerLPCampaign()` — periodic LP campaign posts
+  - Posts to both X and Moltbook when `SOCIAL_MODE=multi`
+  - Respects rate limits, daily caps, and idempotency
+- ✅ **Updated LP Campaign Templates** (`src/social/lp_campaign.ts`)
+  - Correct pool address: `0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc`
+  - Direct Aerodrome deposit URL with token parameters
+  - 15+ viral LP campaign templates (status, guides, milestones, incentives, comparison)
+  - All templates under Moltbook 500-char limit
+- ✅ **State Schema v14** (`src/agent/state.ts`)
+  - `lpCampaignLaunchPosted` — one-time launch flag
+  - `lpCampaignLastPostMs` — last campaign post timestamp
+  - `lpCampaignPostsToday` — daily counter
+  - `lpCampaignLastDayUtc` — for daily reset
+  - Migration v13→v14 for existing state files
+- ✅ **Main Loop Integration** (`src/index.ts`)
+  - Campaign trigger runs after LP tick (has pool stats)
+  - Launch announcement posted first, then periodic campaign posts
+  - Non-blocking (errors logged, tick continues)
+- ✅ **Configuration** (env vars, all optional)
+  - `LP_CAMPAIGN_ENABLED` — default: `true` when `LP_ENABLED=true`
+  - `LP_CAMPAIGN_INTERVAL_MINUTES` — default: `360` (6 hours)
+  - `LP_CAMPAIGN_MAX_PER_DAY` — default: `4`
+- ✅ **Test Coverage**: 214 tests passing (added LP trigger tests)
+- ✅ **Commit**: `de20546`
+
+---

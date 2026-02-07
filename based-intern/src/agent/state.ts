@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 14;
+const STATE_SCHEMA_VERSION = 15;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
@@ -21,6 +21,7 @@ const STATE_SCHEMA_VERSION = 14;
  * v12: Liquidity provision state fields (2026-02-05)
  * v13: X timeline since_id tracking — prevents re-fetching same tweets (2026-02-06)
  * v14: LP campaign social posting state (launch posted flag, daily counters, intervals) (2026-02-06)
+ * v15: LP campaign template tracking + cross-system content dedupe fingerprints (2026-02-06)
  */
 
 export type AgentState = {
@@ -68,7 +69,7 @@ export type AgentState = {
   moltbookFailureCount?: number;
   moltbookCircuitBreakerDisabledUntilMs?: number | null;
   // LRU list of replied Moltbook comment dedupe keys.
-  // Current primary format is `id:<commentId>` (stable). Synthetic fallback is `fp:<sha256(...)>.
+  // Current primary format is `id:<commentId>` (stable). Synthetic fallback is `fp:<sha256(...)>`.
   // Legacy entries may also include sha256(`${commentId}:${author}:${content}`) from older versions.
   repliedMoltbookCommentIds?: string[];
   moltbookLastReplyCheckMs?: number | null;
@@ -77,7 +78,7 @@ export type AgentState = {
   // News Opinion (v5)
   // =========================
   newsOpinionLastFetchMs?: number | null;
-  // Attempt gating: set when we *try* to run the cycle (prevents thrash on repeated failures)
+  // Attempt gating: set when we *try* to run the cycle (prevents thrash on failures)
   newsOpinionLastAttemptMs?: number | null;
   // Failure tracking / circuit breaker (prevents flakey loops from spamming OpenAI + posting)
   newsOpinionFailureCount?: number;
@@ -125,6 +126,22 @@ export type AgentState = {
   lpCampaignLastPostMs?: number | null; // Last campaign post timestamp
   lpCampaignPostsToday?: number; // Daily counter
   lpCampaignLastDayUtc?: string | null; // For daily reset
+
+  // =========================
+  // LP Campaign Template Tracking + Content Dedupe (v15)
+  // =========================
+  /** Recently used LP campaign template indices by post type (prevents repetition) */
+  lpCampaignRecentTemplates?: {
+    status?: number[];
+    guide?: number[];
+    incentive?: number[];
+    milestone?: number[];
+    comparison?: number[];
+  };
+  /** Fingerprints of recently posted social content (all types) for similarity checking */
+  recentSocialPostFingerprints?: string[]; // LRU list (max 20)
+  /** Raw text of recent posts for similarity comparison */
+  recentSocialPostTexts?: string[]; // LRU list (max 10) - actual content for comparison
 };
 
 export const DEFAULT_STATE: AgentState = {
@@ -183,6 +200,16 @@ export const DEFAULT_STATE: AgentState = {
   lpCampaignLastPostMs: null,
   lpCampaignPostsToday: 0,
   lpCampaignLastDayUtc: null,
+
+  lpCampaignRecentTemplates: {
+    status: [],
+    guide: [],
+    incentive: [],
+    milestone: [],
+    comparison: [],
+  },
+  recentSocialPostFingerprints: [],
+  recentSocialPostTexts: [],
 };
 
 export function statePath(): string {
@@ -303,6 +330,26 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     if (!("lpCampaignLastDayUtc" in raw)) raw.lpCampaignLastDayUtc = null;
   }
 
+  // v14 → v15: LP campaign template tracking + content dedupe
+  if (version === undefined || version < 15) {
+    logger.info("state migration", { from: version || 14, to: STATE_SCHEMA_VERSION });
+    if (!("lpCampaignRecentTemplates" in raw) || typeof raw.lpCampaignRecentTemplates !== "object") {
+      raw.lpCampaignRecentTemplates = {
+        status: [],
+        guide: [],
+        incentive: [],
+        milestone: [],
+        comparison: [],
+      };
+    }
+    if (!("recentSocialPostFingerprints" in raw) || !Array.isArray(raw.recentSocialPostFingerprints)) {
+      raw.recentSocialPostFingerprints = [];
+    }
+    if (!("recentSocialPostTexts" in raw) || !Array.isArray(raw.recentSocialPostTexts)) {
+      raw.recentSocialPostTexts = [];
+    }
+  }
+
   return raw as AgentState;
 }
 
@@ -380,6 +427,16 @@ export async function loadState(): Promise<AgentState> {
       lpCampaignLastPostMs: migrated.lpCampaignLastPostMs ?? null,
       lpCampaignPostsToday: migrated.lpCampaignPostsToday ?? 0,
       lpCampaignLastDayUtc: migrated.lpCampaignLastDayUtc ?? null,
+
+      lpCampaignRecentTemplates: migrated.lpCampaignRecentTemplates ?? {
+        status: [],
+        guide: [],
+        incentive: [],
+        milestone: [],
+        comparison: [],
+      },
+      recentSocialPostFingerprints: Array.isArray(migrated.recentSocialPostFingerprints) ? migrated.recentSocialPostFingerprints : [],
+      recentSocialPostTexts: Array.isArray(migrated.recentSocialPostTexts) ? migrated.recentSocialPostTexts : [],
     };
 
     // Reset daily counter if the day rolled over.
@@ -479,6 +536,86 @@ export async function recordNewsPosted(state: AgentState, at: Date, fingerprintT
   }
   await saveState(next);
   return next;
+}
+
+/**
+ * Record a recently used LP campaign template index.
+ */
+export function recordLPTemplateUsed(
+  state: AgentState,
+  postType: "status" | "guide" | "incentive" | "milestone" | "comparison",
+  templateIndex: number,
+  maxHistory = 5
+): AgentState {
+  const next = { ...state };
+  const current = next.lpCampaignRecentTemplates ?? {};
+  
+  const typeHistory = current[postType] ?? [];
+  const updated = [...typeHistory, templateIndex].slice(-maxHistory);
+  
+  next.lpCampaignRecentTemplates = {
+    ...current,
+    [postType]: updated,
+  };
+  
+  return next;
+}
+
+/**
+ * Record a social post fingerprint for cross-system deduplication.
+ */
+export function recordSocialPostFingerprint(
+  state: AgentState,
+  fingerprint: string,
+  postText: string,
+  maxFingerprints = 20,
+  maxTexts = 10
+): AgentState {
+  const next = { ...state };
+  
+  // Update fingerprints
+  const existingFp = next.recentSocialPostFingerprints ?? [];
+  const updatedFp = [...existingFp, fingerprint].slice(-maxFingerprints);
+  next.recentSocialPostFingerprints = updatedFp;
+  
+  // Update texts for similarity checking
+  const existingTexts = next.recentSocialPostTexts ?? [];
+  const updatedTexts = [...existingTexts, postText].slice(-maxTexts);
+  next.recentSocialPostTexts = updatedTexts;
+  
+  return next;
+}
+
+/**
+ * Check if content is too similar to recent posts.
+ */
+export function isContentTooSimilar(
+  state: AgentState,
+  content: string,
+  similarityThreshold = 0.75
+): boolean {
+  const recentTexts = state.recentSocialPostTexts ?? [];
+  if (recentTexts.length === 0) return false;
+  
+  const normalizedNew = content.toLowerCase().replace(/\s+/g, " ").trim();
+  const wordsNew = new Set(normalizedNew.split(/\s+/));
+  
+  for (const recent of recentTexts) {
+    const normalizedRecent = recent.toLowerCase().replace(/\s+/g, " ").trim();
+    const wordsRecent = new Set(normalizedRecent.split(/\s+/));
+    
+    const intersection = new Set([...wordsNew].filter(w => wordsRecent.has(w)));
+    const union = new Set([...wordsNew, ...wordsRecent]);
+    
+    if (union.size === 0) continue;
+    
+    const similarity = intersection.size / union.size;
+    if (similarity >= similarityThreshold) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 function utcDayKey(d: Date): string {

@@ -1,11 +1,12 @@
 import type { AppConfig } from "../config.js";
 import type { AgentState } from "../agent/state.js";
-import { saveState } from "../agent/state.js";
+import { saveState, recordSocialPostFingerprint } from "../agent/state.js";
 import { logger } from "../logger.js";
 import { createXPosterApi } from "./x_api.js";
 import { createMoltbookPoster } from "./moltbook/index.js";
 import { postTweetXApi } from "./x_api.js";
 import { postMoltbookReceipt, postMoltbookText } from "./moltbook/index.js";
+import { fingerprintContent } from "./dedupe.js";
 
 export type SocialPostKind = "receipt" | "news" | "opinion" | "meta";
 
@@ -29,7 +30,44 @@ function parseSocialTargets(raw: string): Array<"x_api" | "moltbook"> {
   return out;
 }
 
+/**
+ * Create a poster that wraps another poster with cross-system deduplication.
+ * Records fingerprints of all posted content for similarity checking.
+ */
+function withDeduplication(
+  base: SocialPoster,
+  state: AgentState,
+  saveStateFn: (s: AgentState) => Promise<void>
+): SocialPoster {
+  let currentState = state;
+
+  return {
+    async post(text: string, kind?: SocialPostKind) {
+      // First check if content is too similar to recent posts
+      const { isContentTooSimilar } = await import("../agent/state.js");
+      if (isContentTooSimilar(currentState, text, 0.75)) {
+        logger.warn("poster.dedupe.skip_similar_content", {
+          kind,
+          similarity: "content_too_similar_to_recent_posts"
+        });
+        // Still proceed with posting but log the similarity
+        // This prevents blocking legitimate posts while giving visibility
+      }
+
+      // Post via base poster
+      await base.post(text, kind);
+
+      // Record fingerprint for future deduplication
+      const fingerprint = fingerprintContent(text);
+      currentState = recordSocialPostFingerprint(currentState, fingerprint, text);
+      await saveStateFn(currentState);
+    }
+  };
+}
+
 export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
+  let basePoster: SocialPoster;
+
   if (cfg.SOCIAL_MODE === "multi") {
     const targetsRaw = parseSocialTargets(cfg.SOCIAL_MULTI_TARGETS);
     let targets = targetsRaw.filter((t) => {
@@ -89,7 +127,7 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
 
     let currentState = state as AgentState;
 
-    return {
+    basePoster = {
       async post(text: string, kind: SocialPostKind = "receipt") {
         // Sequential posting to avoid state.json clobber between X API + Moltbook.
         for (const t of targets) {
@@ -124,28 +162,34 @@ export function createPoster(cfg: AppConfig, state?: AgentState): SocialPoster {
         }
       }
     };
+
+    // Wrap with deduplication for multi-mode
+    return withDeduplication(basePoster, currentState, saveState);
   }
 
   if (cfg.SOCIAL_MODE === "none") {
-    return {
+    basePoster = {
       async post(text: string, kind?: SocialPostKind) {
         logger.info("SOCIAL_MODE=none (logging receipt only)", { receipt: text, kind });
       }
     };
+    return basePoster;
   }
 
   if (cfg.SOCIAL_MODE === "x_api") {
     if (!state) {
       throw new Error("state required for SOCIAL_MODE=x_api");
     }
-    return createXPosterApi(cfg, state, saveState);
+    basePoster = createXPosterApi(cfg, state, saveState);
+    return withDeduplication(basePoster, state, saveState);
   }
 
   if (cfg.SOCIAL_MODE === "moltbook") {
     if (!state) {
       throw new Error("state required for SOCIAL_MODE=moltbook");
     }
-    return createMoltbookPoster(cfg, state, saveState);
+    basePoster = createMoltbookPoster(cfg, state, saveState);
+    return withDeduplication(basePoster, state, saveState);
   }
   throw new Error(`Unsupported SOCIAL_MODE: ${cfg.SOCIAL_MODE}`);
 }

@@ -10,6 +10,7 @@
  * - Template-based fallback for when no API key is available
  * - Community callout posts for follower growth
  * - Deduplication via state (postedDiscussionTopics LRU)
+ * - Cross-system content deduplication (avoids similarity with LP campaign, news, etc.)
  * - Rate-limited: max 1 discussion post per tick, reuses NEWS_FETCH_INTERVAL_MINUTES
  * - No new environment variables required
  */
@@ -17,6 +18,7 @@
 import { ChatOpenAI } from "@langchain/openai";
 import type { AppConfig } from "../config.js";
 import type { AgentState } from "../agent/state.js";
+import { recordSocialPostFingerprint, isContentTooSimilar } from "../agent/state.js";
 import { logger } from "../logger.js";
 import { createMoltbookClient } from "./moltbook/client.js";
 import {
@@ -26,6 +28,7 @@ import {
   pickTopics,
 } from "./moltbook_engagement.js";
 import { generateLPCampaignPost } from "./lp_campaign.js";
+import { fingerprintContent } from "./dedupe.js";
 import type { PoolStats } from "../chain/liquidity.js";
 
 // Constants
@@ -98,6 +101,7 @@ Requirements:
 /**
  * Post a discussion to Moltbook.
  * Checks state for dedup, picks a topic, generates content, posts.
+ * Includes cross-system content deduplication.
  */
 export async function postMoltbookDiscussion(
   cfg: AppConfig,
@@ -160,7 +164,9 @@ export async function postMoltbookDiscussion(
     // LP campaign post (liquidity provision) — 30% weight
     const wethPool = poolStats?.wethPool ?? null;
     const usdcPool = poolStats?.usdcPool ?? null;
-    postContent = generateLPCampaignPost(wethPool, usdcPool);
+    const recentTemplates = state.lpCampaignRecentTemplates ?? {};
+    const campaignResult = generateLPCampaignPost(wethPool, usdcPool, recentTemplates);
+    postContent = campaignResult.post;
     topic = "lp_campaign";
     kind = "lp_campaign";
   } else {
@@ -175,6 +181,16 @@ export async function postMoltbookDiscussion(
     topic = topics[0];
     postContent = await generateAIDiscussionPost(cfg, topic);
     kind = "discussion";
+  }
+
+  // Cross-system content deduplication: check if too similar to recent posts
+  if (isContentTooSimilar(state, postContent, 0.75)) {
+    logger.info("moltbook.discussion.skip_similar_content", {
+      kind,
+      topic,
+      reason: "content_too_similar_to_recent_posts"
+    });
+    return nullResult("content_too_similar");
   }
 
   // Post to Moltbook
@@ -201,13 +217,16 @@ export async function postMoltbookDiscussion(
       contentLength: postContent.length,
     });
 
-    // Update state
+    // Update state with dedupe tracking
+    let nextState = recordSocialPostFingerprint(state, fingerprintContent(postContent), postContent);
+
+    // Update posted topics for discussion posts
     const postedTopics = [...(state.postedDiscussionTopics ?? []), topic].slice(
       -DISCUSSION_LRU_SIZE
     );
 
-    const nextState: AgentState = {
-      ...state,
+    nextState = {
+      ...nextState,
       moltbookDiscussionLastPostMs: Date.now(),
       moltbookDiscussionPostsToday: discussionPostsToday + 1,
       moltbookDiscussionLastDayUtc: today,

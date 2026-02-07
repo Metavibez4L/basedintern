@@ -12,9 +12,11 @@
 
 import type { AppConfig } from "../config.js";
 import type { AgentState } from "../agent/state.js";
+import { recordLPTemplateUsed, recordSocialPostFingerprint, isContentTooSimilar } from "../agent/state.js";
 import type { PoolStats } from "../chain/liquidity.js";
 import type { SocialPoster, SocialPostKind } from "./poster.js";
 import { generateLPCampaignPost, generatePoolLaunchPost } from "./lp_campaign.js";
+import { fingerprintContent } from "./dedupe.js";
 import { logger } from "../logger.js";
 
 export type LPCampaignContext = {
@@ -127,14 +129,26 @@ export async function maybePostPoolLaunch(
   const postText = generatePoolLaunchPost();
   const kind: SocialPostKind = "meta";
 
+  // Check content similarity to avoid duplicating other recent posts
+  if (isContentTooSimilar(state, postText, 0.7)) {
+    logger.info("lp_campaign.launch_similarity_check", { 
+      result: "content_too_similar_to_recent",
+      action: "proceeding_anyway_for_launch"
+    });
+    // For launch post, we proceed anyway since it's one-time critical
+  }
+
   try {
     await poster.post(postText, kind);
 
-    const nextState: AgentState = {
-      ...state,
+    // Record fingerprint for deduplication
+    let nextState = recordSocialPostFingerprint(state, fingerprintContent(postText), postText);
+
+    nextState = {
+      ...nextState,
       lpCampaignLaunchPosted: true,
       lpCampaignLastPostMs: Date.now(),
-      lpCampaignPostsToday: (state.lpCampaignPostsToday ?? 0) + 1,
+      lpCampaignPostsToday: (nextState.lpCampaignPostsToday ?? 0) + 1,
       lpCampaignLastDayUtc: new Date().toISOString().slice(0, 10),
     };
     await saveStateFn(nextState);
@@ -184,21 +198,41 @@ export async function maybeTriggerLPCampaign(
     return { posted: false, state: workingState, reason: "daily_cap_reached" };
   }
 
-  // Generate post content
-  const postText = generateLPCampaignPost(
+  // Generate post content with template tracking
+  const recentTemplates = workingState.lpCampaignRecentTemplates ?? {};
+  const campaignResult = generateLPCampaignPost(
     poolStats?.wethPool ?? null,
-    poolStats?.usdcPool ?? null
+    poolStats?.usdcPool ?? null,
+    recentTemplates
   );
+
+  const postText = campaignResult.post;
+  const postType = campaignResult.postType;
+  const templateIndex = campaignResult.templateIndex;
+
+  // Check content similarity to avoid repetitive posts across all social systems
+  if (isContentTooSimilar(workingState, postText, 0.75)) {
+    logger.info("lp_campaign.skip_similar_content", {
+      similarity: "content_too_similar_to_recent_posts",
+      postType,
+      templateIndex
+    });
+    return { posted: false, state: workingState, reason: "content_too_similar" };
+  }
 
   const kind: SocialPostKind = "meta";
 
   try {
     await poster.post(postText, kind);
 
-    const nextState: AgentState = {
-      ...workingState,
+    // Update state with template tracking and content fingerprint
+    let nextState = recordLPTemplateUsed(workingState, postType, templateIndex);
+    nextState = recordSocialPostFingerprint(nextState, fingerprintContent(postText), postText);
+
+    nextState = {
+      ...nextState,
       lpCampaignLastPostMs: Date.now(),
-      lpCampaignPostsToday: (workingState.lpCampaignPostsToday ?? 0) + 1,
+      lpCampaignPostsToday: (nextState.lpCampaignPostsToday ?? 0) + 1,
     };
     await saveStateFn(nextState);
 
@@ -206,6 +240,8 @@ export async function maybeTriggerLPCampaign(
       postsToday: nextState.lpCampaignPostsToday,
       maxPerDay: getMaxPostsPerDay(),
       intervalMinutes: getCampaignIntervalMinutes(),
+      postType,
+      templateIndex,
     });
 
     return { posted: true, state: nextState, postText };

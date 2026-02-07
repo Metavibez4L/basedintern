@@ -16,6 +16,7 @@
 
 import { formatEther } from "viem";
 import type { PoolStats } from "../chain/liquidity.js";
+import { pickNonRecentIndex } from "./dedupe.js";
 
 const MOLTBOOK_CHAR_LIMIT = 500;
 const INTERN_TOKEN = "0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11";
@@ -67,12 +68,15 @@ Start LP'ing: {depositUrl}`,
 
 /**
  * Generate an LP status post with live pool data.
+ * Tracks used template indices to avoid repetition.
  */
 export function generateLPStatusPost(
   wethPool: PoolStats | null,
-  usdcPool: PoolStats | null
-): string {
-  const template = LP_STATUS_TEMPLATES[Math.floor(Math.random() * LP_STATUS_TEMPLATES.length)];
+  usdcPool: PoolStats | null,
+  recentTemplateIndices: number[] = []
+): { post: string; templateIndex: number } {
+  const templateIndex = pickNonRecentIndex(LP_STATUS_TEMPLATES.length, recentTemplateIndices, 2);
+  const template = LP_STATUS_TEMPLATES[templateIndex];
 
   const wethTvl = wethPool
     ? parseFloat(formatEther(wethPool.tvlWei)).toFixed(4)
@@ -81,12 +85,12 @@ export function generateLPStatusPost(
     ? wethPool.sharePercent.toFixed(1)
     : "0.0";
 
-  let post = template
+  const post = template
     .replace(/\{wethTvl\}/g, wethTvl)
     .replace(/\{wethShare\}/g, wethShare)
     .replace(/\{depositUrl\}/g, AERODROME_DEPOSIT_URL);
 
-  return truncate(post);
+  return { post: truncate(post), templateIndex };
 }
 
 // ============================================================
@@ -150,10 +154,13 @@ Who's already LP'ing? 👇`,
 
 /**
  * Generate an LP how-to guide post.
+ * Tracks used template indices to avoid repetition.
  */
-export function generateLPGuidePost(): string {
-  const template = LP_GUIDE_TEMPLATES[Math.floor(Math.random() * LP_GUIDE_TEMPLATES.length)];
-  return truncate(template.replace(/\{depositUrl\}/g, AERODROME_DEPOSIT_URL));
+export function generateLPGuidePost(recentTemplateIndices: number[] = []): { post: string; templateIndex: number } {
+  const templateIndex = pickNonRecentIndex(LP_GUIDE_TEMPLATES.length, recentTemplateIndices, 2);
+  const template = LP_GUIDE_TEMPLATES[templateIndex];
+  const post = template.replace(/\{depositUrl\}/g, AERODROME_DEPOSIT_URL);
+  return { post: truncate(post), templateIndex };
 }
 
 // ============================================================
@@ -194,20 +201,25 @@ What's your target TVL? 👇`,
 /**
  * Generate an LP milestone post.
  * Called when TVL crosses a significant threshold.
+ * Tracks used template indices to avoid repetition.
  */
-export function generateLPMilestonePost(tvlEth: number): string {
-  const template = LP_MILESTONE_TEMPLATES[Math.floor(Math.random() * LP_MILESTONE_TEMPLATES.length)];
+export function generateLPMilestonePost(
+  tvlEth: number,
+  recentTemplateIndices: number[] = []
+): { post: string; templateIndex: number } {
+  const templateIndex = pickNonRecentIndex(LP_MILESTONE_TEMPLATES.length, recentTemplateIndices, 2);
+  const template = LP_MILESTONE_TEMPLATES[templateIndex];
 
   // Determine next milestone
   const milestones = [0.1, 0.5, 1, 5, 10, 25, 50, 100];
   const nextMilestone = milestones.find(m => m > tvlEth) ?? tvlEth * 2;
 
-  return truncate(
-    template
-      .replace(/\{tvl\}/g, tvlEth.toFixed(2))
-      .replace(/\{nextMilestone\}/g, nextMilestone.toString())
-      .replace(/\{depositUrl\}/g, AERODROME_DEPOSIT_URL)
-  );
+  const post = template
+    .replace(/\{tvl\}/g, tvlEth.toFixed(2))
+    .replace(/\{nextMilestone\}/g, nextMilestone.toString())
+    .replace(/\{depositUrl\}/g, AERODROME_DEPOSIT_URL);
+
+  return { post: truncate(post), templateIndex };
 }
 
 // ============================================================
@@ -253,12 +265,13 @@ Support the agent economy: {depositUrl}`,
 
 /**
  * Generate an LP incentive/yield post.
+ * Tracks used template indices to avoid repetition.
  */
-export function generateLPIncentivePost(): string {
-  const template = LP_INCENTIVE_TEMPLATES[Math.floor(Math.random() * LP_INCENTIVE_TEMPLATES.length)];
-  return truncate(
-    template.replace(/\{depositUrl\}/g, AERODROME_DEPOSIT_URL)
-  );
+export function generateLPIncentivePost(recentTemplateIndices: number[] = []): { post: string; templateIndex: number } {
+  const templateIndex = pickNonRecentIndex(LP_INCENTIVE_TEMPLATES.length, recentTemplateIndices, 2);
+  const template = LP_INCENTIVE_TEMPLATES[templateIndex];
+  const post = template.replace(/\{depositUrl\}/g, AERODROME_DEPOSIT_URL);
+  return { post: truncate(post), templateIndex };
 }
 
 // ============================================================
@@ -295,12 +308,15 @@ Pick your strategy: 🔷 volatile or 🟢 stable?`,
 
 /**
  * Generate a pool comparison post (when both pools exist).
+ * Tracks used template indices to avoid repetition.
  */
 export function generateLPComparisonPost(
   wethPool: PoolStats | null,
-  usdcPool: PoolStats | null
-): string {
-  const template = LP_COMPARISON_TEMPLATES[Math.floor(Math.random() * LP_COMPARISON_TEMPLATES.length)];
+  usdcPool: PoolStats | null,
+  recentTemplateIndices: number[] = []
+): { post: string; templateIndex: number } {
+  const templateIndex = pickNonRecentIndex(LP_COMPARISON_TEMPLATES.length, recentTemplateIndices, 2);
+  const template = LP_COMPARISON_TEMPLATES[templateIndex];
 
   const wethTvl = wethPool
     ? parseFloat(formatEther(wethPool.tvlWei)).toFixed(4)
@@ -309,12 +325,12 @@ export function generateLPComparisonPost(
     ? parseFloat(formatEther(usdcPool.tvlWei)).toFixed(4)
     : "0.0000";
 
-  return truncate(
-    template
-      .replace(/\{wethTvl\}/g, wethTvl)
-      .replace(/\{usdcTvl\}/g, usdcTvl)
-      .replace(/\{depositUrl\}/g, AERODROME_DEPOSIT_URL)
-  );
+  const post = template
+    .replace(/\{wethTvl\}/g, wethTvl)
+    .replace(/\{usdcTvl\}/g, usdcTvl)
+    .replace(/\{depositUrl\}/g, AERODROME_DEPOSIT_URL);
+
+  return { post: truncate(post), templateIndex };
 }
 
 // ============================================================
@@ -348,9 +364,16 @@ Who's adding LP? 👇`
 // UNIFIED LP CAMPAIGN POST GENERATOR
 // ============================================================
 
+export type LPCampaignPostResult = {
+  post: string;
+  postType: "status" | "guide" | "incentive" | "milestone" | "comparison";
+  templateIndex: number;
+};
+
 /**
  * Generate a random LP campaign post.
  * Selects from all LP post types based on available data.
+ * Tracks template usage to avoid repetition.
  *
  * Distribution:
  *  - 30% LP status (if pool data available)
@@ -361,23 +384,37 @@ Who's adding LP? 👇`
  */
 export function generateLPCampaignPost(
   wethPool: PoolStats | null,
-  usdcPool: PoolStats | null
-): string {
+  usdcPool: PoolStats | null,
+  recentTemplateIndices: Record<string, number[]> = {}
+): LPCampaignPostResult {
   const dice = Math.random();
 
+  // Initialize tracking for each post type if not present
+  const statusIndices = recentTemplateIndices.status ?? [];
+  const guideIndices = recentTemplateIndices.guide ?? [];
+  const incentiveIndices = recentTemplateIndices.incentive ?? [];
+  const milestoneIndices = recentTemplateIndices.milestone ?? [];
+  const comparisonIndices = recentTemplateIndices.comparison ?? [];
+
   if (dice < 0.30 && wethPool) {
-    return generateLPStatusPost(wethPool, usdcPool);
+    const result = generateLPStatusPost(wethPool, usdcPool, statusIndices);
+    return { post: result.post, postType: "status", templateIndex: result.templateIndex };
   } else if (dice < 0.55) {
-    return generateLPGuidePost();
+    const result = generateLPGuidePost(guideIndices);
+    return { post: result.post, postType: "guide", templateIndex: result.templateIndex };
   } else if (dice < 0.75) {
-    return generateLPIncentivePost();
+    const result = generateLPIncentivePost(incentiveIndices);
+    return { post: result.post, postType: "incentive", templateIndex: result.templateIndex };
   } else if (dice < 0.90 && wethPool && wethPool.tvlWei > 0n) {
     const tvlEth = parseFloat(formatEther(wethPool.tvlWei));
-    return generateLPMilestonePost(tvlEth);
+    const result = generateLPMilestonePost(tvlEth, milestoneIndices);
+    return { post: result.post, postType: "milestone", templateIndex: result.templateIndex };
   } else if (usdcPool) {
-    return generateLPComparisonPost(wethPool, usdcPool);
+    const result = generateLPComparisonPost(wethPool, usdcPool, comparisonIndices);
+    return { post: result.post, postType: "comparison", templateIndex: result.templateIndex };
   } else {
-    return generateLPGuidePost(); // Fallback
+    const result = generateLPGuidePost(guideIndices);
+    return { post: result.post, postType: "guide", templateIndex: result.templateIndex };
   }
 }
 
