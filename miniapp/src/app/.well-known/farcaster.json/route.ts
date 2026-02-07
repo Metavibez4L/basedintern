@@ -3,7 +3,7 @@ import { minikitConfig } from "@/minikit.config";
 
 export async function GET() {
   const { accountAssociation, miniapp } = minikitConfig;
-  return NextResponse.json({
+    return NextResponse.json({
     accountAssociation,
     frame: {
       version: miniapp.version,
@@ -12,6 +12,7 @@ export async function GET() {
       description: miniapp.description,
       screenshotUrls: miniapp.screenshotUrls,
       iconUrl: miniapp.iconUrl,
+      imageUrl: miniapp.iconUrl,
       splashImageUrl: miniapp.splashImageUrl,
       splashBackgroundColor: miniapp.splashBackgroundColor,
       homeUrl: miniapp.homeUrl,
