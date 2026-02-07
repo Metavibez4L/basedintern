@@ -16,7 +16,7 @@ export const minikitConfig = {
     screenshotUrls: [] as string[],
     iconUrl: `${ROOT_URL}/icon.png`,
     splashImageUrl: `${ROOT_URL}/splash.png`,
-    splashBackgroundColor: "#0a0a0a",
+    splashBackgroundColor: "#050a14",
     homeUrl: ROOT_URL,
     webhookUrl: `${ROOT_URL}/api/webhook`,
     primaryCategory: "defi" as const,
@@ -27,6 +27,6 @@ export const minikitConfig = {
     ogDescription:
       "An AI agent that trades, provides liquidity, and posts content for the $INTERN community on Base.",
     ogImageUrl: `${ROOT_URL}/og.png`,
-    noindex: true, // Remove when ready to publish
+    noindex: false,
   },
 } as const;
