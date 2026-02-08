@@ -170,7 +170,7 @@ export async function lpTick(
 
   if (wethPool && cfg.POOL_ADDRESS) {
     const autoSeedAction = await evaluateAutoSeed(
-      cfg, clients, tokenAddress, wethAddress, wallet, wethPool
+      cfg, clients, tokenAddress, wethAddress, wallet, wethPool, state
     );
     if (autoSeedAction) {
       actions.push(autoSeedAction);
@@ -249,7 +249,8 @@ async function evaluateAutoSeed(
   tokenAddress: Address,
   wethAddress: Address,
   wallet: Address,
-  wethPool: PoolStats
+  wethPool: PoolStats,
+  state: AgentState
 ): Promise<LPAction | null> {
   // Only seed if pool TVL is below 1 ETH (bootstrapping phase)
   const tvlThreshold = parseEther("1");
@@ -258,6 +259,22 @@ async function evaluateAutoSeed(
       reason: "pool_tvl_above_threshold",
       tvl: formatEther(wethPool.tvlWei),
       threshold: "1 ETH",
+    });
+    return null;
+  }
+
+  // REDEPLOY SAFETY: LP cooldown — don't add liquidity more than once
+  // per LOOP_MINUTES interval. Prevents rapid-fire LP adds when two
+  // replicas overlap during a zero-downtime deploy.
+  const lpCooldownMs = cfg.LOOP_MINUTES * 60_000;
+  const lastAddAt = state.lpLastAddAtMs ?? 0;
+  const timeSinceLastAdd = Date.now() - lastAddAt;
+  if (lastAddAt > 0 && timeSinceLastAdd < lpCooldownMs) {
+    logger.info("lp.autoSeed.skip", {
+      reason: "lp_cooldown",
+      lastAddAtMs: lastAddAt,
+      cooldownMs: lpCooldownMs,
+      remainingSec: Math.round((lpCooldownMs - timeSinceLastAdd) / 1000),
     });
     return null;
   }
@@ -344,11 +361,34 @@ async function evaluateAutoSeed(
     };
   }
 
+  // REDEPLOY SAFETY: Nonce guard — check wallet nonce before LP execution.
+  // If nonce changed since tick start, another replica may have sent a tx.
+  try {
+    const currentNonce = await clients.publicClient.getTransactionCount({
+      address: wallet,
+    });
+    const expectedNonce = state.lastSeenNonce;
+    if (expectedNonce !== null && currentNonce !== expectedNonce) {
+      logger.warn("lp.autoSeed.skip", {
+        reason: "nonce_changed",
+        expectedNonce,
+        currentNonce,
+      });
+      return null;
+    }
+  } catch {
+    // Non-critical: proceed if nonce check fails
+  }
+
   // Execute LP add
   try {
     const result = await addLiquidityETH(
       cfg, clients, tokenAddress, tokenToAdd, ethToAdd
     );
+
+    // Record LP add timestamp for cooldown (persisted in state by caller)
+    state.lpLastAddAtMs = Date.now();
+
     return {
       type: "add_liquidity_eth",
       pool: "INTERN/WETH",

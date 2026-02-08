@@ -81,6 +81,22 @@ async function tick(): Promise<void> {
     return;
   }
 
+  // REDEPLOY PROTECTION: check if another replica has a tick in-flight
+  const inFlightSince = state.tickInFlightSinceMs ?? 0;
+  const inFlightAge = Date.now() - inFlightSince;
+  const maxTickDuration = 5 * 60_000; // 5 minutes max tick runtime
+  if (inFlightSince > 0 && inFlightAge < maxTickDuration) {
+    logger.info("redeploy_protection: skipping tick, another tick in-flight", {
+      inFlightSince,
+      inFlightAgeSec: Math.round(inFlightAge / 1000),
+    });
+    return;
+  }
+
+  // Mark tick as in-flight (visible to other replicas sharing the volume)
+  state.tickInFlightSinceMs = Date.now();
+  await saveState(state);
+
   // ============================================================
   // PHASE 1: X MENTIONS POLLER (Intent Recognition, No Execution)
   // ============================================================
@@ -328,8 +344,22 @@ async function tick(): Promise<void> {
     });
 
     // ============================================================
-    // PROPOSE & EXECUTE (existing logic, unchanged)
+    // PROPOSE & EXECUTE
     // ============================================================
+
+    // REDEPLOY SAFETY: Re-read state from disk right before guardrails.
+    // If another replica (during zero-downtime deploy overlap) already
+    // executed a trade and updated state.json, we'll see the fresh
+    // tradesExecutedToday counter and lastExecutedTradeAtMs.
+    try {
+      const freshState = await loadState();
+      workingState.tradesExecutedToday = freshState.tradesExecutedToday;
+      workingState.lastExecutedTradeAtMs = freshState.lastExecutedTradeAtMs;
+      workingState.dayKey = freshState.dayKey;
+    } catch {
+      // Non-critical: proceed with current state if disk read fails
+    }
+
     const proposal = await proposeAction(cfg, {
       wallet,
       ethWei,
@@ -349,20 +379,46 @@ async function tick(): Promise<void> {
 
     let txHash: `0x${string}` | null = null;
     if (decision.shouldExecute && tokenAddress) {
+      // REDEPLOY SAFETY: Nonce guard — read wallet nonce from chain.
+      // If it changed since we recorded it at tick start, another replica
+      // (or external actor) already sent a tx. Skip to avoid wasting gas
+      // on a tx that will likely fail with a nonce conflict.
+      let nonceOk = true;
       try {
-        const trader = createTradeExecutor(cfg, clients, tokenAddress);
-        if (decision.action === "BUY" && decision.buySpendWei) {
-          txHash = await trader.executeBuy(decision.buySpendWei);
-          workingState = await recordExecutedTrade(workingState, now);
-        } else if (decision.action === "SELL" && decision.sellAmount) {
-          txHash = await trader.executeSell(decision.sellAmount);
-          workingState = await recordExecutedTrade(workingState, now);
+        const currentNonce = await clients.publicClient.getTransactionCount({
+          address: wallet,
+        });
+        const expectedNonce = workingState.lastSeenNonce;
+        if (expectedNonce !== null && currentNonce !== expectedNonce) {
+          logger.warn("redeploy_protection: nonce changed since tick start, skipping trade", {
+            expectedNonce,
+            currentNonce,
+            delta: currentNonce - expectedNonce,
+          });
+          nonceOk = false;
         }
       } catch (err) {
-        logger.warn("trade execution failed; falling back to HOLD receipt", {
-          error: err instanceof Error ? err.message : String(err)
+        logger.warn("nonce guard check failed, proceeding anyway", {
+          error: err instanceof Error ? err.message : String(err),
         });
-        txHash = null;
+      }
+
+      if (nonceOk) {
+        try {
+          const trader = createTradeExecutor(cfg, clients, tokenAddress);
+          if (decision.action === "BUY" && decision.buySpendWei) {
+            txHash = await trader.executeBuy(decision.buySpendWei);
+            workingState = await recordExecutedTrade(workingState, now);
+          } else if (decision.action === "SELL" && decision.sellAmount) {
+            txHash = await trader.executeSell(decision.sellAmount);
+            workingState = await recordExecutedTrade(workingState, now);
+          }
+        } catch (err) {
+          logger.warn("trade execution failed; falling back to HOLD receipt", {
+            error: err instanceof Error ? err.message : String(err)
+          });
+          txHash = null;
+        }
       }
     }
 
@@ -763,6 +819,7 @@ async function tick(): Promise<void> {
   try {
     const endState = await loadState();
     endState.lastTickCompletedAtMs = Date.now();
+    endState.tickInFlightSinceMs = null; // Clear in-flight marker
     // Persist engagement indices so they survive redeploys
     const { hookIndex, ctaIndex } = getEngagementIndices();
     endState.lastMoltbookHookIndex = hookIndex;

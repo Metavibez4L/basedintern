@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 18;
+const STATE_SCHEMA_VERSION = 19;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
@@ -25,6 +25,7 @@ const STATE_SCHEMA_VERSION = 18;
  * v16: Mini app campaign state (launch posted, daily counters, template tracking) (2026-02-07)
  * v17: Trade announcement dedup (persisted template indices) + news source cooldown (2026-02-08)
  * v18: Redeploy protection — lastTickCompletedAtMs + moltbook engagement indices (2026-02-08)
+ * v19: Comprehensive redeploy safety — LP cooldown, nonce guard, tick-in-flight marker (2026-02-08)
  */
 
 export type AgentState = {
@@ -185,6 +186,19 @@ export type AgentState = {
   lastMoltbookHookIndex?: number;
   /** Last used Moltbook engagement CTA index (persisted to avoid repetition after restart) */
   lastMoltbookCtaIndex?: number;
+
+  // =========================
+  // Comprehensive Redeploy Safety (v19)
+  // =========================
+  /** Timestamp (ms) when the last LP add was executed. Enforces cooldown to
+   *  prevent rapid-fire LP adds during zero-downtime deploy overlap. */
+  lpLastAddAtMs?: number | null;
+  /** Wallet nonce recorded at the moment a trade/LP tx is submitted.
+   *  Used to detect if another replica already sent a tx this tick. */
+  lastTxNonce?: number | null;
+  /** Timestamp (ms) when the current tick started. If set and recent,
+   *  another replica may still be running a tick. */
+  tickInFlightSinceMs?: number | null;
 };
 
 export const DEFAULT_STATE: AgentState = {
@@ -262,6 +276,10 @@ export const DEFAULT_STATE: AgentState = {
   lastTickCompletedAtMs: null,
   lastMoltbookHookIndex: -1,
   lastMoltbookCtaIndex: -1,
+
+  lpLastAddAtMs: null,
+  lastTxNonce: null,
+  tickInFlightSinceMs: null,
 };
 
 export function statePath(): string {
@@ -439,6 +457,14 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     if (!("lastMoltbookCtaIndex" in raw)) raw.lastMoltbookCtaIndex = -1;
   }
 
+  // v18 → v19: Comprehensive redeploy safety (LP cooldown, nonce guard, tick-in-flight)
+  if (version === undefined || version < 19) {
+    logger.info("state migration", { from: version || 18, to: STATE_SCHEMA_VERSION });
+    if (!("lpLastAddAtMs" in raw)) raw.lpLastAddAtMs = null;
+    if (!("lastTxNonce" in raw)) raw.lastTxNonce = null;
+    if (!("tickInFlightSinceMs" in raw)) raw.tickInFlightSinceMs = null;
+  }
+
   return raw as AgentState;
 }
 
@@ -537,6 +563,10 @@ export async function loadState(): Promise<AgentState> {
       lastTickCompletedAtMs: migrated.lastTickCompletedAtMs ?? null,
       lastMoltbookHookIndex: migrated.lastMoltbookHookIndex ?? -1,
       lastMoltbookCtaIndex: migrated.lastMoltbookCtaIndex ?? -1,
+
+      lpLastAddAtMs: migrated.lpLastAddAtMs ?? null,
+      lastTxNonce: migrated.lastTxNonce ?? null,
+      tickInFlightSinceMs: migrated.tickInFlightSinceMs ?? null,
     };
 
     // Reset daily counter if the day rolled over.
