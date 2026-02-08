@@ -64,6 +64,12 @@ export async function approveToken(
     chain: undefined as any
   });
 
+  // Wait for the approval to be mined before returning.
+  // Without this, subsequent calls (addLiquidity, swap) that simulate
+  // against current chain state will revert because the allowance
+  // hasn't been updated yet.
+  await publicClient.waitForTransactionReceipt({ hash: txHash });
+
   return txHash;
 }
 
