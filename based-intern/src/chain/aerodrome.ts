@@ -422,7 +422,7 @@ export function calculatePoolTVL(
 
 /**
  * Query Aerodrome factory for pool address given two tokens and pool type.
- * Aerodrome Factory interface: getPair(token0, token1, stable) -> address
+ * Aerodrome v2 PoolFactory interface: getPool(tokenA, tokenB, stable) -> address
  */
 export async function queryAerodromePool(
   clients: ChainClients,
@@ -433,13 +433,13 @@ export async function queryAerodromePool(
 ): Promise<Address | null> {
   try {
     const factoryAbi = parseAbi([
-      "function getPair(address token0, address token1, bool stable) public view returns (address pair)"
+      "function getPool(address tokenA, address tokenB, bool stable) external view returns (address pool)"
     ]);
 
     const pool = await clients.publicClient.readContract({
       address: factoryAddress,
       abi: factoryAbi,
-      functionName: "getPair",
+      functionName: "getPool",
       args: [token0, token1, stable]
     });
 
