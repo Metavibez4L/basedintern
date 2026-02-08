@@ -191,13 +191,21 @@ function fallbackPolicy(cfg: AppConfig, ctx: BrainContext): ProposedAction {
     }
   }
 
-  // Tier 4: Default → probabilistic HOLD (68% hold, 16% buy, 16% sell)
-  // This adds soft variability without external randomness.
-  const hash = ctx.wallet.charCodeAt(2) + ctx.wallet.charCodeAt(4) + ctx.internAmount.toString().length;
+  // Tier 4: Default → probabilistic (35% buy, 30% sell, 35% hold)
+  // Uses current hour + wallet chars + token balance length so the outcome
+  // varies across ticks instead of being frozen on the same result every time.
+  const hourSeed = new Date().getUTCHours();
+  const minuteBucket = Math.floor(new Date().getUTCMinutes() / 10); // 0-5
+  const hash =
+    ctx.wallet.charCodeAt(2) +
+    ctx.wallet.charCodeAt(4) +
+    ctx.internAmount.toString().length +
+    hourSeed * 7 +
+    minuteBucket * 13;
   const rand = hash % 100;
-  if (rand < 16) {
+  if (rand < 35) {
     return { action: "BUY", rationale: "Probabilistic buy (no strong signal detected)." };
-  } else if (rand < 32) {
+  } else if (rand < 65) {
     return { action: "SELL", rationale: "Probabilistic sell (no strong signal detected)." };
   }
   return { action: "HOLD", rationale: "No signal detected. Probabilistic hold." };

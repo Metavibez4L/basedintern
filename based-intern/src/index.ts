@@ -286,31 +286,17 @@ async function tick(): Promise<void> {
     });
     // Still save updated watcher state
     await saveState(workingState);
-  } else if (!activityResult.changed && heartbeatDue) {
-    logger.info("heartbeat due, posting receipt", {
-      postDay,
-      lastPostDayUtc: workingState.lastPostDayUtc
-    });
-
-    const receipt = buildReceiptMessage({
-      action: "HOLD",
-      agentRef: cfg.erc8004.enabled ? (cfg.erc8004.agentRef ?? null) : null,
-      wallet,
-      ethWei,
-      internAmount,
-      internDecimals,
-      priceText: price.text,
-      txHash: null,
-      dryRun: cfg.DRY_RUN
-    });
-
-    await poster.post(receipt);
-
-    workingState.lastPostDayUtc = postDay;
-    await saveState(workingState);
   } else {
-    logger.info("activity detected, posting receipt", {
-      reasons: activityResult.reasons
+    // Both heartbeat ticks and activity-detected ticks now evaluate trading.
+    // Previously the heartbeat branch hardcoded HOLD, creating a deadlock
+    // where the agent could never make its first trade.
+    const triggerReason = activityResult.changed
+      ? `activity detected: ${activityResult.reasons.join(", ")}`
+      : `heartbeat due (day=${postDay})`;
+    logger.info("tick triggered, evaluating trade", {
+      trigger: triggerReason,
+      heartbeatDue,
+      activityChanged: activityResult.changed
     });
 
     // ============================================================
