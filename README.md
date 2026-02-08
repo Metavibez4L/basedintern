@@ -19,18 +19,20 @@
 ╚══════════════════════════════════════════════════════════════════════════════╝
 ```
 
-> **The first autonomous agent on Base with ERC-8004 on-chain identity. AI-powered engagement. Live threaded conversations on X + Moltbook. Remote ops. Triple-safety trading. Autonomous LP. News opinion pipeline. Mini App dashboard. 218 tests. Actually working.**
+> **The first autonomous agent on Base with ERC-8004 on-chain identity. Autonomously executing trades and LP operations on Aerodrome. AI-powered engagement. Live threaded conversations on X + Moltbook. Remote ops. Triple-safety trading. Mini App dashboard. 218 tests. Actually working.**
 
-Based Intern is a LIVE production autonomous agent that combines capabilities no other Base agent has:
+Based Intern is a **LIVE production autonomous agent** that combines capabilities no other Base agent has:
+- **Autonomous on-chain execution** — first successful LP seed tx on 2026-02-08 ([BaseScan](https://basescan.org/tx/0x99a0995d92eca6b6d36c76f79faf7352dc0f0d7328c2a95798702ec53bae85d8))
 - **On-chain identity** via ERC-8004 Identity Registry (first Base agent with portable, verifiable, wallet-bound identity)
-- **AI-powered social engagement** with threaded replies to ALL mentions + comments using GPT-4o-mini (✅ LIVE)
-- **Multi-platform omnipresence** via dual posting (X API + Moltbook) with independent circuit breakers and rate-limit handling
-- **Remote operations** via OpenClaw Gateway (attach to live Railway workers, trigger actions, inspect state in real-time)
+- **AI-powered social engagement** with threaded replies to ALL mentions + comments using GPT-4o-mini
+- **Multi-platform omnipresence** via dual posting (X API + Moltbook) with independent circuit breakers
+- **Remote operations** via OpenClaw Gateway (attach to live Railway workers, trigger actions, inspect state)
 - **Autonomous trading** with triple-safety architecture (config validation + LLM fallback + execution guardrails)
 - **Autonomous LP** on Aerodrome (INTERN/WETH + INTERN/USDC pools, gauge staking, AERO rewards)
 - **News opinion pipeline** — AI-generated takes on Base ecosystem news from X timeline + CryptoPanic
 - **Trade announcements** — Community hype posts after every successful trade
-- **Content deduplication** — SHA256 fingerprinting prevents repetitive posts across all channels
+- **5-layer content deduplication** — URL fingerprints, source cooldowns, cross-pipeline similarity, template rotation, topic extraction
+- **Redeploy protection** — startup cooldown + persisted engagement indices prevent duplicate posts on Railway deploys
 - **📱 Base Mini App** — Live community dashboard at [basedintern.vercel.app](https://basedintern.vercel.app)
 - **Event-driven posting** that only speaks when there's something to say (no timer spam)
 - **Production-hardened** with retry logic, timeouts, input validation, atomic state writes, and defensive coding
@@ -46,26 +48,46 @@ This repo includes **LIVE Base mainnet (chainId 8453) deployments** with verifie
 | **Deployed** | ✅ YES — Railway |
 | **Mini App** | ✅ YES — Vercel |
 | **Network** | Base mainnet (chainId 8453) |
+| **Agent Wallet** | [`0x4Ba6B07626E6dF28120b04f772C4a89CC984Cc80`](https://basescan.org/address/0x4Ba6B07626E6dF28120b04f772C4a89CC984Cc80) |
 | **Pool** | INTERN/WETH volatile pool on Aerodrome |
-| **Pool Address** | `0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc` |
-| **Router** | Aerodrome `0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43` |
-| **Token** | INTERN `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11` |
+| **Pool Address** | [`0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc`](https://basescan.org/address/0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc) |
+| **Router** | Aerodrome v2 [`0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43`](https://basescan.org/address/0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43) |
+| **Factory** | Aerodrome PoolFactory v2 [`0x420DD381b31aEf6683db6B902084cB0FFECe40Da`](https://basescan.org/address/0x420DD381b31aEf6683db6B902084cB0FFECe40Da) |
+| **Token** | INTERN [`0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11`](https://basescan.org/address/0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11) |
 | **Mini App URL** | [basedintern.vercel.app](https://basedintern.vercel.app) |
-| **Status** | 🟢 LIVE |
-| **Trading** | ✅ Active — 1 trade/day cap, 0.0005 ETH max spend |
-| **LP** | ✅ Active — auto-seed enabled, max 0.001 ETH per add |
+| **Status** | 🟢 LIVE — AUTONOMOUS |
+| **First On-Chain TX** | ✅ 2026-02-08 — LP seed (0.005 ETH + 177,944 INTERN) |
+| **Trading** | ✅ Active — 3 trades/day cap, 0.0002 ETH max spend |
+| **LP** | ✅ Active — auto-seed enabled, first seed successful |
 | **Social** | ✅ Active — X + Moltbook (multi-target) |
 | **News** | ✅ Active — X timeline + opinion generation |
+| **Dedup** | ✅ 5-layer system — source cooldown, cross-pipeline, template rotation |
 | **Guardrails** | ✅ All active — KILL_SWITCH, daily caps, slippage limits |
+| **Redeploy Safety** | ✅ Startup cooldown + persisted indices |
 | **Tests** | ✅ 218 passing |
 
 **Loop Configuration:**
 - Interval: 30 minutes
-- Daily trade cap: 1
-- Max spend per trade: 0.0005 ETH
-- Slippage: 300 BPS
-- LP max per add: 0.001 ETH
+- Daily trade cap: 3
+- Max spend per trade: 0.0002 ETH
+- Slippage: 500 BPS
+- LP max per add: 0.005 ETH
 - LP max token fraction: 1000 BPS
+- News source cooldown: 4 hours
+
+---
+
+## 🎉 Milestone: First Autonomous On-Chain Transaction
+
+On **2026-02-08**, Based Intern executed its first fully autonomous on-chain transaction — an LP seed adding **0.005 ETH + 177,944 INTERN** to the Aerodrome INTERN/WETH pool:
+
+**TX:** [`0x99a0995d...bae85d8`](https://basescan.org/tx/0x99a0995d92eca6b6d36c76f79faf7352dc0f0d7328c2a95798702ec53bae85d8)
+
+This was achieved after fixing several critical bugs:
+1. **Trading deadlock** — heartbeat ticks now evaluate trades (previously hardcoded HOLD)
+2. **Local account signing** — all transactions now sign locally via `eth_sendRawTransaction` (was incorrectly using `eth_sendTransaction`)
+3. **Approval race condition** — ERC20 approvals now wait for confirmation before dependent transactions
+4. **Aerodrome v2 compatibility** — corrected factory address + `getPool` function signature
 
 ---
 
@@ -98,7 +120,8 @@ The **INTERN Base Mini App** is a live community dashboard inside Coinbase Walle
 | **INTERN Token** | `0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11` |
 | **WETH** | `0x4200000000000000000000000000000000000006` |
 | **Pool (INTERN/WETH)** | `0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc` |
-| **Router (Aerodrome)** | `0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43` |
+| **Router (Aerodrome v2)** | `0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43` |
+| **Factory (Aerodrome v2)** | `0x420DD381b31aEf6683db6B902084cB0FFECe40Da` |
 
 ### Mini App API Endpoints
 
@@ -106,10 +129,10 @@ The mini app connects to the agent's control server for live data:
 
 | Endpoint | Auth | Description | Caching |
 |----------|------|-------------|---------|
-| `GET /api/stats` | None | Agent status, trades today, uptime | 30s TTL |
+| `GET /api/stats` | None | Agent status, trades today, uptime | 15s TTL |
 | `GET /api/pool` | None | Pool TVL, reserves, INTERN price | 30s TTL |
-| `GET /api/feed` | None | Action log (50-entry ring buffer) | Real-time |
-| `GET /api/token` | None | Token price, supply, decimals | 30s TTL |
+| `GET /api/feed` | None | Action log (50-entry ring buffer, persisted) | Real-time |
+| `GET /api/token` | None | Token price, supply, decimals | 60s TTL |
 
 ### Mini App Setup (Local Development)
 
@@ -142,12 +165,19 @@ npx next build
   - **X API** (OAuth 1.0a): Circuit breaker, idempotency, rate-limit aware
   - **Moltbook** (API-key): Skill-spec driven, redirect-safe, rate-limit backoff
   - Fan-out to multiple targets from single process with independent failure isolation
-- **AI Engagement System** (✅ LIVE, ✅ THREADED)
+- **AI Engagement System** (LIVE, THREADED)
   - **X Mentions**: Polls every 2 minutes, responds to ALL mentions with GPT-4o-mini contextual replies
   - **Moltbook Threaded Replies**: Fetches comments via `/agents/profile` + `/posts/{id}`, generates GPT-4o-mini replies, posts to `/posts/{postId}/comments` with `parent_id` for proper conversation threading, respects 20s cooldown
-  - **Trade Announcements**: Community hype posts fired after every successful trade (BUY/SELL)
-  - **Content Deduplication**: SHA256 fingerprinting + similarity checking prevents repetitive posts (LRU 200 tracked per platform)
+  - **Trade Announcements**: Community hype posts fired after every successful trade (BUY/SELL) with persistent template rotation
+  - **Content Deduplication**: 5-layer system prevents repetitive posts (see below)
   - **Personality**: Technical, confident, slightly cocky but friendly - references ERC-8004 identity, 218 tests, Railway deployment
+
+### 🛡️ 5-Layer Content Deduplication
+1. **URL Fingerprinting** — SHA256 of canonical URLs prevents re-posting same articles (LRU 200)
+2. **News Source Cooldown** — Same news domain blocked for 4 hours after posting (`NEWS_SOURCE_COOLDOWN_HOURS`)
+3. **Cross-Pipeline Similarity** — Jaccard word-overlap (0.65 threshold) against ALL recent social posts across every pipeline
+4. **Template Rotation** — Persisted template indices for trade announcements, LP campaigns, mini app posts (survives restarts)
+5. **Topic Extraction** — Significant keyword extraction with stop-word filtering for semantic dedup
 
 ### 🗞️ News Opinion Pipeline
 - **Multi-Source News Aggregation**
@@ -155,7 +185,7 @@ npx next build
   - CryptoPanic: Hot crypto news (optional, requires API key)
 - **AI Opinion Generation**: GPT-4o-mini analyzes top stories and generates hot takes
 - **Relevance Scoring**: Configurable threshold (default 0.5) filters low-quality opinions
-- **Dual-Layer Dedupe**: Article IDs + canonical URL fingerprints prevent re-posting
+- **Source Domain Cooldown**: 4-hour cooldown per news domain prevents source repetition
 - **Daily Caps**: Max posts per day enforced via persisted state
 - **Circuit Breaker**: Auto-disables after 3 consecutive failures (30-min cooldown)
 
@@ -166,18 +196,26 @@ npx next build
   - Gauge staking for AERO rewards (auto-stake, auto-claim)
   - Pool health monitoring (reserves, TVL, share %)
   - Auto-seed when pool TVL < 1 ETH
+  - **First successful LP seed**: 2026-02-08 (0.005 ETH + 177,944 INTERN)
 - **LP Social Campaign**: Status posts, guides, milestones, comparisons, incentive posts
 - **Guardrails**: `LP_MAX_ETH_PER_ADD`, `LP_MAX_TOKEN_FRACTION_BPS`, `LP_SLIPPAGE_BPS`
 
-### 💱 Autonomous Trading (Full Power, Off by Default)
+### 💱 Autonomous Trading (Live)
 - **Triple-Safety Architecture**:
   1. Config validation (Zod schema, cross-field checks)
   2. LLM fallback (4-tier deterministic policy when OpenAI unavailable)
   3. Execution guardrails (daily cap, interval, spend limits)
-- **DEX Integration**: Modular provider system (Aerodrome + HTTP fallback)
-- **Smart Approvals**: Automatic ERC20 allowance orchestration for sells
+- **DEX Integration**: Modular provider system (Aerodrome v2 + HTTP fallback)
+- **Local Account Signing**: All transactions signed locally via private key, sent as raw transactions
+- **Smart Approvals**: Automatic ERC20 allowance orchestration with confirmation wait
 - **Slippage Protection**: Configurable BPS-based minimum output
 - **Trade Announcements**: Automatic hype posts to X + Moltbook after successful trades
+- **Balanced Probabilities**: 35% BUY / 30% SELL / 35% HOLD with time-varying seed
+
+### 🔄 Redeploy Protection
+- **Startup Cooldown**: First tick skipped if last tick completed within half a loop interval (prevents Railway zero-downtime deploy duplicates)
+- **Persisted Engagement Indices**: Moltbook hook/CTA indices survive restarts (no repetition after deploy)
+- **End-of-Tick State Save**: `lastTickCompletedAtMs` + engagement indices saved every tick
 
 ### 🛠️ Remote Operations (OpenClaw)
 - **Token-Protected Control Server** (attach to live Railway workers)
@@ -185,28 +223,28 @@ npx next build
   - `GET /status` — Sanitized config + state + tick timings
   - `POST /tick` — Trigger immediate action
 - **Mini App API** (public read-only with TTL caching)
-  - `GET /api/stats` — Live agent statistics
-  - `GET /api/pool` — Pool data (TVL, reserves, price)
-  - `GET /api/feed` — Action log (50-entry ring buffer)
-  - `GET /api/token` — Token metadata
+  - `GET /api/stats` — Live agent statistics (15s cache)
+  - `GET /api/pool` — Pool data (TVL, reserves, price) (30s cache)
+  - `GET /api/feed` — Action log (persisted, 50-entry ring buffer)
+  - `GET /api/token` — Token metadata (60s cache)
 - **OpenClaw Gateway Service** (separate Railway Web service)
   - Skills: `based-intern-ops`, `based-intern-railway-control`
   - Private networking: `http://basedintern.railway.internal:8080`
 
-### 🛡️ Production Hardening & Recent Optimizations
+### 🛡️ Production Hardening
 
-Recent performance and reliability improvements:
-
-1. **TTL Caching on API Endpoints** — Mini app API responses cached for 30s to reduce RPC load
-2. **Atomic State Writes with Backup Recovery** — State updates use write-to-temp + rename pattern; automatic backup recovery on corruption
-3. **Persistent Action Log** — Action feed now persists to disk (action-log.json), survives restarts
-4. **Shared Utilities Module** (`src/utils.ts`) — Consolidated `sleep()`, `interruptibleSleep()`, `TTLCache`, `formatCompact()`
-5. **Consolidated Sleep Functions** — Eliminated 4 duplicate sleep implementations across codebase
-6. **Content Deduplication** — SHA256 fingerprinting + Jaccard similarity checking prevents repetitive posts
-7. **Retry + Timeout**: CoinGecko adapter with exponential backoff (429/5xx) and AbortController timeout
-8. **Error Logging**: Structured warnings on all Aerodrome catch blocks (pool reads, LP balance, factory queries)
-9. **Input Sanitization**: Cookie values sanitized to prevent header injection in Moltbook client
-10. **Overflow Protection**: Pure BigInt arithmetic in `parseMinTokenDelta` for any ERC20 decimals value
+| Feature | Description |
+|---------|-------------|
+| **TTL Caching** | API endpoints cached (15s/30s/60s) to reduce RPC load |
+| **Atomic State Writes** | Write-to-temp + rename pattern; auto backup recovery |
+| **Persistent Action Log** | `action-log.json` survives restarts (debounced disk writes) |
+| **Shared Utilities** | Consolidated `sleep`, `interruptibleSleep`, `TTLCache`, `formatCompact` |
+| **Retry + Timeout** | Exponential backoff (429/5xx) + AbortController timeouts |
+| **Input Sanitization** | Cookie values sanitized, header injection prevention |
+| **Overflow Protection** | Pure BigInt arithmetic for any ERC20 decimals value |
+| **State Schema Versioning** | v18 with automatic migrations from any prior version |
+| **Approval Confirmation** | ERC20 approvals wait for mining before dependent tx |
+| **Local Signing** | All chain txs use local account signing (not JSON-RPC) |
 
 ---
 

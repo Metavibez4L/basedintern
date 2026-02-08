@@ -2,72 +2,143 @@
 
 Operations guide for monitoring and managing the live Based Intern agent deployment on Railway.
 
+**Last updated:** 2026-02-08 (post first autonomous on-chain transaction)
+
 ---
 
 ## 📋 What to Watch Checklist
 
 ### 1. First Loop Execution
-- [ ] Check Railway logs for successful agent startup
-- [ ] Verify loop timer initialized (30-minute intervals)
-- [ ] Confirm wallet connection to Base mainnet
-- [ ] Check initial balance read (ETH + INTERN)
-- [ ] Look for any startup errors in the first tick
+- [x] Check Railway logs for successful agent startup
+- [x] Verify loop timer initialized (30-minute intervals)
+- [x] Confirm wallet connection to Base mainnet
+- [x] Check initial balance read (ETH + INTERN)
+- [x] Look for any startup errors in the first tick
+- [x] Verify redeploy protection (`redeploy_protection: skipping tick` if restarted quickly)
 
 **Log markers to search for:**
 ```
-[INIT] Based Intern agent starting...
-[LOOP] Timer initialized: 30 minutes
-[WALLET] Connected: 0x...
-[TICK] Cycle completed successfully
+"based-intern starting"
+"tick triggered, evaluating trade"
+"redeploy_protection: skipping tick"
 ```
 
-### 2. First Trade Execution
-- [ ] Monitor for first trade proposal generation
+### 2. On-Chain Transaction Execution
+- [x] First LP seed executed: 0.005 ETH + 177,944 INTERN (2026-02-08)
+- [x] Local account signing working (no `eth_sendTransaction` errors)
+- [x] ERC20 approvals confirmed before dependent transactions
+- [ ] Monitor for first autonomous trade (BUY or SELL)
 - [ ] Verify trade passes all guardrails (daily cap, interval, spend limits)
-- [ ] Check trade execution on Basescan
+- [ ] Check trade execution on BaseScan
 - [ ] Confirm receipt posted to social channels
-- [ ] Validate slippage protection applied (300 BPS)
+- [ ] Validate slippage protection applied (500 BPS)
 - [ ] **Verify trade announcement posted** (community hype)
 
 **Key addresses to monitor:**
+- Agent Wallet: [`0x4Ba6B07626E6dF28120b04f772C4a89CC984Cc80`](https://basescan.org/address/0x4Ba6B07626E6dF28120b04f772C4a89CC984Cc80)
 - Pool: [`0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc`](https://basescan.org/address/0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc)
 - Router: [`0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43`](https://basescan.org/address/0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43)
+- Factory: [`0x420DD381b31aEf6683db6B902084cB0FFECe40Da`](https://basescan.org/address/0x420DD381b31aEf6683db6B902084cB0FFECe40Da)
 - Token: [`0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11`](https://basescan.org/address/0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11)
 
-### 3. LP Auto-Seed Behavior
-- [ ] Monitor pool TVL via Aerodrome or Basescan
-- [ ] Check if auto-seed triggers when TVL < 1 ETH
-- [ ] Verify LP add transaction succeeded
-- [ ] Confirm LP position is reflected in agent state
+**First successful TX:**
+- LP Seed: [`0x99a0995d...bae85d8`](https://basescan.org/tx/0x99a0995d92eca6b6d36c76f79faf7352dc0f0d7328c2a95798702ec53bae85d8)
+
+### 3. Trading Execution Flow
+The trading deadlock has been fixed. Every tick (heartbeat or activity-detected) now evaluates trades:
+
+```
+tick() → watchForActivity() → proposeAction() → enforceGuardrails() → executeBuy/Sell()
+```
+
+**Key log lines:**
+```
+"tick triggered, evaluating trade"     → trading logic is running
+"trade execution failed"               → swap reverted (check gas, slippage)
+"trade announcement posted"            → trade went through + announced
+"trade announcement skipped"           → dedup caught similar recent post
+"guardrails blocked trade"             → check blockedReason field
+```
+
+**Trading probability (Tier 4 fallback):**
+- 35% BUY / 30% SELL / 35% HOLD
+- Varies by UTC hour + 10-minute bucket (not frozen)
+
+### 4. LP Auto-Seed Behavior
+- [x] Auto-seed triggers when pool TVL < 1 ETH
+- [x] ERC20 approval confirmed before addLiquidityETH
+- [x] First LP add transaction succeeded
+- [ ] Monitor pool TVL growth
 - [ ] Check for gauge staking opportunities (when gauge is live)
 
-**LP Guardrails:**
-- Max 0.001 ETH per add
-- Max 1000 BPS token fraction
-- Slippage: 300 BPS
+**LP Log Lines:**
+```
+"lp.autoSeed.propose"                 → evaluating LP add
+"lp.allowance.sufficient"             → approval already set
+"lp.allowance.approving"              → sending approval tx (waits for confirmation)
+"lp.addLiquidityETH.submitted"        → LP add tx sent (check txHash)
+"lp.autoSeed.failed"                  → check error field
+"lp.autoSeed.skip"                    → check reason field
+```
 
-### 4. Social Posting
-- [ ] Verify first post appears on X (Twitter)
-- [ ] Verify first post appears on Moltbook
+**Common skip reasons:**
+| Reason | Meaning |
+|--------|---------|
+| `pool_tvl_above_threshold` | Pool TVL > 1 ETH, no seeding needed |
+| `insufficient_eth` | Wallet ETH too low (need > 0.001 ETH for gas reserve) |
+| `insufficient_token` | No INTERN tokens available |
+
+### 5. Content Deduplication
+- [ ] Verify no duplicate news opinion posts from same source within 4 hours
+- [ ] Verify no cross-pipeline similar content
+- [ ] Verify trade announcement templates rotate
+- [ ] Check `news.opinion.skip.source_cooldown` logs (source dedup working)
+- [ ] Check `news.opinion.skip.cross_pipeline_similar` logs (cross-pipeline dedup working)
+- [ ] Check `trade announcement skipped (too similar)` logs (trade dedup working)
+
+**Dedup Log Lines:**
+```
+"news.opinion.skip.source_cooldown"         → same domain posted < 4h ago
+"news.opinion.skip.cross_pipeline_similar"  → too similar to recent post from any pipeline
+"news.opinion.skip.duplicate_id"            → exact article already posted
+"news.opinion.skip.duplicate_url"           → same URL (different provider ID)
+"trade announcement skipped"                → trade hype too similar to recent post
+```
+
+### 6. Redeploy Protection
+- [ ] Verify `redeploy_protection: skipping tick` appears after Railway deploys
+- [ ] Confirm engagement indices persist across restarts (no repeated hooks/CTAs)
+- [ ] Check `lastTickCompletedAtMs` in state.json updates every tick
+
+**Log Lines:**
+```
+"redeploy_protection: skipping tick, last tick too recent"  → working correctly
+"tick triggered, evaluating trade"                          → tick ran normally
+```
+
+### 7. Social Posting
+- [ ] Verify posts appear on X (Twitter)
+- [ ] Verify posts appear on Moltbook
 - [ ] Check engagement system responding to mentions (X)
 - [ ] Check threaded replies working on Moltbook
-- [ ] Confirm no duplicate posts (deduplication working)
+- [ ] Confirm no duplicate posts (5-layer deduplication working)
 - [ ] **Verify trade announcements fire after trades**
 
-### 5. News Opinion Pipeline
+### 8. News Opinion Pipeline
 - [ ] Check X timeline fetching (watches @base, @buildonbase, @openclaw)
 - [ ] Verify opinion generation triggers on relevant news
 - [ ] Confirm posts include source URLs (safety requirement)
 - [ ] Check circuit breaker opens after 3 consecutive failures
+- [ ] Monitor source cooldown preventing same-domain spam
 - [ ] Monitor `NEWS_ENABLED` and `OPENAI_API_KEY` config
 
-### 6. Mini App Monitoring
+### 9. Mini App Monitoring
 - [ ] Verify mini app loads at [basedintern.vercel.app](https://basedintern.vercel.app)
 - [ ] Check stats endpoint responding: `GET /api/stats`
 - [ ] Verify pool data endpoint: `GET /api/pool`
 - [ ] Confirm action feed showing recent trades/LP/social
 - [ ] Test swap component loads (requires CDP API key)
-- [ ] Monitor Vercel deployment status
+- [ ] Pool/deposit links point to BaseScan (Aerodrome frontend doesn't support unverified tokens)
 
 **Mini App Health Checks:**
 ```bash
@@ -77,31 +148,25 @@ curl https://basedintern.vercel.app/api/pool
 curl https://basedintern.vercel.app/api/feed
 ```
 
-### 7. Error Monitoring
+### 10. Error Monitoring
 
 **Critical errors to watch for:**
 ```
-[ERROR] Trade execution failed
-[ERROR] LP add/remove failed
-[ERROR] Social post failed (both platforms)
-[ERROR] Wallet connection lost
-[ERROR] Rate limit hit on X API
-[ERROR] Moltbook API errors (4xx/5xx)
-[ERROR] LLM/AI service unavailable
-[ERROR] Router/pool contract errors
-[ERROR] State file corruption detected
-[ERROR] Atomic state write failed
+"trade execution failed"
+"lp.autoSeed.failed"
+"lp.addLiquidityETH" + error
+"Unsupported method: eth_sendTransaction"   → signing bug (should be fixed)
+"aerodrome_factory_query_failed"            → pool discovery issue (should be fixed)
+"state file corrupted"                      → auto-recovery from .bak
 ```
 
 **Warning patterns:**
 ```
-[WARN] Daily trade cap reached
-[WARN] Insufficient ETH for trade
-[WARN] Slippage exceeded, trade rejected
-[WARN] Cooldown active, skipping engagement
-[WARN] Duplicate content detected
-[WARN] News opinion circuit breaker opened
-[WARN] Mini app API cache stale
+"guardrails blocked trade"                  → check blockedReason
+"lp.autoSeed.skip"                         → check reason
+"news.opinion.skip"                        → check reason
+"redeploy_protection: skipping tick"       → normal after deploy
+"trade announcement skipped"               → dedup working
 ```
 
 ---
@@ -133,7 +198,7 @@ curl -X POST http://basedintern.railway.internal:8080/tick \
 ### Post-Kill Verification
 Check logs for:
 ```
-[KILL SWITCH] ENABLED — All trading/LP operations halted
+"KILL_SWITCH=true" in guardrails blocked reason
 ```
 
 ---
@@ -143,19 +208,19 @@ Check logs for:
 ### Pool Health
 | Metric | Target | Where to Check |
 |--------|--------|----------------|
-| Pool TVL | > 1 ETH | Aerodrome UI, Basescan |
+| Pool TVL | > 0.01 ETH (bootstrapping) | Aerodrome UI, BaseScan |
 | Price stability | Low volatility | Pool reserves ratio |
 | Volume | Growing | Aerodrome analytics |
 
 ### Agent Performance
 | Metric | Target | Source |
 |--------|--------|--------|
-| Trades/day | ≤ 1 | Agent receipts |
-| Trade success rate | > 95% | Basescan tx history |
+| Trades/day | ≤ 3 | Agent receipts |
+| Trade success rate | > 95% | BaseScan tx history |
 | LP position | Growing | Agent state / Aerodrome |
-| Social posts | Regular | X + Moltbook feeds |
+| Social posts | Regular, non-repetitive | X + Moltbook feeds |
 | Engagement replies | All mentions | X mentions tab |
-| News opinions | 1-6/day | Agent logs |
+| News opinions | 1-6/day, no source repeats | Agent logs |
 
 ### Mini App Health
 | Metric | Target | Check |
@@ -168,70 +233,49 @@ Check logs for:
 ### Wallet Status
 | Metric | Healthy Range | Check |
 |--------|---------------|-------|
-| ETH balance | > 0.01 ETH | Agent state / Basescan |
-| INTERN balance | > 0 | Agent state / Basescan |
-| Gas reserves | Always funded | Wallet |
+| ETH balance | > 0.005 ETH | [BaseScan](https://basescan.org/address/0x4Ba6B07626E6dF28120b04f772C4a89CC984Cc80) |
+| INTERN balance | > 0 | Agent state / BaseScan |
+| Gas reserves | Always > 0.001 ETH | Wallet |
+| Nonce | Incrementing | BaseScan |
 
 ---
 
-## ⚙️ Recent Optimizations (Monitor These)
+## 🔧 Recent Critical Fixes (2026-02-08)
 
-### 1. TTL Caching on API Endpoints
-Mini app API responses are now cached for 30 seconds to reduce RPC load.
+### Fix 1: Trading Deadlock (CRITICAL)
+**Problem:** Trading only ran when wallet activity was detected, but activity can't happen if the agent never trades. Heartbeat ticks hardcoded HOLD.
+**Fix:** Merged heartbeat and activity branches — every tick evaluates `proposeAction()` + `enforceGuardrails()`.
+**Monitor:** Look for `"tick triggered, evaluating trade"` in logs.
 
-**What to monitor:**
-- Cache hit rates in logs
-- RPC call frequency
-- API response times
+### Fix 2: Local Account Signing (CRITICAL)
+**Problem:** All `writeContract`/`sendTransaction` calls passed `walletClient.account.address` (string) instead of `walletClient.account` (full object). Caused `"Unsupported method: eth_sendTransaction"` on Alchemy.
+**Fix:** Pass full account object so viem signs locally via `eth_sendRawTransaction`.
+**Monitor:** Should never see `"Unsupported method: eth_sendTransaction"` again.
 
-**Troubleshooting:**
-```bash
-# If cache is stale, check for errors in:
-# - src/control/server.ts (getPoolData, getTokenData)
-# - TTLCache implementation in src/utils.ts
-```
+### Fix 3: Approval Race Condition (CRITICAL)
+**Problem:** `approveToken()` returned tx hash without waiting for confirmation. Dependent transactions (LP add, swap) simulated against stale state and reverted.
+**Fix:** Added `waitForTransactionReceipt()` after approval.
+**Monitor:** `"lp.allowance.approving"` should be followed by `"lp.addLiquidityETH.submitted"` (no revert).
 
-### 2. Atomic State Writes with Backup Recovery
-State updates now use atomic write-to-temp + rename pattern. Automatic backup recovery on corruption.
+### Fix 4: Aerodrome v2 Compatibility
+**Problem:** Wrong factory address + `getPair` function (v1 API). Aerodrome v2 uses `getPool`.
+**Fix:** Corrected factory to `0x420DD381b31aEf6683db6B902084cB0FFECe40Da`, function to `getPool`.
+**Monitor:** Should never see `"aerodrome_factory_query_failed"` again.
 
-**What to monitor:**
-- State file integrity in `data/state.json`
-- Backup files: `data/state.json.tmp`, `data/state.json.bak`
-- Log entries: `state write successful`, `state recovered from backup`
+### Fix 5: Frozen Trade Probabilities
+**Problem:** Tier 4 hash used wallet address + token balance string length — both constant — producing the same BUY/SELL/HOLD every tick.
+**Fix:** Added hour + minute-bucket seeds. Shifted from 16/16/68 to 35/30/35.
+**Monitor:** Trades should vary across ticks, not repeat the same decision.
 
-**Troubleshooting:**
-```bash
-# Check for state corruption logs
-railway logs --service basedintern | grep -i "state\|backup\|corruption"
+### Fix 6: 5-Layer Content Deduplication
+**Problem:** Agent reposting same news sources, repeating similar content across pipelines.
+**Fix:** Added source domain cooldown (4h), cross-pipeline Jaccard similarity (0.65), persistent trade template rotation, topic extraction.
+**Monitor:** Check for `source_cooldown` and `cross_pipeline_similar` skip logs.
 
-# Manual recovery from backup
-cp data/state.json.bak data/state.json
-```
-
-### 3. Persistent Action Log
-Action feed now persists to `data/action-log.json` and survives restarts.
-
-**What to monitor:**
-- Action log file size (should be bounded)
-- Feed endpoint returning data after restart
-- Ring buffer not exceeding 50 entries
-
-**Troubleshooting:**
-```bash
-# Check action log persistence
-curl http://basedintern.railway.internal:8080/api/feed
-
-# Verify log file exists
-ls -la data/action-log.json
-```
-
-### 4. Shared Utilities Module
-All `sleep()` functions consolidated to `src/utils.ts`. No more duplicates.
-
-**What to monitor:**
-- No "sleep is not defined" errors
-- Interruptible sleep working (manual tick wakes loop)
-- TTLCache functioning correctly
+### Fix 7: Redeploy Protection
+**Problem:** Railway zero-downtime deploys could fire duplicate posts (in-memory state reset).
+**Fix:** Startup cooldown (skip tick if last tick < half loop interval ago), persisted engagement indices.
+**Monitor:** `"redeploy_protection: skipping tick"` after deploys.
 
 ---
 
@@ -240,14 +284,13 @@ All `sleep()` functions consolidated to `src/utils.ts`. No more duplicates.
 ### Increase Trade Caps
 **Consider when:**
 - Trade success rate > 95% over 1 week
-- Pool TVL > 5 ETH
-- ETH balance > 0.1 ETH
+- Pool TVL > 1 ETH
+- ETH balance > 0.05 ETH
 
 **How to adjust:**
 ```bash
-# Current: 1 trade/day, 0.0005 ETH max
-# Proposed: 2 trades/day, 0.001 ETH max
-DAILY_TRADE_CAP=2
+# Current: 3 trades/day, 0.0002 ETH max
+DAILY_TRADE_CAP=5
 MAX_SPEND_ETH_PER_TRADE=0.001
 ```
 
@@ -259,9 +302,8 @@ MAX_SPEND_ETH_PER_TRADE=0.001
 
 **How to adjust:**
 ```bash
-# Current: max 0.001 ETH per add
-# Proposed: max 0.005 ETH per add
-LP_MAX_ETH_PER_ADD=0.005
+# Current: max 0.005 ETH per add
+LP_MAX_ETH_PER_ADD=0.01
 ```
 
 ### Adjust Slippage
@@ -272,10 +314,19 @@ LP_MAX_ETH_PER_ADD=0.005
 
 **How to adjust:**
 ```bash
-# Current: 300 BPS (3%)
-# Proposed: 500 BPS (5%) for volatile periods
-SLIPPAGE_BPS=500
-LP_SLIPPAGE_BPS=500
+# Current: 500 BPS (5%)
+SLIPPAGE_BPS=800
+LP_SLIPPAGE_BPS=800
+```
+
+### News Source Cooldown
+**Adjust when:**
+- Too many posts from same news source
+- Not enough variety in news opinions
+
+```bash
+# Current: 4 hours
+NEWS_SOURCE_COOLDOWN_HOURS=6
 ```
 
 ### News Opinion Settings
@@ -285,16 +336,9 @@ LP_SLIPPAGE_BPS=500
 - Circuit breaker triggering too often
 
 ```bash
-# Daily post cap (default: 6)
 NEWS_MAX_POSTS_PER_DAY=6
-
-# Relevance threshold 0-1 (default: 0.5)
 NEWS_MIN_RELEVANCE_SCORE=0.6
-
-# Circuit breaker after N fails (default: 3)
 NEWS_OPINION_CIRCUIT_BREAKER_FAILS=3
-
-# Circuit breaker duration minutes (default: 30)
 NEWS_OPINION_CIRCUIT_BREAKER_MINUTES=30
 ```
 
@@ -308,7 +352,7 @@ When the INTERN/WETH gauge goes live on Aerodrome:
 1. Identify gauge contract address from Aerodrome
 2. Add to environment:
 ```bash
-GAUGE_ADDRESS=<gauge_contract_address>
+GAUGE_ADDRESS_WETH=<gauge_contract_address>
 ```
 3. Agent will auto-stake LP tokens for AERO rewards
 
@@ -316,12 +360,6 @@ GAUGE_ADDRESS=<gauge_contract_address>
 - Check gauge rewards accrual
 - Monitor AERO claim transactions
 - Track total AERO earned vs gas costs
-
-### Claim Strategy
-Agent auto-claims when:
-- Rewards exceed gas costs
-- LP position is removed
-- Configured claim interval reached
 
 ---
 
@@ -331,7 +369,7 @@ Agent auto-claims when:
 - **Production URL**: [basedintern.vercel.app](https://basedintern.vercel.app)
 - **Hosting**: Vercel (auto-deploys on push to main)
 - **Framework**: Next.js 15 + MiniKit
-- **Build Command**: `npx next build`
+- **Pool/Deposit Links**: Point to BaseScan (Aerodrome frontend crashes on unverified tokens)
 
 ### Environment Variables (Vercel)
 ```bash
@@ -340,25 +378,23 @@ NEXT_PUBLIC_AGENT_API_URL=https://basedintern.railway.internal:8080
 NEXT_PUBLIC_URL=https://basedintern.vercel.app
 ```
 
-### Monitoring Checklist
-- [ ] Mini app loads in Coinbase Wallet
-- [ ] Swap component accessible
-- [ ] Stats update within 30 seconds
-- [ ] Feed shows recent actions
-- [ ] No 5xx errors from API endpoints
-
 ### Troubleshooting Mini App
 ```bash
 # Check if API is responding
 curl -v https://basedintern.vercel.app/api/stats
 
 # Check agent directly (if on same network)
-curl http://basedintern.railway.internal:8080/api/stats \
-  -H "Authorization: Bearer $CONTROL_TOKEN"
+curl http://basedintern.railway.internal:8080/api/stats
 
 # Restart Vercel deployment
 vercel --prod
 ```
+
+### Aerodrome Token Listing
+To restore direct Aerodrome links (currently BaseScan):
+1. Submit PR to [aerodrome-finance/token-list](https://github.com/aerodrome-finance/token-list) to add INTERN
+2. Ask in Aerodrome Discord for token listing
+3. Once listed, update `miniapp/src/lib/constants.ts` to use Aerodrome URLs again
 
 ---
 
@@ -389,16 +425,9 @@ curl -X POST http://basedintern.railway.internal:8080/tick \
   -d "reason=manual_check"
 ```
 
-### View Recent Railway Logs
+### Check Wallet on BaseScan
 ```bash
-railway logs --service basedintern --tail 100
-```
-
-### Check State File
-```bash
-railway ssh --service basedintern
-cat data/state.json | jq .lastExecutedTradeAtMs
-cat data/action-log.json | jq '. | length'
+open https://basescan.org/address/0x4Ba6B07626E6dF28120b04f772C4a89CC984Cc80
 ```
 
 ---
@@ -408,12 +437,14 @@ cat data/action-log.json | jq '. | length'
 | Issue | Action |
 |-------|--------|
 | Trading halted unexpectedly | Check KILL_SWITCH, wallet balance, RPC status |
+| `eth_sendTransaction` error | Signing bug — check `walletClient.account` usage |
+| LP operations failing | Check approval flow, pool existence, slippage |
 | Social posts stopped | Check API credentials, rate limits, circuit breaker |
-| LP operations failing | Check pool health, token approvals, slippage |
+| Duplicate posts appearing | Check dedup logs, state.json integrity |
 | Agent unresponsive | Check Railway service status, restart if needed |
 | Suspicious transactions | Immediately trigger kill switch, investigate wallet |
 | Mini app not loading | Check Vercel status, API endpoint health |
-| State corruption detected | Restore from backup, investigate disk space |
+| State corruption detected | Auto-recovers from .bak; check disk space |
 | News opinions stopped | Check OPENAI_API_KEY, circuit breaker status |
 
 ---
@@ -423,13 +454,10 @@ cat data/action-log.json | jq '. | length'
 Before deploying new code:
 
 - [ ] All 218 tests passing
-- [ ] TypeScript typecheck clean
-- [ ] Mini app builds successfully
-- [ ] No new environment variables required
-- [ ] State migration version bumped if needed
+- [ ] TypeScript typecheck clean (`npx tsc --noEmit`)
+- [ ] Mini app builds successfully (`cd miniapp && npx next build`)
+- [ ] No new environment variables required (or documented)
+- [ ] State migration version bumped if schema changed (currently v18)
 - [ ] README updated if features changed
 - [ ] RUNBOOK updated if ops procedures changed
-
----
-
-Last updated: Post-optimization deployment (shared utils, TTL caching, atomic state writes, persistent action log)
+- [ ] Check that state.json schema migration handles the new fields
