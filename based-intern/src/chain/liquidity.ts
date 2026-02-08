@@ -31,6 +31,7 @@ import {
 } from "./aerodrome.js";
 import { readErc20Balance, readAllowance, approveToken } from "./erc20.js";
 import { logger } from "../logger.js";
+import { sleep } from "../utils.js";
 
 // ============================================================
 // TYPES
@@ -155,6 +156,41 @@ async function ensureRouterAllowance(
     token,
     router,
     approveAmount
+  );
+
+  // Verify the allowance actually took effect.
+  // RPC load balancers may route subsequent reads to a node that hasn't
+  // indexed the approval block yet, causing addLiquidity to revert on
+  // simulation even though the approval is mined.
+  const maxRetries = 5;
+  for (let i = 0; i < maxRetries; i++) {
+    const verified = await readAllowance(
+      clients.publicClient as any,
+      token,
+      wallet,
+      router
+    );
+    if (verified >= requiredAmount) {
+      logger.info("lp.allowance.verified", {
+        token,
+        allowance: verified.toString(),
+        attempt: i + 1,
+      });
+      return;
+    }
+    logger.warn("lp.allowance.notYetVisible", {
+      token,
+      attempt: i + 1,
+      current: verified.toString(),
+      required: requiredAmount.toString(),
+    });
+    await sleep(2000); // Wait 2s for RPC state propagation
+  }
+
+  // If we exhausted retries, throw to prevent a guaranteed revert
+  throw new Error(
+    `Allowance not visible after ${maxRetries} retries — RPC consistency issue. ` +
+    `Token: ${token}, required: ${requiredAmount.toString()}`
   );
 }
 

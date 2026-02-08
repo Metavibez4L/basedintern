@@ -5,6 +5,7 @@ import type { ChainClients } from "./client.js";
 import { readAerodromePool, calculateAerodromeOutput, applySlippage, AERODROME_ROUTER_BASE, buildAerodromeSwapCalldata } from "./aerodrome.js";
 import { readAllowance, approveToken } from "./erc20.js";
 import { logger } from "../logger.js";
+import { sleep } from "../utils.js";
 
 export type TradeExecutor = {
   executeBuy(spendEth: bigint): Promise<`0x${string}`>;
@@ -65,8 +66,35 @@ async function ensureAllowance(
       amount: approveAmount.toString()
     });
 
-    // Optionally wait for confirmation (for now, we don't wait to keep things fast)
-    // In future, could add APPROVE_CONFIRMATIONS logic here
+    // Verify the allowance actually took effect.
+    // RPC load balancers may route subsequent reads to a node that hasn't
+    // indexed the approval block yet, causing swaps to revert on simulation.
+    const maxRetries = 5;
+    for (let i = 0; i < maxRetries; i++) {
+      const verified = await readAllowance(publicClient as any, token, owner, spender);
+      if (verified >= requiredAmount) {
+        logger.info("erc20_allowance_verified", {
+          token,
+          allowance: verified.toString(),
+          attempt: i + 1,
+        });
+        return { didApprove: true, approveTxHash };
+      }
+      logger.warn("erc20_allowance_not_yet_visible", {
+        token,
+        attempt: i + 1,
+        current: verified.toString(),
+        required: requiredAmount.toString(),
+      });
+      await sleep(2000); // Wait 2s for RPC state propagation
+    }
+
+    // If we exhausted retries, log a warning but proceed (the tx might still work)
+    logger.warn("erc20_allowance_verification_exhausted", {
+      token,
+      retries: maxRetries,
+      required: requiredAmount.toString(),
+    });
 
     return { didApprove: true, approveTxHash };
   } catch (err) {
