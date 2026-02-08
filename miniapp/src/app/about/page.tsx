@@ -140,9 +140,137 @@ export default function AboutPage() {
             <span className="text-neon-blue">Base</span>
           </div>
           <div className="flex justify-between">
+            <span className="text-cyber-muted">Supply</span>
+            <span className="text-white">1,000,000,000</span>
+          </div>
+          <div className="flex justify-between">
             <span className="text-cyber-muted">Decimals</span>
             <span className="text-white">18</span>
           </div>
+          <div className="flex justify-between">
+            <span className="text-cyber-muted">DEX</span>
+            <span className="text-neon-blue">Aerodrome</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tokenomics */}
+      <div className="bg-cyber-card border border-cyber-border rounded-xl p-5 card-glow">
+        <h3 className="text-xs text-cyber-muted uppercase tracking-widest mb-4">
+          Tokenomics
+        </h3>
+        <p className="text-xs text-cyber-muted mb-4">
+          1 billion $INTERN. Agent-powered distribution.
+        </p>
+        <div className="space-y-3">
+          {[
+            {
+              label: "Agent Wallet",
+              pct: "20%",
+              tokens: "200M",
+              desc: "Trading, LP, gas, operational treasury",
+              color: "bg-neon-blue",
+              width: "w-[20%]",
+            },
+            {
+              label: "LP Pool (Aerodrome)",
+              pct: "10-15%",
+              tokens: "100-150M",
+              desc: "Deep liquidity for community trading",
+              color: "bg-cyan-400",
+              width: "w-[12.5%]",
+            },
+            {
+              label: "Community / Airdrop",
+              pct: "30%",
+              tokens: "300M",
+              desc: "Early supporters, Moltbook users, mini app users",
+              color: "bg-neon-purple",
+              width: "w-[30%]",
+            },
+            {
+              label: "Ecosystem / Partnerships",
+              pct: "15%",
+              tokens: "150M",
+              desc: "Agent-to-agent collabs, integrations",
+              color: "bg-blue-400",
+              width: "w-[15%]",
+            },
+            {
+              label: "Team / Treasury",
+              pct: "20%",
+              tokens: "200M",
+              desc: "Development funding, operations",
+              color: "bg-indigo-400",
+              width: "w-[20%]",
+            },
+            {
+              label: "Burn Reserve",
+              pct: "5%",
+              tokens: "50M",
+              desc: "Deflationary events, milestones",
+              color: "bg-red-400",
+              width: "w-[5%]",
+            },
+          ].map((item) => (
+            <div key={item.label}>
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs font-bold text-white">{item.label}</span>
+                <span className="text-xs text-neon-blue font-mono">{item.pct}</span>
+              </div>
+              <div className="w-full bg-cyber-dark rounded-full h-2 mb-1">
+                <div className={`${item.color} h-2 rounded-full ${item.width} opacity-80`} />
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[10px] text-cyber-muted">{item.desc}</span>
+                <span className="text-[10px] text-cyber-muted font-mono">{item.tokens}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Agent Trading Strategy */}
+      <div className="bg-cyber-card border border-cyber-border rounded-xl p-5 card-glow">
+        <h3 className="text-xs text-cyber-muted uppercase tracking-widest mb-4">
+          Agent Trading Strategy
+        </h3>
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="bg-cyber-dark rounded-lg p-3 border border-green-500/20">
+              <p className="text-lg font-bold text-green-400">40%</p>
+              <p className="text-[10px] text-cyber-muted">BUY</p>
+            </div>
+            <div className="bg-cyber-dark rounded-lg p-3 border border-red-500/20">
+              <p className="text-lg font-bold text-red-400">25%</p>
+              <p className="text-[10px] text-cyber-muted">SELL</p>
+            </div>
+            <div className="bg-cyber-dark rounded-lg p-3 border border-cyber-border">
+              <p className="text-lg font-bold text-cyber-muted">35%</p>
+              <p className="text-[10px] text-cyber-muted">HOLD</p>
+            </div>
+          </div>
+          <div className="space-y-1.5 text-xs text-cyber-muted">
+            <div className="flex justify-between">
+              <span>Daily trade cap</span>
+              <span className="text-white">5 trades/day</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Max spend per trade</span>
+              <span className="text-white">0.0005 ETH</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Sell fraction</span>
+              <span className="text-white">2% per sell</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Slippage protection</span>
+              <span className="text-white">5% max</span>
+            </div>
+          </div>
+          <p className="text-[10px] text-cyber-muted italic">
+            Net buyer bias. The agent acts as a market maker with gentle upward pressure.
+          </p>
         </div>
       </div>
 
