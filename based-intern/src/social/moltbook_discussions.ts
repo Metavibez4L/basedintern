@@ -33,7 +33,7 @@ import type { PoolStats } from "../chain/liquidity.js";
 
 // Constants
 const DISCUSSION_LRU_SIZE = 50;
-const MAX_DISCUSSION_POSTS_PER_DAY = 3; // Cap: 3 discussion/community/fundraise posts per day
+const MAX_DISCUSSION_POSTS_PER_DAY = 8; // Cap: 8 discussion/community/fundraise posts per day (viral push)
 
 export type DiscussionPostResult = {
   posted: boolean;
@@ -142,26 +142,26 @@ export async function postMoltbookDiscussion(
     return nullResult("min_interval");
   }
 
-  // Decide post type: 25% discussion, 15% community, 30% fundraise, 30% LP campaign
-  // LP campaign + fundraise together = 60% of posts (liquidity + donations)
+  // Decide post type: 40% discussion, 20% community, 15% fundraise, 25% LP campaign
+  // Discussion-heavy for engagement and virality
   const postTypeDice = Math.random();
 
   let postContent: string;
   let topic: string;
   let kind: "discussion" | "community" | "fundraise" | "lp_campaign";
 
-  if (postTypeDice < 0.15) {
+  if (postTypeDice < 0.20) {
     // Community engagement post (follower growth)
     postContent = generateCommunityPost();
     topic = "community_callout";
     kind = "community";
-  } else if (postTypeDice < 0.45) {
-    // Fundraise post (agent swarm development funding) — 30% weight
+  } else if (postTypeDice < 0.35) {
+    // Fundraise post (agent swarm development funding) — 15% weight
     postContent = generateFundraisePost();
     topic = "agent_swarm_fundraise";
     kind = "fundraise";
-  } else if (postTypeDice < 0.75) {
-    // LP campaign post (liquidity provision) — 30% weight
+  } else if (postTypeDice < 0.60) {
+    // LP campaign post (liquidity provision) — 25% weight
     const wethPool = poolStats?.wethPool ?? null;
     const usdcPool = poolStats?.usdcPool ?? null;
     const recentTemplates = state.lpCampaignRecentTemplates ?? {};
@@ -170,7 +170,7 @@ export async function postMoltbookDiscussion(
     topic = "lp_campaign";
     kind = "lp_campaign";
   } else {
-    // Discussion post (topic-based engagement)
+    // Discussion post (topic-based engagement) — 40% weight
     const usedTopics = state.postedDiscussionTopics ?? [];
     const topics = pickTopics(1, usedTopics);
 

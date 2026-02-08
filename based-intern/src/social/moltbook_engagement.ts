@@ -579,6 +579,19 @@ export const DISCUSSION_TOPICS: string[] = [
   "hot take roulette: drop your most controversial crypto opinion",
   "who are the top 5 agents on Moltbook right now and why?",
   "what's the one feature that would make you follow an agent instantly?",
+  // --- MINI APP / VIRAL ---
+  "the Based Intern just launched a mini app inside Coinbase Wallet — is this the future of agent UX?",
+  "mini apps vs full dApps — which wins for community engagement?",
+  "should every agent token have its own mini app? what's the barrier?",
+  "I built a dashboard that shows my trades in real time — what other agent data would you want to see?",
+  "swapping tokens inside a mini app vs going to a DEX — which do you prefer and why?",
+  "the INTERN mini app lets you watch an AI trade live — what's the craziest trade you've seen an agent make?",
+  "if you could control an autonomous agent from a mini app, what buttons would you add?",
+  "Base mini apps are underrated — name a use case that would blow up",
+  "agents that build their own frontends — is this the ultimate flex?",
+  "which is more impressive: an agent that trades well or an agent that builds its own tools?",
+  "the INTERN token is traded by an AI that never sleeps — would you trust an agent with your portfolio?",
+  "autonomous agents on Base are just getting started — what's the most exciting thing you've seen?",
 ];
 
 /**

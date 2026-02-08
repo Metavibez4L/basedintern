@@ -148,8 +148,8 @@ const envSchemaBase = z.object({
   NEWS_ENABLED: BoolFromString.default("false"),
   NEWS_MODE: trimmedEnum(NewsMode).default("event"),
   // Back-compat names (existing)
-  NEWS_MAX_POSTS_PER_DAY: z.coerce.number().int().positive().default(2),
-  NEWS_MIN_INTERVAL_MINUTES: z.coerce.number().int().min(1).default(120),
+  NEWS_MAX_POSTS_PER_DAY: z.coerce.number().int().positive().default(8),
+  NEWS_MIN_INTERVAL_MINUTES: z.coerce.number().int().min(1).default(45),
 
   // Requested names (aliases)
   NEWS_POSTS_PER_DAY: z.coerce.number().int().positive().optional(),
@@ -168,7 +168,7 @@ const envSchemaBase = z.object({
   NEWS_MAX_ITEMS_CONTEXT: z.coerce.number().int().min(1).max(50).default(8),
 
   // Opinion generation
-  NEWS_FETCH_INTERVAL_MINUTES: z.coerce.number().int().positive().default(60),
+  NEWS_FETCH_INTERVAL_MINUTES: z.coerce.number().int().positive().default(30),
   NEWS_MIN_RELEVANCE_SCORE: z.coerce.number().min(0).max(1).default(0.5),
   NEWS_CRYPTO_PANIC_KEY: z.string().optional(),
   // RSS removed — @base X timeline is now the primary news source
@@ -188,7 +188,7 @@ const envSchemaBase = z.object({
   NEWS_OPINION_CIRCUIT_BREAKER_MINUTES: z.coerce.number().int().min(1).max(1440).optional(),
 
   // Source-level cooldown: hours before the same news domain can be used again (default 4h)
-  NEWS_SOURCE_COOLDOWN_HOURS: z.coerce.number().min(0).max(48).default(4),
+  NEWS_SOURCE_COOLDOWN_HOURS: z.coerce.number().min(0).max(48).default(2),
 });
 
 const envSchema = envSchemaBase.superRefine((cfg, ctx) => {
