@@ -153,12 +153,12 @@ export default function AboutPage() {
         </h3>
         <div className="space-y-1">
           {[
-            { label: "BaseScan", url: BASESCAN_TOKEN_URL, icon: "🔍" },
-            { label: "Aerodrome Pool", url: AERODROME_POOL_URL, icon: "💎" },
+            { label: "Token on BaseScan", url: BASESCAN_TOKEN_URL, icon: "🔍" },
+            { label: "Pool on BaseScan", url: AERODROME_POOL_URL, icon: "💎" },
             {
-              label: "Pool Contract",
-              url: `https://basescan.org/address/${POOL_ADDRESS}`,
-              icon: "📜",
+              label: "Aerodrome DEX",
+              url: "https://aerodrome.finance",
+              icon: "🏊",
             },
             {
               label: "Moltbook",

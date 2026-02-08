@@ -114,7 +114,7 @@ export default function PoolPage() {
         rel="noopener noreferrer"
         className="btn-neon block bg-neon-blue text-cyber-dark font-bold text-center py-4 rounded-xl text-sm uppercase tracking-wider relative z-10"
       >
-        Add Liquidity on Aerodrome
+        View Pool Contract on BaseScan
       </a>
 
       {/* Pool Info */}
