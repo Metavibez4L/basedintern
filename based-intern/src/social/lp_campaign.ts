@@ -24,7 +24,7 @@ const WETH_TOKEN = "0x4200000000000000000000000000000000000006";
 const POOL_ADDRESS = "0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc";
 
 // Direct Aerodrome deposit URL for INTERN/WETH pool
-const AERODROME_DEPOSIT_URL = `https://aerodrome.finance/deposit?token0=${WETH_TOKEN}&token1=${INTERN_TOKEN}&type=-1`;
+const AERODROME_DEPOSIT_URL = `https://aerodrome.finance/deposit?token0=${WETH_TOKEN}&token1=${INTERN_TOKEN}&stable=false`;
 
 // ============================================================
 // LP STATUS POSTS (dynamic, uses live pool data)

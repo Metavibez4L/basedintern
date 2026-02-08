@@ -19,7 +19,7 @@ export type TradeAnnouncementInput = {
 };
 
 // Aerodrome deposit link for INTERN/WETH pool
-const AERODROME_DEPOSIT_LINK = "https://aerodrome.finance/deposit?token0=0x4200000000000000000000000000000000000006&token1=0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11&type=-1";
+const AERODROME_DEPOSIT_LINK = "https://aerodrome.finance/deposit?token0=0x4200000000000000000000000000000000000006&token1=0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11&stable=false";
 
 // Basescan link template
 const BASESCAN_TX_LINK = (txHash: string) => `https://basescan.org/tx/${txHash}`;

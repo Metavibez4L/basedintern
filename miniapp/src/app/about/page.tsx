@@ -7,6 +7,7 @@ import {
   POOL_ADDRESS,
   BASESCAN_TOKEN_URL,
   AERODROME_DEPOSIT_URL,
+  AERODROME_POOL_URL,
 } from "@/lib/constants";
 
 export default function AboutPage() {
@@ -153,7 +154,7 @@ export default function AboutPage() {
         <div className="space-y-1">
           {[
             { label: "BaseScan", url: BASESCAN_TOKEN_URL, icon: "🔍" },
-            { label: "Aerodrome Pool", url: AERODROME_DEPOSIT_URL, icon: "💎" },
+            { label: "Aerodrome Pool", url: AERODROME_POOL_URL, icon: "💎" },
             {
               label: "Pool Contract",
               url: `https://basescan.org/address/${POOL_ADDRESS}`,
