@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 17;
+const STATE_SCHEMA_VERSION = 18;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
@@ -24,6 +24,7 @@ const STATE_SCHEMA_VERSION = 17;
  * v15: LP campaign template tracking + cross-system content dedupe fingerprints (2026-02-06)
  * v16: Mini app campaign state (launch posted, daily counters, template tracking) (2026-02-07)
  * v17: Trade announcement dedup (persisted template indices) + news source cooldown (2026-02-08)
+ * v18: Redeploy protection — lastTickCompletedAtMs + moltbook engagement indices (2026-02-08)
  */
 
 export type AgentState = {
@@ -173,6 +174,17 @@ export type AgentState = {
   // =========================
   /** Map of news source domain → last posted timestamp (ms). Bounded to 50 entries. */
   newsSourceLastPostedMs?: Record<string, number>;
+
+  // =========================
+  // Redeploy Protection (v18)
+  // =========================
+  /** Timestamp (ms) when the last tick() completed. Used on startup to skip
+   *  the first tick if we just ran recently (e.g. zero-downtime redeploy). */
+  lastTickCompletedAtMs?: number | null;
+  /** Last used Moltbook engagement hook index (persisted to avoid repetition after restart) */
+  lastMoltbookHookIndex?: number;
+  /** Last used Moltbook engagement CTA index (persisted to avoid repetition after restart) */
+  lastMoltbookCtaIndex?: number;
 };
 
 export const DEFAULT_STATE: AgentState = {
@@ -246,6 +258,10 @@ export const DEFAULT_STATE: AgentState = {
   recentTradeSellTemplateIndices: [],
   recentTradeFingerprints: [],
   newsSourceLastPostedMs: {},
+
+  lastTickCompletedAtMs: null,
+  lastMoltbookHookIndex: -1,
+  lastMoltbookCtaIndex: -1,
 };
 
 export function statePath(): string {
@@ -415,6 +431,14 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     }
   }
 
+  // v17 → v18: Redeploy protection (lastTickCompletedAtMs + moltbook engagement indices)
+  if (version === undefined || version < 18) {
+    logger.info("state migration", { from: version || 17, to: STATE_SCHEMA_VERSION });
+    if (!("lastTickCompletedAtMs" in raw)) raw.lastTickCompletedAtMs = null;
+    if (!("lastMoltbookHookIndex" in raw)) raw.lastMoltbookHookIndex = -1;
+    if (!("lastMoltbookCtaIndex" in raw)) raw.lastMoltbookCtaIndex = -1;
+  }
+
   return raw as AgentState;
 }
 
@@ -509,6 +533,10 @@ export async function loadState(): Promise<AgentState> {
       newsSourceLastPostedMs: (migrated.newsSourceLastPostedMs && typeof migrated.newsSourceLastPostedMs === "object")
         ? migrated.newsSourceLastPostedMs
         : {},
+
+      lastTickCompletedAtMs: migrated.lastTickCompletedAtMs ?? null,
+      lastMoltbookHookIndex: migrated.lastMoltbookHookIndex ?? -1,
+      lastMoltbookCtaIndex: migrated.lastMoltbookCtaIndex ?? -1,
     };
 
     // Reset daily counter if the day rolled over.

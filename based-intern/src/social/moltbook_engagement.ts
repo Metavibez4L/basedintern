@@ -189,9 +189,26 @@ const NICHE_HASHTAGS = ["#Moltbook", "#AgentEconomy", "#OnchainAI", "#BasedInter
 
 const MOLTBOOK_CHAR_LIMIT = 500;
 
-// Track last used hook/CTA indices to avoid repetition
+// Track last used hook/CTA indices to avoid repetition.
+// These are initialized from persisted state on startup to survive redeploys.
 let lastHookIndex = -1;
 let lastCtaIndex = -1;
+
+/**
+ * Initialize engagement indices from persisted state.
+ * Call once on startup with values from AgentState.
+ */
+export function initEngagementIndices(hookIndex: number, ctaIndex: number): void {
+  lastHookIndex = hookIndex;
+  lastCtaIndex = ctaIndex;
+}
+
+/**
+ * Get current engagement indices for persisting to state.
+ */
+export function getEngagementIndices(): { hookIndex: number; ctaIndex: number } {
+  return { hookIndex: lastHookIndex, ctaIndex: lastCtaIndex };
+}
 
 // ============================================================
 // EXPORTS

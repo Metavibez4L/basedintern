@@ -33,6 +33,7 @@ import { postMoltbookDiscussion } from "./social/moltbook_discussions.js";
 import { lpTick, type LPTickResult } from "./agent/lpManager.js";
 import { postOpenClawAnnouncementOnce } from "./social/openclaw_announcement.js";
 import { miniAppLaunchBurst, miniAppRecurringPost, isMiniAppCampaignEnabled } from "./social/miniapp_campaign.js";
+import { initEngagementIndices, getEngagementIndices } from "./social/moltbook_engagement.js";
 import { buildNewsPlan } from "./news/news.js";
 import { canonicalizeUrl } from "./news/fingerprint.js";
 import { postNewsTweet } from "./social/news_poster.js";
@@ -63,6 +64,22 @@ async function tick(): Promise<void> {
 
   const now = new Date();
   const state = await loadState();
+
+  // ============================================================
+  // REDEPLOY PROTECTION: skip tick if last tick completed recently
+  // Prevents duplicate posts when Railway does a zero-downtime deploy
+  // ============================================================
+  const lastTickMs = state.lastTickCompletedAtMs ?? 0;
+  const minTickGapMs = cfg.LOOP_MINUTES * 60_000 * 0.5; // half a loop interval
+  const timeSinceLastTick = Date.now() - lastTickMs;
+  if (lastTickMs > 0 && timeSinceLastTick < minTickGapMs) {
+    logger.info("redeploy_protection: skipping tick, last tick too recent", {
+      lastTickMs,
+      timeSinceLastTickSec: Math.round(timeSinceLastTick / 1000),
+      minGapSec: Math.round(minTickGapMs / 1000),
+    });
+    return;
+  }
 
   // ============================================================
   // PHASE 1: X MENTIONS POLLER (Intent Recognition, No Execution)
@@ -739,6 +756,21 @@ async function tick(): Promise<void> {
       }
     }
   }
+
+  // ============================================================
+  // TICK COMPLETE: record timestamp + engagement indices for redeploy protection
+  // ============================================================
+  try {
+    const endState = await loadState();
+    endState.lastTickCompletedAtMs = Date.now();
+    // Persist engagement indices so they survive redeploys
+    const { hookIndex, ctaIndex } = getEngagementIndices();
+    endState.lastMoltbookHookIndex = hookIndex;
+    endState.lastMoltbookCtaIndex = ctaIndex;
+    await saveState(endState);
+  } catch {
+    // Non-critical: don't let this break the tick
+  }
 }
 
 function utcDayKey(d: Date): string {
@@ -758,6 +790,15 @@ async function main() {
     killSwitch: cfg.KILL_SWITCH,
     loopMinutes: cfg.LOOP_MINUTES
   });
+
+  // Initialize engagement indices from persisted state (survives redeploys)
+  {
+    const initState = await loadState();
+    initEngagementIndices(
+      initState.lastMoltbookHookIndex ?? -1,
+      initState.lastMoltbookCtaIndex ?? -1
+    );
+  }
 
   const startedAtMs = Date.now();
   let lastTickStartedAtMs: number | null = null;
