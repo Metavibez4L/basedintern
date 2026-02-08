@@ -20,7 +20,7 @@ import { logger } from "../logger.js";
 import { sleep } from "../utils.js";
 
 const MINIAPP_URL = "https://basedintern.vercel.app";
-const AERODROME_URL = "https://aerodrome.finance/deposit?token0=0x4200000000000000000000000000000000000006&token1=0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11&stable=false";
+const AERODROME_URL = "https://aerodrome.finance/deposit?token0=0x4200000000000000000000000000000000000006&token1=0xd530521ca9cb47ffd4e851f1fe2e448527010b11&type=-1&chain0=8453&chain1=8453&factory=0x420DD381b31aEf6683db6B902084cB0FFECe40Da&position=0";
 
 // ============================================================
 // LAUNCH BURST (3 posts, fired once)

@@ -16,9 +16,9 @@ export const ROUTER_ADDRESS =
 
 // Links
 export const AERODROME_DEPOSIT_URL =
-  `https://aerodrome.finance/deposit?token0=${WETH_ADDRESS}&token1=${INTERN_TOKEN_ADDRESS}&stable=false`;
+  "https://aerodrome.finance/deposit?token0=0x4200000000000000000000000000000000000006&token1=0xd530521ca9cb47ffd4e851f1fe2e448527010b11&type=-1&chain0=8453&chain1=8453&factory=0x420DD381b31aEf6683db6B902084cB0FFECe40Da&position=0";
 export const AERODROME_POOL_URL =
-  `https://aerodrome.finance/pools?token0=${WETH_ADDRESS}&token1=${INTERN_TOKEN_ADDRESS}`;
+  "https://aerodrome.finance/pools?token0=0x4200000000000000000000000000000000000006&token1=0xd530521ca9cb47ffd4e851f1fe2e448527010b11&chain0=8453&chain1=8453&factory=0x420DD381b31aEf6683db6B902084cB0FFECe40Da";
 export const BASESCAN_TOKEN_URL = `https://basescan.org/token/${INTERN_TOKEN_ADDRESS}`;
 export const BASESCAN_TX_URL = (hash: string) =>
   `https://basescan.org/tx/${hash}`;

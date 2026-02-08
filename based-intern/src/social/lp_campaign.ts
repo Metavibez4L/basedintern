@@ -23,8 +23,8 @@ const INTERN_TOKEN = "0xd530521Ca9cb47FFd4E851F1Fe2E448527010B11";
 const WETH_TOKEN = "0x4200000000000000000000000000000000000006";
 const POOL_ADDRESS = "0x4dd4e1bf48e9ee219a6d431c84482ad0e5cf9ccc";
 
-// Direct Aerodrome deposit URL for INTERN/WETH pool
-const AERODROME_DEPOSIT_URL = `https://aerodrome.finance/deposit?token0=${WETH_TOKEN}&token1=${INTERN_TOKEN}&stable=false`;
+// Direct Aerodrome deposit URL for INTERN/WETH pool (full params required for Aero v2)
+const AERODROME_DEPOSIT_URL = "https://aerodrome.finance/deposit?token0=0x4200000000000000000000000000000000000006&token1=0xd530521ca9cb47ffd4e851f1fe2e448527010b11&type=-1&chain0=8453&chain1=8453&factory=0x420DD381b31aEf6683db6B902084cB0FFECe40Da&position=0";
 
 // ============================================================
 // LP STATUS POSTS (dynamic, uses live pool data)
