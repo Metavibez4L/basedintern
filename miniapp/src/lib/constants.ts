@@ -14,11 +14,11 @@ export const POOL_ADDRESS =
 export const ROUTER_ADDRESS =
   "0xcF77a3Ba9A5CA399B7c97c74d54e5b1Beb874E43" as const;
 
-// Links
+// Links — Aerodrome deposit (without position param) + pool view (simple token filter)
 export const AERODROME_DEPOSIT_URL =
-  "https://aerodrome.finance/deposit?token0=0x4200000000000000000000000000000000000006&token1=0xd530521ca9cb47ffd4e851f1fe2e448527010b11&type=-1&chain0=8453&chain1=8453&factory=0x420DD381b31aEf6683db6B902084cB0FFECe40Da&position=0";
+  "https://aerodrome.finance/deposit?token0=0x4200000000000000000000000000000000000006&token1=0xd530521ca9cb47ffd4e851f1fe2e448527010b11&type=-1&chain0=8453&chain1=8453&factory=0x420DD381b31aEf6683db6B902084cB0FFECe40Da";
 export const AERODROME_POOL_URL =
-  "https://aerodrome.finance/pools?token0=0x4200000000000000000000000000000000000006&token1=0xd530521ca9cb47ffd4e851f1fe2e448527010b11&chain0=8453&chain1=8453&factory=0x420DD381b31aEf6683db6B902084cB0FFECe40Da";
+  "https://aerodrome.finance/pools?token0=0x4200000000000000000000000000000000000006&token1=0xd530521ca9cb47ffd4e851f1fe2e448527010b11";
 export const BASESCAN_TOKEN_URL = `https://basescan.org/token/${INTERN_TOKEN_ADDRESS}`;
 export const BASESCAN_TX_URL = (hash: string) =>
   `https://basescan.org/tx/${hash}`;
