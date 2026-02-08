@@ -84,7 +84,8 @@ function mockCfg(overrides?: Partial<AppConfig>): AppConfig {
     NEWS_CRYPTO_PANIC_KEY: undefined,
     NEWS_RSS_FEEDS: [],
     MOLTBOOK_REPLY_TO_COMMENTS: false,
-    MOLTBOOK_REPLY_INTERVAL_MINUTES: 30
+    MOLTBOOK_REPLY_INTERVAL_MINUTES: 30,
+    NEWS_SOURCE_COOLDOWN_HOURS: 4,
   };
   return { ...base, ...overrides };
 }

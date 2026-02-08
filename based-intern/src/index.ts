@@ -11,8 +11,19 @@ import { proposeAction } from "./agent/brain.js";
 import { generateNewsTweet } from "./agent/brain.js";
 import { enforceGuardrails } from "./agent/decision.js";
 import { buildReceiptMessage } from "./agent/receipts.js";
-import { generateTradeAnnouncement } from "./social/tradeAnnouncements.js";
-import { loadState, recordExecutedTrade, recordNewsPosted, saveState } from "./agent/state.js";
+import { generateTradeAnnouncement, recordTradeAnnouncement } from "./social/tradeAnnouncements.js";
+import {
+  loadState,
+  recordExecutedTrade,
+  recordNewsPosted,
+  saveState,
+  extractSourceDomain,
+  isSourceOnCooldown,
+  recordNewsSourcePosted,
+  isContentTooSimilar,
+  recordSocialPostFingerprint,
+} from "./agent/state.js";
+import { fingerprintContent } from "./social/dedupe.js";
 import { watchForActivity, parseMinEthDelta, parseMinTokenDelta, type ActivityWatchContext } from "./agent/watch.js";
 import { createPoster } from "./social/poster.js";
 import { createTradeExecutor } from "./chain/trade.js";
@@ -359,7 +370,7 @@ async function tick(): Promise<void> {
     // ============================================================
     if (txHash && (decision.action === "BUY" || decision.action === "SELL")) {
       try {
-        const { text: hypeText } = generateTradeAnnouncement({
+        const announcement = generateTradeAnnouncement({
           tradeType: decision.action,
           txHash,
           amountEth: decision.buySpendWei
@@ -370,18 +381,34 @@ async function tick(): Promise<void> {
             : undefined,
         }, workingState);
 
-        await poster.post(hypeText);
-        logger.info("trade announcement posted", {
-          action: decision.action,
-          txHash,
-          textLength: hypeText.length,
-        });
-        recordAction({
-          type: "trade",
-          timestamp: Date.now(),
-          summary: `${decision.action} executed — ${hypeText.slice(0, 100)}`,
-          txHash: txHash ?? undefined,
-        });
+        if (announcement.wasSimilar) {
+          logger.info("trade announcement skipped (too similar to recent post)", {
+            action: decision.action,
+            txHash,
+          });
+        } else {
+          await poster.post(announcement.text);
+          // Record in state for persistent dedup across restarts
+          workingState = recordTradeAnnouncement(
+            workingState,
+            decision.action,
+            announcement.templateIndex,
+            announcement.text,
+            txHash
+          );
+          logger.info("trade announcement posted", {
+            action: decision.action,
+            txHash,
+            textLength: announcement.text.length,
+            templateIndex: announcement.templateIndex,
+          });
+          recordAction({
+            type: "trade",
+            timestamp: Date.now(),
+            summary: `${decision.action} executed — ${announcement.text.slice(0, 100)}`,
+            txHash: txHash ?? undefined,
+          });
+        }
       } catch (err) {
         logger.warn("trade announcement failed (non-blocking)", {
           error: err instanceof Error ? err.message : String(err),
@@ -549,12 +576,21 @@ async function tick(): Promise<void> {
           // Layer 2: canonical URL fingerprints (survives restarts, provider changes)
           const postedUrlFps = new Set(workingState.postedNewsUrlFingerprints || []);
 
+          // NEWS_SOURCE_COOLDOWN_HOURS: prevent repeated posts from same domain
+          const sourceCooldownMs = (cfg.NEWS_SOURCE_COOLDOWN_HOURS ?? 4) * 60 * 60 * 1000;
+
           const articles = fetched.filter((a) => {
             // Check by article ID
             if (postedIds.has(a.id)) return false;
             // Check by canonical URL fingerprint
             const urlFp = crypto.createHash("sha256").update(canonicalizeUrl(a.url)).digest("hex");
             if (postedUrlFps.has(urlFp)) return false;
+            // Check source domain cooldown (same source posted too recently)
+            const domain = extractSourceDomain(a.url);
+            if (isSourceOnCooldown(workingState, domain, sourceCooldownMs)) {
+              logger.info("news.opinion.skip.source_cooldown", { articleId: a.id, source: domain });
+              return false;
+            }
             return true;
           });
 
@@ -617,6 +653,16 @@ async function tick(): Promise<void> {
             await trackAllFetchedArticles(articles);
           } else {
             const article = articles.find((a) => a.id === topOpinion.articleId) ?? articles[0];
+
+            // Cross-pipeline similarity check: skip if too similar to any recent social post
+            const opinionPreview = `${topOpinion.commentary} ${article.url}`;
+            if (isContentTooSimilar(workingState, opinionPreview, 0.65)) {
+              logger.info("news.opinion.skip.cross_pipeline_similar", {
+                articleId: article.id,
+                source: article.source
+              });
+              await trackAllFetchedArticles(articles);
+            } else {
             const newsPoster = new NewsOpinionPoster(cfg, poster, postedIds, postedUrlFps);
             const posted = await newsPoster.post(article, topOpinion);
 
@@ -633,6 +679,16 @@ async function tick(): Promise<void> {
                 const fp = crypto.createHash("sha256").update(canonicalizeUrl(a.url)).digest("hex");
                 if (!nextUrlFps.includes(fp)) nextUrlFps.push(fp);
               }
+
+              // Record source domain cooldown + cross-pipeline fingerprint
+              const sourceDomain = extractSourceDomain(article.url);
+              workingState = recordNewsSourcePosted(workingState, sourceDomain);
+              workingState = recordSocialPostFingerprint(
+                workingState,
+                fingerprintContent(opinionPreview),
+                opinionPreview
+              );
+
               workingState = {
                 ...workingState,
                 newsOpinionLastFetchMs: nowMs,
@@ -656,6 +712,7 @@ async function tick(): Promise<void> {
                 confidence: topOpinion.confidence
               });
             }
+          } // end cross-pipeline similarity else
           }
           } // end articles else
         } catch (err) {

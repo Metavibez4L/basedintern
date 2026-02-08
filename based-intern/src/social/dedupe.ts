@@ -1,6 +1,6 @@
 /**
- * Content deduplication utilities for social posting.
- * Provides similarity checking and fingerprinting across all post types.
+ * Enhanced content deduplication utilities for social posting.
+ * Provides robust similarity checking, fingerprinting, and source tracking.
  */
 
 import crypto from "node:crypto";
@@ -134,3 +134,53 @@ export function pickNonRecentIndex(
   // All templates were recently used, just pick random
   return Math.floor(Math.random() * totalTemplates);
 }
+
+/**
+ * Extract key topics/keywords from text for topic-based deduplication.
+ * Returns sorted array of significant words (4+ chars).
+ */
+export function extractTopics(text: string): string[] {
+  const normalized = text.toLowerCase()
+    .replace(/https?:\/\/[^\s]+/g, "")
+    .replace(/[^a-z0-9\s]/g, " ");
+  
+  const words = normalized.split(/\s+/)
+    .filter(w => w.length >= 4)
+    .filter(w => !STOP_WORDS.has(w));
+  
+  return [...new Set(words)].sort();
+}
+
+/**
+ * Calculate topic overlap between two texts (0-1 scale).
+ * High overlap means similar subject matter.
+ */
+export function calculateTopicOverlap(text1: string, text2: string): number {
+  const topics1 = new Set(extractTopics(text1));
+  const topics2 = new Set(extractTopics(text2));
+  
+  if (topics1.size === 0 || topics2.size === 0) return 0;
+  
+  const intersection = new Set([...topics1].filter(t => topics2.has(t)));
+  const union = new Set([...topics1, ...topics2]);
+  
+  return intersection.size / union.size;
+}
+
+/**
+ * Common English stop words to exclude from topic extraction.
+ */
+const STOP_WORDS = new Set([
+  "about", "above", "after", "again", "against", "all", "also", "am", "an", "and",
+  "any", "are", "as", "at", "be", "because", "been", "before", "being", "below",
+  "between", "both", "but", "by", "can", "did", "do", "does", "doing", "don",
+  "down", "during", "each", "few", "for", "from", "further", "had", "has", "have",
+  "having", "here", "how", "if", "into", "its", "itself", "just", "more", "most",
+  "no", "nor", "not", "now", "off", "once", "only", "other", "our", "ours",
+  "out", "over", "own", "same", "should", "so", "some", "such", "than", "that",
+  "the", "their", "theirs", "them", "themselves", "then", "there", "these", "they",
+  "this", "those", "through", "too", "under", "until", "up", "very", "was", "were",
+  "what", "when", "where", "which", "while", "who", "whom", "why", "will", "with",
+  "would", "you", "your", "yours", "yourself", "yourselves", "based", "intern",
+  "agent", "pool", "liquidity", "trade", "trading"
+]);

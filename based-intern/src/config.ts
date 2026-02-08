@@ -185,7 +185,10 @@ const envSchemaBase = z.object({
   // NOTE: kept optional in type so tests/mocks don't need updating.
   // Runtime defaults are applied in loadConfig().
   NEWS_OPINION_CIRCUIT_BREAKER_FAILS: z.coerce.number().int().min(1).max(10).optional(),
-  NEWS_OPINION_CIRCUIT_BREAKER_MINUTES: z.coerce.number().int().min(1).max(1440).optional()
+  NEWS_OPINION_CIRCUIT_BREAKER_MINUTES: z.coerce.number().int().min(1).max(1440).optional(),
+
+  // Source-level cooldown: hours before the same news domain can be used again (default 4h)
+  NEWS_SOURCE_COOLDOWN_HOURS: z.coerce.number().min(0).max(48).default(4),
 });
 
 const envSchema = envSchemaBase.superRefine((cfg, ctx) => {

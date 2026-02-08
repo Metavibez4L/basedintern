@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 15;
+const STATE_SCHEMA_VERSION = 17;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
@@ -22,6 +22,8 @@ const STATE_SCHEMA_VERSION = 15;
  * v13: X timeline since_id tracking — prevents re-fetching same tweets (2026-02-06)
  * v14: LP campaign social posting state (launch posted flag, daily counters, intervals) (2026-02-06)
  * v15: LP campaign template tracking + cross-system content dedupe fingerprints (2026-02-06)
+ * v16: Mini app campaign state (launch posted, daily counters, template tracking) (2026-02-07)
+ * v17: Trade announcement dedup (persisted template indices) + news source cooldown (2026-02-08)
  */
 
 export type AgentState = {
@@ -151,6 +153,26 @@ export type AgentState = {
   miniAppCampaignPostsToday?: number; // Daily counter
   miniAppCampaignLastDayUtc?: string | null; // For daily reset
   miniAppCampaignRecentTemplates?: number[]; // Recently used template indices
+
+  // =========================
+  // Trade Announcement Dedup (v17)
+  // =========================
+  /** Recently used BUY template indices (bounded LRU) */
+  recentTradeBuyTemplateIndices?: number[];
+  /** Recently used SELL template indices (bounded LRU) */
+  recentTradeSellTemplateIndices?: number[];
+  /** Fingerprints of recent trade announcements for dedup */
+  recentTradeFingerprints?: Array<{
+    fingerprint: string;
+    timestamp: number;
+    txHash: string;
+  }>;
+
+  // =========================
+  // News Source Cooldown (v17)
+  // =========================
+  /** Map of news source domain → last posted timestamp (ms). Bounded to 50 entries. */
+  newsSourceLastPostedMs?: Record<string, number>;
 };
 
 export const DEFAULT_STATE: AgentState = {
@@ -219,6 +241,11 @@ export const DEFAULT_STATE: AgentState = {
   },
   recentSocialPostFingerprints: [],
   recentSocialPostTexts: [],
+
+  recentTradeBuyTemplateIndices: [],
+  recentTradeSellTemplateIndices: [],
+  recentTradeFingerprints: [],
+  newsSourceLastPostedMs: {},
 };
 
 export function statePath(): string {
@@ -359,6 +386,35 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     }
   }
 
+  // v15 → v16: Mini app campaign state (already in type but migration was missing)
+  if (version === undefined || version < 16) {
+    logger.info("state migration", { from: version || 15, to: STATE_SCHEMA_VERSION });
+    if (!("miniAppCampaignLaunchPosted" in raw)) raw.miniAppCampaignLaunchPosted = false;
+    if (!("miniAppCampaignLastPostMs" in raw)) raw.miniAppCampaignLastPostMs = null;
+    if (!("miniAppCampaignPostsToday" in raw)) raw.miniAppCampaignPostsToday = 0;
+    if (!("miniAppCampaignLastDayUtc" in raw)) raw.miniAppCampaignLastDayUtc = null;
+    if (!("miniAppCampaignRecentTemplates" in raw) || !Array.isArray(raw.miniAppCampaignRecentTemplates)) {
+      raw.miniAppCampaignRecentTemplates = [];
+    }
+  }
+
+  // v16 → v17: Trade announcement dedup + news source cooldown
+  if (version === undefined || version < 17) {
+    logger.info("state migration", { from: version || 16, to: STATE_SCHEMA_VERSION });
+    if (!("recentTradeBuyTemplateIndices" in raw) || !Array.isArray(raw.recentTradeBuyTemplateIndices)) {
+      raw.recentTradeBuyTemplateIndices = [];
+    }
+    if (!("recentTradeSellTemplateIndices" in raw) || !Array.isArray(raw.recentTradeSellTemplateIndices)) {
+      raw.recentTradeSellTemplateIndices = [];
+    }
+    if (!("recentTradeFingerprints" in raw) || !Array.isArray(raw.recentTradeFingerprints)) {
+      raw.recentTradeFingerprints = [];
+    }
+    if (!("newsSourceLastPostedMs" in raw) || typeof raw.newsSourceLastPostedMs !== "object") {
+      raw.newsSourceLastPostedMs = {};
+    }
+  }
+
   return raw as AgentState;
 }
 
@@ -446,6 +502,13 @@ export async function loadState(): Promise<AgentState> {
       },
       recentSocialPostFingerprints: Array.isArray(migrated.recentSocialPostFingerprints) ? migrated.recentSocialPostFingerprints : [],
       recentSocialPostTexts: Array.isArray(migrated.recentSocialPostTexts) ? migrated.recentSocialPostTexts : [],
+
+      recentTradeBuyTemplateIndices: Array.isArray(migrated.recentTradeBuyTemplateIndices) ? migrated.recentTradeBuyTemplateIndices : [],
+      recentTradeSellTemplateIndices: Array.isArray(migrated.recentTradeSellTemplateIndices) ? migrated.recentTradeSellTemplateIndices : [],
+      recentTradeFingerprints: Array.isArray(migrated.recentTradeFingerprints) ? migrated.recentTradeFingerprints : [],
+      newsSourceLastPostedMs: (migrated.newsSourceLastPostedMs && typeof migrated.newsSourceLastPostedMs === "object")
+        ? migrated.newsSourceLastPostedMs
+        : {},
     };
 
     // Reset daily counter if the day rolled over.
@@ -661,6 +724,57 @@ export function isContentTooSimilar(
   }
   
   return false;
+}
+
+/**
+ * Extract the domain from a URL for source-level cooldown tracking.
+ */
+export function extractSourceDomain(url: string): string {
+  try {
+    const u = new URL(url);
+    return u.hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Check if a news source domain is on cooldown (posted too recently).
+ */
+export function isSourceOnCooldown(
+  state: AgentState,
+  sourceDomain: string,
+  cooldownMs: number = 4 * 60 * 60 * 1000 // 4 hours default
+): boolean {
+  const lastPosted = state.newsSourceLastPostedMs?.[sourceDomain];
+  if (!lastPosted) return false;
+  return Date.now() - lastPosted < cooldownMs;
+}
+
+/**
+ * Record that we posted from a news source domain.
+ * Keeps the map bounded to 50 entries (oldest evicted).
+ */
+export function recordNewsSourcePosted(
+  state: AgentState,
+  sourceDomain: string,
+  maxEntries = 50
+): AgentState {
+  const next = { ...state };
+  const current = { ...(next.newsSourceLastPostedMs ?? {}) };
+  current[sourceDomain] = Date.now();
+
+  // Evict oldest entries if over limit
+  const entries = Object.entries(current);
+  if (entries.length > maxEntries) {
+    entries.sort((a, b) => a[1] - b[1]); // oldest first
+    const trimmed = entries.slice(entries.length - maxEntries);
+    next.newsSourceLastPostedMs = Object.fromEntries(trimmed);
+  } else {
+    next.newsSourceLastPostedMs = current;
+  }
+
+  return next;
 }
 
 function utcDayKey(d: Date): string {
