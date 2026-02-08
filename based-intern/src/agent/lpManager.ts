@@ -252,13 +252,15 @@ async function evaluateAutoSeed(
   wethPool: PoolStats,
   state: AgentState
 ): Promise<LPAction | null> {
-  // Only seed if pool TVL is below 1 ETH (bootstrapping phase)
-  const tvlThreshold = parseEther("1");
+  // Only seed if pool TVL is below threshold (bootstrapping phase).
+  // Conservative: stop seeding once pool has reasonable liquidity
+  // to preserve ETH for trading and gas.
+  const tvlThreshold = parseEther("0.05");
   if (wethPool.tvlWei > tvlThreshold) {
     logger.info("lp.autoSeed.skip", {
       reason: "pool_tvl_above_threshold",
       tvl: formatEther(wethPool.tvlWei),
-      threshold: "1 ETH",
+      threshold: "0.05 ETH",
     });
     return null;
   }
@@ -288,8 +290,9 @@ async function evaluateAutoSeed(
   const maxEthPerAdd = parseEther(cfg.LP_MAX_ETH_PER_ADD ?? "0.001");
   const maxTokenBps = cfg.LP_MAX_TOKEN_FRACTION_BPS ?? 1000;
 
-  // Ensure we have enough ETH (keep at least 0.001 ETH for gas)
-  const gasReserve = parseEther("0.001");
+  // Keep a healthy ETH reserve for trading + gas. Never seed into LP
+  // if it would leave the wallet unable to trade or pay gas.
+  const gasReserve = parseEther("0.005");
   const availableEth = ethBalance > gasReserve ? ethBalance - gasReserve : 0n;
   if (availableEth <= 0n) {
     logger.info("lp.autoSeed.skip", {
