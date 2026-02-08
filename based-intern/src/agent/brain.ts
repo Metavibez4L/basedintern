@@ -191,7 +191,8 @@ function fallbackPolicy(cfg: AppConfig, ctx: BrainContext): ProposedAction {
     }
   }
 
-  // Tier 4: Default → probabilistic (35% buy, 30% sell, 35% hold)
+  // Tier 4: Default → probabilistic (40% buy, 25% sell, 35% hold)
+  // Buy-biased to create gentle upward price pressure in thin pool.
   // Uses current hour + wallet chars + token balance length so the outcome
   // varies across ticks instead of being frozen on the same result every time.
   const hourSeed = new Date().getUTCHours();
@@ -203,7 +204,7 @@ function fallbackPolicy(cfg: AppConfig, ctx: BrainContext): ProposedAction {
     hourSeed * 7 +
     minuteBucket * 13;
   const rand = hash % 100;
-  if (rand < 35) {
+  if (rand < 40) {
     return { action: "BUY", rationale: "Probabilistic buy (no strong signal detected)." };
   } else if (rand < 65) {
     return { action: "SELL", rationale: "Probabilistic sell (no strong signal detected)." };

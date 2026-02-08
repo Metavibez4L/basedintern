@@ -75,10 +75,10 @@ const envSchemaBase = z.object({
   CONTROL_TOKEN: z.string().optional(),
 
   // Guardrails
-  DAILY_TRADE_CAP: z.coerce.number().int().min(0).default(2),
+  DAILY_TRADE_CAP: z.coerce.number().int().min(0).default(5),
   MIN_INTERVAL_MINUTES: z.coerce.number().int().min(0).default(60),
   MAX_SPEND_ETH_PER_TRADE: z.string().default("0.0005"),
-  SELL_FRACTION_BPS: z.coerce.number().int().min(0).max(10_000).default(500),
+  SELL_FRACTION_BPS: z.coerce.number().int().min(0).max(10_000).default(200),
   SLIPPAGE_BPS: z.coerce.number().int().min(0).max(10_000).default(300),
 
   // ERC20 approvals for trading
