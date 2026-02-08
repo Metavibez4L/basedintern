@@ -108,9 +108,10 @@ export function createTradeExecutor(cfg: AppConfig, clients: ChainClients, token
   const poolAddress = cfg.POOL_ADDRESS as Address;
   const wethAddress = cfg.WETH_ADDRESS as Address;
   const routerAddress = cfg.ROUTER_ADDRESS as Address;
-  const wallet = clients.walletClient.account?.address;
+  const account = clients.walletClient.account;
+  const wallet = account?.address;
 
-  if (!wallet) {
+  if (!wallet || !account) {
     throw new Error("wallet address not available");
   }
 
@@ -131,7 +132,7 @@ export function createTradeExecutor(cfg: AppConfig, clients: ChainClients, token
                 to: swap.to as Address,
                 data: swap.calldata,
                 value: swap.value,
-                account: wallet,
+                account,
                 chain: undefined
               });
               logger.info(`${provider.name}_buy_submitted`, { txHash, spendEth: spendEth.toString() });
@@ -203,7 +204,7 @@ export function createTradeExecutor(cfg: AppConfig, clients: ChainClients, token
           to: routerAddress,
           data: calldata,
           value: spendEth, // Send ETH (WETH will be handled by router)
-          account: wallet,
+          account,
           chain: undefined
         });
 
@@ -251,7 +252,7 @@ export function createTradeExecutor(cfg: AppConfig, clients: ChainClients, token
               const txHash = await clients.walletClient!.sendTransaction({
                 to: swap.to as Address,
                 data: swap.calldata,
-                account: wallet,
+                account,
                 chain: undefined
               });
 
@@ -349,7 +350,7 @@ export function createTradeExecutor(cfg: AppConfig, clients: ChainClients, token
         const txHash = await clients.walletClient!.sendTransaction({
           to: routerAddress,
           data: calldata,
-          account: wallet,
+          account,
           chain: undefined
         });
 

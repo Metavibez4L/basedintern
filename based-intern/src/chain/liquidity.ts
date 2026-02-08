@@ -172,8 +172,9 @@ export async function addLiquidityETH(
   amountETH: bigint
 ): Promise<LPAddResult> {
   if (!clients.walletClient) throw new Error("wallet client required for LP");
-  const wallet = clients.walletClient.account?.address;
-  if (!wallet) throw new Error("wallet address not available");
+  const account = clients.walletClient.account;
+  const wallet = account?.address;
+  if (!wallet || !account) throw new Error("wallet address not available");
   const router = cfg.ROUTER_ADDRESS as Address;
   if (!router) throw new Error("ROUTER_ADDRESS required for LP");
 
@@ -206,7 +207,7 @@ export async function addLiquidityETH(
     to: router,
     data: calldata,
     value: amountETH, // Send the full desired ETH (router refunds excess)
-    account: wallet,
+    account,
     chain: undefined,
   });
 
@@ -239,8 +240,9 @@ export async function addLiquidityERC20(
   stable: boolean
 ): Promise<LPAddResult> {
   if (!clients.walletClient) throw new Error("wallet client required for LP");
-  const wallet = clients.walletClient.account?.address;
-  if (!wallet) throw new Error("wallet address not available");
+  const account = clients.walletClient.account;
+  const wallet = account?.address;
+  if (!wallet || !account) throw new Error("wallet address not available");
   const router = cfg.ROUTER_ADDRESS as Address;
   if (!router) throw new Error("ROUTER_ADDRESS required for LP");
 
@@ -279,7 +281,7 @@ export async function addLiquidityERC20(
   const txHash = await clients.walletClient.sendTransaction({
     to: router,
     data: calldata,
-    account: wallet,
+    account,
     chain: undefined,
   });
 
@@ -310,8 +312,9 @@ export async function removeLiquidityETH(
   liquidityAmount: bigint
 ): Promise<`0x${string}`> {
   if (!clients.walletClient) throw new Error("wallet client required for LP");
-  const wallet = clients.walletClient.account?.address;
-  if (!wallet) throw new Error("wallet address not available");
+  const account = clients.walletClient.account;
+  const wallet = account?.address;
+  if (!wallet || !account) throw new Error("wallet address not available");
   const router = cfg.ROUTER_ADDRESS as Address;
   if (!router) throw new Error("ROUTER_ADDRESS required for LP");
 
@@ -337,7 +340,7 @@ export async function removeLiquidityETH(
   const txHash = await clients.walletClient.sendTransaction({
     to: router,
     data: calldata,
-    account: wallet,
+    account,
     chain: undefined,
   });
 

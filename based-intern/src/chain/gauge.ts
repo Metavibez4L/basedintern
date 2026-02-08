@@ -112,8 +112,9 @@ export async function stakeLP(
   approveMax: boolean = false
 ): Promise<`0x${string}`> {
   if (!clients.walletClient) throw new Error("wallet client required for gauge staking");
-  const wallet = clients.walletClient.account?.address;
-  if (!wallet) throw new Error("wallet address not available");
+  const account = clients.walletClient.account;
+  const wallet = account?.address;
+  if (!wallet || !account) throw new Error("wallet address not available");
 
   logger.info("gauge.stakeLP.start", {
     gauge: gaugeAddress,
@@ -150,7 +151,7 @@ export async function stakeLP(
     abi: GAUGE_ABI,
     functionName: "deposit",
     args: [amount],
-    account: wallet,
+    account,
     chain: undefined as any,
   });
 
@@ -172,8 +173,9 @@ export async function unstakeLP(
   amount: bigint
 ): Promise<`0x${string}`> {
   if (!clients.walletClient) throw new Error("wallet client required for gauge unstaking");
-  const wallet = clients.walletClient.account?.address;
-  if (!wallet) throw new Error("wallet address not available");
+  const account = clients.walletClient.account;
+  const wallet = account?.address;
+  if (!wallet || !account) throw new Error("wallet address not available");
 
   logger.info("gauge.unstakeLP.start", {
     gauge: gaugeAddress,
@@ -185,7 +187,7 @@ export async function unstakeLP(
     abi: GAUGE_ABI,
     functionName: "withdraw",
     args: [amount],
-    account: wallet,
+    account,
     chain: undefined as any,
   });
 
@@ -206,8 +208,9 @@ export async function claimRewards(
   gaugeAddress: Address
 ): Promise<`0x${string}`> {
   if (!clients.walletClient) throw new Error("wallet client required for claiming rewards");
-  const wallet = clients.walletClient.account?.address;
-  if (!wallet) throw new Error("wallet address not available");
+  const account = clients.walletClient.account;
+  const wallet = account?.address;
+  if (!wallet || !account) throw new Error("wallet address not available");
 
   logger.info("gauge.claimRewards.start", { gauge: gaugeAddress });
 
@@ -216,7 +219,7 @@ export async function claimRewards(
     abi: GAUGE_ABI,
     functionName: "getReward",
     args: [wallet],
-    account: wallet,
+    account,
     chain: undefined as any,
   });
 

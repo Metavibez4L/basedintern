@@ -50,7 +50,7 @@ export async function approveToken(
   spender: Address,
   amount: bigint
 ): Promise<`0x${string}`> {
-  const account = walletClient.account?.address;
+  const account = walletClient.account;
   if (!account) {
     throw new Error("wallet account not available for approval");
   }
