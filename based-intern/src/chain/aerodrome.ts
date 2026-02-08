@@ -161,7 +161,7 @@ export function buildAerodromeSwapCalldata(
       from: route.tokenInAddress,
       to: route.tokenOutAddress,
       stable: route.stable,
-      factory: "0xeEF1a33c87e8f8f4E0b0fe8ef72A16D38C7B5a6d" // Aerodrome Factory on Base
+      factory: "0x420DD381b31aEf6683db6B902084cB0FFECe40Da" // Aerodrome PoolFactory v2 on Base
     }
   ];
 
