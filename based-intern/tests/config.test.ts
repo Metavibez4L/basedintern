@@ -21,6 +21,17 @@ describe("Config validation", () => {
     delete process.env.MAX_SPEND_ETH_PER_TRADE;
     delete process.env.DAILY_TRADE_CAP;
 
+    // LP-related env vars - must be deleted to prevent interference with TRADING_ENABLED=false tests
+    delete process.env.LP_ENABLED;
+    delete process.env.LP_MAX_ETH_PER_ADD;
+    delete process.env.LP_MAX_TOKEN_FRACTION_BPS;
+    delete process.env.LP_SLIPPAGE_BPS;
+    delete process.env.USDC_ADDRESS;
+    delete process.env.POOL_ADDRESS_USDC;
+    delete process.env.POOL_ADDRESS_USDC_STABLE;
+    delete process.env.GAUGE_ADDRESS_WETH;
+    delete process.env.GAUGE_ADDRESS_USDC;
+
     delete process.env.ERC8004_ENABLED;
     delete process.env.ERC8004_IDENTITY_REGISTRY;
     delete process.env.ERC8004_AGENT_ID;
