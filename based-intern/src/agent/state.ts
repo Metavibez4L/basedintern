@@ -4,7 +4,7 @@ import { z } from "zod";
 import { logger } from "../logger.js";
 
 // Schema versioning for migrations
-const STATE_SCHEMA_VERSION = 19;
+const STATE_SCHEMA_VERSION = 20;
 
 /**
  * v1: Basic state (dayKey, tradesExecutedToday, lastExecutedTradeAtMs, etc.)
@@ -26,6 +26,7 @@ const STATE_SCHEMA_VERSION = 19;
  * v17: Trade announcement dedup (persisted template indices) + news source cooldown (2026-02-08)
  * v18: Redeploy protection — lastTickCompletedAtMs + moltbook engagement indices (2026-02-08)
  * v19: Comprehensive redeploy safety — LP cooldown, nonce guard, tick-in-flight marker (2026-02-08)
+ * v20: Moltbook verification challenge handling — detection, response, suspension tracking (2026-02-09)
  */
 
 export type AgentState = {
@@ -199,6 +200,18 @@ export type AgentState = {
   /** Timestamp (ms) when the current tick started. If set and recent,
    *  another replica may still be running a tick. */
   tickInFlightSinceMs?: number | null;
+
+  // =========================
+  // Moltbook Verification (v20)
+  // =========================
+  /** IDs of verification challenges we've already answered (LRU 50) */
+  moltbookAnsweredChallengeIds?: string[];
+  /** Timestamp (ms) of last verification challenge check */
+  moltbookLastVerificationCheckMs?: number | null;
+  /** Timestamp (ms) of last successful verification answer */
+  moltbookLastVerificationAnsweredMs?: number | null;
+  /** If suspended, when suspension expires (ms). Prevents unnecessary API calls. */
+  moltbookSuspendedUntilMs?: number | null;
 };
 
 export const DEFAULT_STATE: AgentState = {
@@ -280,6 +293,11 @@ export const DEFAULT_STATE: AgentState = {
   lpLastAddAtMs: null,
   lastTxNonce: null,
   tickInFlightSinceMs: null,
+
+  moltbookAnsweredChallengeIds: [],
+  moltbookLastVerificationCheckMs: null,
+  moltbookLastVerificationAnsweredMs: null,
+  moltbookSuspendedUntilMs: null,
 };
 
 export function statePath(): string {
@@ -465,6 +483,17 @@ function migrateState(raw: any, version: number | undefined): AgentState {
     if (!("tickInFlightSinceMs" in raw)) raw.tickInFlightSinceMs = null;
   }
 
+  // v19 → v20: Moltbook verification challenge handling
+  if (version === undefined || version < 20) {
+    logger.info("state migration", { from: version || 19, to: STATE_SCHEMA_VERSION });
+    if (!("moltbookAnsweredChallengeIds" in raw) || !Array.isArray(raw.moltbookAnsweredChallengeIds)) {
+      raw.moltbookAnsweredChallengeIds = [];
+    }
+    if (!("moltbookLastVerificationCheckMs" in raw)) raw.moltbookLastVerificationCheckMs = null;
+    if (!("moltbookLastVerificationAnsweredMs" in raw)) raw.moltbookLastVerificationAnsweredMs = null;
+    if (!("moltbookSuspendedUntilMs" in raw)) raw.moltbookSuspendedUntilMs = null;
+  }
+
   return raw as AgentState;
 }
 
@@ -567,6 +596,11 @@ export async function loadState(): Promise<AgentState> {
       lpLastAddAtMs: migrated.lpLastAddAtMs ?? null,
       lastTxNonce: migrated.lastTxNonce ?? null,
       tickInFlightSinceMs: migrated.tickInFlightSinceMs ?? null,
+
+      moltbookAnsweredChallengeIds: Array.isArray(migrated.moltbookAnsweredChallengeIds) ? migrated.moltbookAnsweredChallengeIds : [],
+      moltbookLastVerificationCheckMs: migrated.moltbookLastVerificationCheckMs ?? null,
+      moltbookLastVerificationAnsweredMs: migrated.moltbookLastVerificationAnsweredMs ?? null,
+      moltbookSuspendedUntilMs: migrated.moltbookSuspendedUntilMs ?? null,
     };
 
     // Reset daily counter if the day rolled over.

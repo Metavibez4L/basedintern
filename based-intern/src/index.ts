@@ -30,6 +30,8 @@ import { createTradeExecutor } from "./chain/trade.js";
 import { pollMentionsAndRespond, type MentionPollerContext } from "./social/x_mentions.js";
 import { replyToMoltbookComments } from "./social/moltbook_comments.js";
 import { postMoltbookDiscussion } from "./social/moltbook_discussions.js";
+import { checkAndAnswerVerificationChallenges } from "./social/moltbook_verification.js";
+import { MoltbookSuspendedError } from "./social/moltbook/client.js";
 import { lpTick, type LPTickResult } from "./agent/lpManager.js";
 import { postOpenClawAnnouncementOnce } from "./social/openclaw_announcement.js";
 import { miniAppLaunchBurst, miniAppRecurringPost, isMiniAppCampaignEnabled } from "./social/miniapp_campaign.js";
@@ -127,11 +129,64 @@ async function tick(): Promise<void> {
   }
 
   // ============================================================
+  // MOLTBOOK VERIFICATION CHALLENGE CHECK (runs first!)
+  // ============================================================
+  // Check for and answer AI verification challenges BEFORE any other
+  // Moltbook activity. Failure to answer causes escalating suspensions.
+  const moltbookEnabledGlobal =
+    cfg.MOLTBOOK_ENABLED &&
+    (cfg.SOCIAL_MODE === "moltbook" || (cfg.SOCIAL_MODE === "multi" && cfg.SOCIAL_MULTI_TARGETS.split(",").map((s) => s.trim()).includes("moltbook")));
+
+  let moltbookSuspended = false;
+
+  if (moltbookEnabledGlobal) {
+    // Skip if we know the account is still suspended
+    const suspendedUntil = state.moltbookSuspendedUntilMs ?? 0;
+    if (suspendedUntil > Date.now()) {
+      logger.info("moltbook.verification.skip_suspended", {
+        suspendedUntilMs: suspendedUntil,
+        remainingMinutes: Math.round((suspendedUntil - Date.now()) / 60_000),
+      });
+      moltbookSuspended = true;
+    } else {
+      try {
+        const verificationResult = await checkAndAnswerVerificationChallenges(cfg, state, saveState);
+
+        if (verificationResult.detected) {
+          logger.info("moltbook.verification.tick_result", {
+            detected: true,
+            answered: verificationResult.answered,
+            challengeId: verificationResult.challengeId,
+            error: verificationResult.error,
+          });
+        }
+
+        if (verificationResult.error === "account_suspended") {
+          moltbookSuspended = true;
+        }
+      } catch (err) {
+        if (err instanceof MoltbookSuspendedError) {
+          logger.warn("moltbook.verification.suspended", { hint: err.hint });
+          moltbookSuspended = true;
+          // Record suspension in state to avoid hammering the API
+          const suspState = { ...state, moltbookSuspendedUntilMs: Date.now() + 7 * 24 * 60 * 60 * 1000 };
+          await saveState(suspState);
+        } else {
+          logger.warn("moltbook.verification.check_error", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+        // Continue with normal loop even if verification check fails
+      }
+    }
+  }
+
+  // ============================================================
   // MOLTBOOK COMMENT REPLY SYSTEM
   // ============================================================
   // Reply to comments on agent's Moltbook posts (AI-powered engagement)
   const moltbookEnabledForReplies =
-    cfg.MOLTBOOK_ENABLED &&
+    cfg.MOLTBOOK_ENABLED && !moltbookSuspended &&
     (cfg.SOCIAL_MODE === "moltbook" || (cfg.SOCIAL_MODE === "multi" && cfg.SOCIAL_MULTI_TARGETS.split(",").map((s) => s.trim()).includes("moltbook")));
 
   if (cfg.MOLTBOOK_REPLY_TO_COMMENTS && moltbookEnabledForReplies) {
@@ -160,7 +215,7 @@ async function tick(): Promise<void> {
   // ============================================================
   // Posts standalone discussion starters and community callouts to Moltbook
   const moltbookEnabledForDiscussions =
-    cfg.MOLTBOOK_ENABLED &&
+    cfg.MOLTBOOK_ENABLED && !moltbookSuspended &&
     (cfg.SOCIAL_MODE === "moltbook" || (cfg.SOCIAL_MODE === "multi" && cfg.SOCIAL_MULTI_TARGETS.split(",").map((s) => s.trim()).includes("moltbook")));
 
   // LP tick result — populated later by LP tick, used by discussion system for pool stats

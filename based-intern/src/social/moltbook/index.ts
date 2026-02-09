@@ -3,7 +3,7 @@ import type { AppConfig } from "../../config.js";
 import type { AgentState } from "../../agent/state.js";
 import { logger } from "../../logger.js";
 import type { SocialPoster, SocialPostKind } from "../poster.js";
-import { createMoltbookClient, MoltbookRateLimitedError } from "./client.js";
+import { createMoltbookClient, MoltbookRateLimitedError, MoltbookSuspendedError } from "./client.js";
 import { formatViralPost } from "../moltbook_engagement.js";
 
 function sha256Hex(s: string): string {
@@ -154,6 +154,13 @@ export async function postMoltbookReceipt(
     logger.info("moltbook posted receipt", { fingerprint: fingerprint.slice(0, 16) + "..." });
     return { posted: true, state: nextState };
   } catch (err) {
+    if (err instanceof MoltbookSuspendedError) {
+      logger.warn("moltbook post skipped (account suspended)", { hint: err.hint });
+      // Don't count suspension as a failure — just disable for 1 hour and retry later
+      const nextState = await recordRateLimited(state, saveStateFn, minutesToMs(60));
+      return { posted: false, state: nextState, reason: "suspended" };
+    }
+
     if (err instanceof MoltbookRateLimitedError) {
       logger.warn("moltbook post skipped (rate limited)", { retryAfterMs: err.retryAfterMs });
       const nextState = await recordRateLimited(state, saveStateFn, err.retryAfterMs);
@@ -241,6 +248,12 @@ export async function postMoltbookText(
     });
     return { posted: true, state: nextState };
   } catch (err) {
+    if (err instanceof MoltbookSuspendedError) {
+      logger.warn("moltbook post skipped (account suspended)", { hint: err.hint, kind });
+      const nextState = await recordRateLimited(state, saveStateFn, minutesToMs(60));
+      return { posted: false, state: nextState, reason: "suspended" };
+    }
+
     if (err instanceof MoltbookRateLimitedError) {
       logger.warn("moltbook post skipped (rate limited)", { 
         retryAfterMs: err.retryAfterMs,

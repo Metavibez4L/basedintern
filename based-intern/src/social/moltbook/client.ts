@@ -4,6 +4,7 @@ import type { AppConfig } from "../../config.js";
 import { logger } from "../../logger.js";
 import { redactCookieHeader, redactToken, safeErrorMessage } from "./redact.js";
 import { sleep } from "../../utils.js";
+import { extractChallengeFromResponse, handleInlineChallenge } from "../moltbook_verification.js";
 
 type SkillEndpoint = { method: string; path: string; query?: Record<string, string> };
 
@@ -155,6 +156,16 @@ export class MoltbookRateLimitedError extends Error {
     super(`moltbook rate limited; retry after ${retryAfterMs}ms`);
     this.name = "MoltbookRateLimitedError";
     this.retryAfterMs = retryAfterMs;
+  }
+}
+
+export class MoltbookSuspendedError extends Error {
+  public readonly hint: string;
+
+  constructor(hint: string) {
+    super(`moltbook account suspended: ${hint}`);
+    this.name = "MoltbookSuspendedError";
+    this.hint = hint;
   }
 }
 
@@ -370,6 +381,16 @@ export function createMoltbookClient(cfg: AppConfig): MoltbookClient {
       }
 
       if (!res.ok) {
+        // Detect account suspension specifically to give a clear error.
+        if (parsed?.error === "Account suspended") {
+          logger.error("moltbook account suspended", {
+            method: args.method,
+            path: args.path,
+            hint: parsed.hint ?? "unknown suspension reason"
+          });
+          throw new MoltbookSuspendedError(parsed.hint ?? "Account suspended");
+        }
+
         // Never log secrets. Also avoid echoing raw response bodies (could include user data).
         logger.error("moltbook request failed", {
           method: args.method,
@@ -377,6 +398,16 @@ export function createMoltbookClient(cfg: AppConfig): MoltbookClient {
           status: res.status
         });
         throw new Error(`moltbook request failed (${res.status})`);
+      }
+
+      // ─── Inline verification challenge detection ───
+      // Moltbook may embed verification challenges in ANY successful response.
+      // Detect and handle them immediately (fire-and-forget) to avoid suspension.
+      if (parsed && typeof parsed === "object") {
+        const challenge = extractChallengeFromResponse(parsed, "inline");
+        if (challenge) {
+          handleInlineChallenge(parsed, cfg);
+        }
       }
 
       return (parsed ?? (raw as any)) as T;
