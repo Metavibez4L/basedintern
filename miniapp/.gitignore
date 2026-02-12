@@ -1,22 +1,41 @@
-# dependencies
+# Dependencies
 node_modules/
 .pnp
 .pnp.js
+.yarn/install-state.gz
 
-# next.js
+# Testing
+coverage/
+
+# Next.js
 .next/
 out/
 
-# production
+# Production
 build/
 
-# env files
-.env*.local
-
-# debug
-npm-debug.log*
-
-# misc
+# Misc
 .DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local env files
+.env*.local
+.env
+
+# TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE
+.vscode/
+.idea/
+
+# Package locks
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
